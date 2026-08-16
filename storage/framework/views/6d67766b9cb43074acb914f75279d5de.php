@@ -16,7 +16,7 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="Sumber Protein Jogja - Bahan Masak Siap Olah, Tinggal Masak.">
     <meta property="og:description" content="Daging, ayam, ikan, dan sayuran pilihan dalam bentuk frozen dan ready to cook untuk kebutuhan rumah tangga maupun pembelian curah di Yogyakarta.">
-    <meta property="og:image" content="{{ asset('images/hero-1.jpg') }}">
+    <meta property="og:image" content="<?php echo e(asset('images/hero-1.jpg')); ?>">
     <meta property="og:locale" content="id_ID">
     
     <!-- Favicon -->
@@ -28,7 +28,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
     
     <!-- Vite Assets (Tailwind CSS + Alpine.js) -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/css/app.css', 'resources/js/app.js']); ?>
 
     <style>
         [x-cloak] { display: none !important; }
@@ -37,7 +37,7 @@
     <!-- Schema.org JSON-LD -->
     <script type="application/ld+json">
     {
-      "@@context": "https://schema.org",
+      "@context": "https://schema.org",
       "@type": "LocalBusiness",
       "name": "Sumber Protein Jogja",
       "image": "images/hero-1.jpg",
@@ -64,18 +64,19 @@
 <body class="bg-white text-brand-dark antialiased overflow-x-hidden selection:bg-brand-soft-green selection:text-brand-primary" x-data="{ mobileMenuOpen: false, scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)">
 
     <!-- Navigation Bar -->
-    @include('components.navbar')
+    <?php echo $__env->make('components.navbar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <!-- Main Content Area -->
     <main id="main-content">
-        @yield('content')
+        <?php echo $__env->yieldContent('content'); ?>
     </main>
 
     <!-- Footer -->
-    @include('components.footer')
+    <?php echo $__env->make('components.footer', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <!-- Floating Cart & Confirmation Modal -->
-    @include('components.floating-cart')
+    <?php echo $__env->make('components.floating-cart', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
 </body>
 </html>
+<?php /**PATH C:\xampp\htdocs\sumberproteinjogja\resources\views/layouts/app.blade.php ENDPATH**/ ?>
