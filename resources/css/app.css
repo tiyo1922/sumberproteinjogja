@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        scroll-behavior: smooth;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+        @apply bg-[#FFFFFF] text-[#17231D] antialiased overflow-x-hidden;
+    }
+
+    /* Headings */
+    h1, h2, h3, h4, h5, h6 {
+        @apply tracking-tight font-bold text-[#17231D];
+    }
+}
+
+@layer components {
+    /* Glassmorphism Navbar */
+    .glass-nav {
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
+    
+    .glass-nav-scrolled {
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 4px 20px -2px rgba(23, 35, 29, 0.08);
+    }
+
+    /* Hero Gradient Overlays */
+    .hero-overlay-dark {
+        background: linear-gradient(180deg, rgba(23, 35, 29, 0.72) 0%, rgba(23, 35, 29, 0.45) 50%, rgba(23, 35, 29, 0.85) 100%);
+    }
+
+    .hero-overlay-radial {
+        background: radial-gradient(circle at 30% 50%, rgba(31, 107, 69, 0.35) 0%, rgba(23, 35, 29, 0.8) 100%);
+    }
+
+    /* Custom Cards */
+    .sp-card {
+        @apply bg-white rounded-modern-lg border border-gray-100/80 transition-all duration-300;
+        box-shadow: 0 4px 20px -2px rgba(23, 35, 29, 0.05);
+    }
+
+    .sp-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 16px 32px -6px rgba(23, 35, 29, 0.1), 0 4px 12px -2px rgba(31, 107, 69, 0.06);
+    }
+
+    /* Badges */
+    .badge-primary {
+        @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EAF3ED] text-[#1F6B45];
+    }
+
+    .badge-accent {
+        @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#FDF5E6] text-[#B87A1E] border border-[#F5E2BE];
+    }
+
+    .badge-dark {
+        @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#17231D] text-white;
+    }
+
+    .badge-frozen {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60;
+    }
+
+    .badge-ready {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/60;
+    }
+
+    .badge-curah {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/60;
+    }
+
+    /* Custom Buttons */
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-modern font-semibold text-white bg-[#1F6B45] hover:bg-[#165034] active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#1F6B45]/40;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-modern font-semibold text-[#17231D] bg-white hover:bg-[#F7F5EF] active:scale-[0.98] transition-all duration-200 border border-gray-200 hover:border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F6B45]/20;
+    }
+
+    .btn-accent {
+        @apply inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-modern font-semibold text-[#17231D] bg-[#E7A93B] hover:bg-[#cf942e] active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#E7A93B]/40;
+    }
+
+    .btn-whatsapp {
+        @apply inline-flex items-center justify-center gap-2 px-5 py-3 rounded-modern font-semibold text-white bg-[#25D366] hover:bg-[#1EBE5D] active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#25D366]/40;
+    }
+}
+
+/* Hide scrollbar for category tabs on mobile */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Scroll snap utilities for mobile carousels */
+.snap-x {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+}
+.snap-center {
+    scroll-snap-align: center;
+}
