@@ -1,0 +1,802 @@
+@extends('layouts.admin', [
+    'title' => 'Katalog Produk',
+    'pageTitle' => 'Katalog Produk'
+])
+
+@section('content')
+<div class="space-y-6"
+     x-data="{
+         products: {{ json_encode($products) }},
+         categories: {{ json_encode($categories) }},
+         contactSettings: {{ json_encode($contactSettings) }},
+         mediaLibrary: {{ json_encode($mediaLibrary) }},
+         editorModalOpen: false,
+         mediaPickerOpen: false,
+         deleteModalOpen: false,
+         isEditing: false,
+         toastMessage: '',
+         toastVisible: false,
+         searchQuery: '',
+         selectedCategoryFilter: 'all',
+         selectedTypeFilter: 'all',
+         previewDevice: 'desktop', // 'desktop' | 'mobile'
+         mediaTab: 'library', // 'library' | 'upload'
+         selectedMedia: null,
+         uploadedFile: null,
+         uploadedPreviewUrl: null,
+         
+         // Available Product Characteristics (Unlimited Multi-Select)
+         availableCharacteristics: [
+             { id: 'Frozen', label: 'Frozen', desc: 'Dibekukan cold-chain' },
+             { id: 'Ready to Cook', label: 'Ready to Cook', desc: 'Sudah dipotong / marinasi' },
+             { id: 'Plain', label: 'Plain (Polos)', desc: 'Tanpa bumbu tambahan' },
+             { id: 'Berbumbu', label: 'Berbumbu', desc: 'Sudah diungkep / marinasi' },
+             { id: 'Curah', label: 'Curah (Bulk)', desc: 'Tersedia kemasan grosir' },
+             { id: 'Fresh', label: 'Fresh Segar', desc: 'Potong harian / segar' },
+         ],
+         
+         form: {
+            id: null,
+            name: '',
+            category_id: 1,
+            category: 'Daging Sapi',
+            types: ['Frozen', 'Plain'],
+            weight: '500g',
+            weight_value: 500,
+            unit: 'gram',
+            price: 50000,
+            status: 'Aktif',
+            image: 'images/prod-beef-slice.jpg',
+            description: '',
+            whatsapp_destination: 'admin', // 'admin' | 'order'
+        },
+        
+        selectedProduct: null,
+        
+        showToast(msg) {
+            this.toastMessage = msg;
+            this.toastVisible = true;
+            setTimeout(() => { this.toastVisible = false; }, 3000);
+        },
+        
+        get activeCategories() {
+            return this.categories.filter(c => c.status === 'active_landing' || c.status === 'active_catalog' || c.status === 'Aktif');
+        },
+        
+        get filteredProducts() {
+            return this.products.filter(p => {
+                const matchCat = this.selectedCategoryFilter === 'all' || p.category_id == this.selectedCategoryFilter || p.category === this.selectedCategoryFilter;
+                const matchType = this.selectedTypeFilter === 'all' || (p.types && p.types.includes(this.selectedTypeFilter));
+                const matchSearch = !this.searchQuery.trim() || 
+                    p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
+                    (p.category && p.category.toLowerCase().includes(this.searchQuery.toLowerCase()));
+                return matchCat && matchType && matchSearch;
+            });
+        },
+        
+        openCreateModal() {
+            this.isEditing = false;
+            const defaultCat = this.activeCategories[0] || { id: 1, name: 'Daging Sapi' };
+            this.form = {
+                id: Date.now(),
+                name: '',
+                category_id: defaultCat.id,
+                category: defaultCat.name,
+                types: ['Frozen', 'Plain'],
+                weight: '500g',
+                weight_value: 500,
+                unit: 'gram',
+                price: 45000,
+                status: 'Aktif',
+                image: 'images/prod-beef-slice.jpg',
+                description: '',
+                whatsapp_destination: 'admin',
+            };
+            this.editorModalOpen = true;
+        },
+        
+        openEditModal(p) {
+            this.isEditing = true;
+            this.form = JSON.parse(JSON.stringify(p));
+            if (!this.form.category_id) {
+                const matched = this.categories.find(c => c.name === this.form.category);
+                this.form.category_id = matched ? matched.id : 1;
+            }
+            if (!this.form.types) this.form.types = ['Frozen'];
+            if (!this.form.whatsapp_destination) this.form.whatsapp_destination = 'admin';
+            
+            // Parse weight_value and unit cleanly
+            if ((this.form.weight_value === undefined || this.form.weight_value === null) && this.form.weight) {
+                const match = String(this.form.weight).match(/^(\d+)\s*(g|gram|kg|pcs|pack)?/i);
+                if (match) {
+                    this.form.weight_value = Number(match[1]);
+                    const u = (match[2] || 'g').toLowerCase();
+                    this.form.unit = (u === 'g' || u === 'gram') ? 'gram' : u;
+                } else {
+                    this.form.weight_value = 500;
+                    this.form.unit = 'gram';
+                }
+            } else if (!this.form.unit) {
+                this.form.unit = 'gram';
+            }
+            this.editorModalOpen = true;
+        },
+         
+         toggleTypeSelection(typeId) {
+             const idx = this.form.types.indexOf(typeId);
+             if (idx > -1) {
+                 this.form.types.splice(idx, 1);
+             } else {
+                 this.form.types.push(typeId);
+             }
+         },
+         
+         openMediaPicker() {
+             this.mediaTab = 'library';
+             this.selectedMedia = this.mediaLibrary.find(m => m.path === this.form.image) || this.mediaLibrary[0] || null;
+             this.uploadedFile = null;
+             this.uploadedPreviewUrl = null;
+             this.mediaPickerOpen = true;
+         },
+         
+         selectMedia(media) {
+             this.selectedMedia = media;
+         },
+         
+         confirmMediaSelection() {
+             if (this.mediaTab === 'library' && this.selectedMedia) {
+                 this.form.image = this.selectedMedia.path;
+                 this.mediaPickerOpen = false;
+                 this.showToast('Gambar produk dipilih dari Media Library!');
+             } else if (this.mediaTab === 'upload' && this.uploadedPreviewUrl) {
+                 this.form.image = this.uploadedPreviewUrl;
+                 this.mediaPickerOpen = false;
+                 this.showToast('Gambar hasil upload berhasil digunakan!');
+             }
+         },
+         
+         handleFileUpload(e) {
+             const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
+             if (!file) return;
+             if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
+                 alert('Format file tidak didukung. Gunakan JPG, PNG, atau WebP.');
+                 return;
+             }
+             this.uploadedFile = {
+                 name: file.name,
+                 size: (file.size / 1024).toFixed(0) + ' KB',
+                 type: file.type,
+             };
+             this.uploadedPreviewUrl = URL.createObjectURL(file);
+         },
+         
+         saveProduct() {
+             if (!this.form.name.trim()) {
+                 alert('Nama produk wajib diisi.');
+                 return;
+             }
+             if (this.form.types.length === 0) {
+                 alert('Pilih minimal satu karakteristik produk.');
+                 return;
+             }
+             this.form.weight = this.form.weight_value + (this.form.unit === 'gram' ? 'g' : (this.form.unit === 'kg' ? 'kg' : ' ' + this.form.unit));
+             
+             if (this.isEditing) {
+                 const idx = this.products.findIndex(p => p.id === this.form.id);
+                 if (idx !== -1) {
+                     this.products[idx] = JSON.parse(JSON.stringify(this.form));
+                 }
+                 this.showToast('Produk ' + this.form.name + ' berhasil diperbarui!');
+             } else {
+                 this.products.unshift(JSON.parse(JSON.stringify(this.form)));
+                 this.showToast('Produk baru berhasil ditambahkan ke katalog!');
+             }
+             this.editorModalOpen = false;
+         },
+         
+         toggleStatus(p) {
+             p.status = p.status === 'Aktif' ? 'Nonaktif' : 'Aktif';
+             this.showToast('Status ' + p.name + ' diubah menjadi ' + p.status);
+         },
+         
+         openDelete(p) {
+             this.selectedProduct = p;
+             this.deleteModalOpen = true;
+         },
+         
+         confirmDelete() {
+             if (this.selectedProduct) {
+                 this.products = this.products.filter(p => p.id !== this.selectedProduct.id);
+                 this.deleteModalOpen = false;
+                 this.showToast('Produk telah dihapus.');
+                 this.selectedProduct = null;
+             }
+         },
+         
+         formatRupiah(num) {
+             return 'Rp ' + Number(num || 0).toLocaleString('id-ID');
+         },
+         
+         getWaNumber(dest) {
+             return dest === 'order' ? this.contactSettings.order_whatsapp : this.contactSettings.admin_whatsapp;
+         },
+         
+         getImageUrl(path) {
+             if (!path) return '/images/prod-beef-slice.jpg';
+             if (path.startsWith('blob:') || path.startsWith('http')) return path;
+             return path.startsWith('/') ? path : '/' + path;
+         }
+     }">
+    
+    <!-- 1. Header Card -->
+    <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="space-y-1.5">
+                <div class="flex items-center gap-2.5 flex-wrap">
+                    <h2 class="text-xl sm:text-2xl font-extrabold text-brand-dark tracking-tight">
+                        Katalog Produk
+                    </h2>
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                        <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                        <span>DYNAMIC CATALOG</span>
+                    </span>
+                    <span class="text-xs text-gray-500 font-medium">
+                        • Single Source of Truth Kategori & Multi-Badge Karakteristik
+                    </span>
+                </div>
+                <p class="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-3xl">
+                    Kelola seluruh produk segar dan frozen. Pilihan kategori terhubung langsung dengan <strong>Category Manager</strong>, WhatsApp Destination terpusat ke <strong>Contact Settings</strong>, dan multi-badge karakteristik tanpa batasan.
+                </p>
+            </div>
+
+            <!-- Create Action Button -->
+            <div class="flex items-center gap-3 shrink-0">
+                <button @click="openCreateModal()" 
+                        type="button"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs sm:text-sm text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
+                    <span class="text-base leading-none">＋</span>
+                    <span>Tambah Produk</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Filters & Search Toolbar -->
+    <div class="bg-white rounded-modern-xl border border-gray-200/80 p-4 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            
+            <!-- Search Box -->
+            <div class="relative w-full sm:w-64">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </span>
+                <input type="text" 
+                       x-model="searchQuery"
+                       placeholder="Cari nama produk..." 
+                       class="w-full pl-9 pr-4 py-2 rounded-modern text-xs border border-gray-300 focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary bg-gray-50/50">
+            </div>
+
+            <!-- Category Filter (From Active Categories) -->
+            <select x-model="selectedCategoryFilter" 
+                    class="w-full sm:w-44 py-2 px-3 rounded-modern text-xs border border-gray-300 bg-white font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
+                <option value="all">Semua Kategori</option>
+                <template x-for="cat in activeCategories" :key="cat.id">
+                    <option :value="cat.id" x-text="cat.name"></option>
+                </template>
+            </select>
+
+            <!-- Characteristic Filter -->
+            <select x-model="selectedTypeFilter" 
+                    class="w-full sm:w-40 py-2 px-3 rounded-modern text-xs border border-gray-300 bg-white font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
+                <option value="all">Semua Karakteristik</option>
+                <option value="Frozen">Frozen</option>
+                <option value="Ready to Cook">Ready to Cook</option>
+                <option value="Plain">Plain</option>
+                <option value="Berbumbu">Berbumbu</option>
+                <option value="Curah">Curah</option>
+                <option value="Fresh">Fresh</option>
+            </select>
+        </div>
+
+        <div class="text-xs text-gray-500 font-medium self-end sm:self-center">
+            Menampilkan: <span class="font-bold text-brand-dark" x-text="filteredProducts.length"></span> dari <span x-text="products.length"></span> Produk
+        </div>
+    </div>
+
+    <!-- 3. Products Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <template x-for="(prod, idx) in filteredProducts" :key="prod.id">
+            <div class="bg-white rounded-modern-xl border border-gray-200/80 overflow-hidden shadow-2xs hover:shadow-card transition-all flex flex-col justify-between"
+                 :class="{'opacity-70 bg-gray-50/80': prod.status === 'Nonaktif'}">
+                
+                <div>
+                    <!-- 4:3 Aspect Ratio Thumbnail Container -->
+                    <div class="relative aspect-[4/3] w-full bg-brand-dark overflow-hidden">
+                        <img :src="getImageUrl(prod.image)" :alt="prod.name" class="w-full h-full object-cover">
+                        
+                        <!-- Top Left: Characteristic Badges (Multi-Badge Display) -->
+                        <div class="absolute top-2.5 left-2.5 flex flex-wrap gap-1 max-w-[70%]">
+                            <template x-for="t in (prod.types || [])" :key="t">
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold shadow-2xs"
+                                      :class="{
+                                          'bg-brand-soft-green text-brand-primary': t === 'Frozen',
+                                          'bg-amber-100 text-amber-900': t === 'Ready to Cook',
+                                          'bg-sky-100 text-sky-800': t === 'Fresh',
+                                          'bg-orange-100 text-orange-800': t === 'Berbumbu',
+                                          'bg-purple-100 text-purple-800': t === 'Curah',
+                                          'bg-gray-100 text-gray-800': t === 'Plain'
+                                      }"
+                                      x-text="t">
+                                </span>
+                            </template>
+                        </div>
+
+                        <!-- Top Right: Weight Pill -->
+                        <div class="absolute top-2.5 right-2.5">
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-black/60 text-white backdrop-blur-xs shadow-2xs"
+                                  x-text="prod.weight">
+                            </span>
+                        </div>
+
+                        <!-- Bottom Category Tag -->
+                        <div class="absolute bottom-2 left-2.5">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/90 text-brand-dark backdrop-blur-xs shadow-2xs"
+                                  x-text="prod.category">
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Product Body -->
+                    <div class="p-4 space-y-2">
+                        <h4 class="font-extrabold text-brand-dark text-xs sm:text-sm line-clamp-2 leading-snug" x-text="prod.name"></h4>
+                        <p class="text-[11px] text-gray-500 line-clamp-2 leading-relaxed" x-text="prod.description || 'Bahan masakan bermutu tinggi dan higienis.'"></p>
+                        
+                        <div class="pt-2 flex items-center justify-between border-t border-gray-100">
+                            <div>
+                                <span class="text-[10px] text-gray-400 block leading-tight">Harga:</span>
+                                <span class="text-xs sm:text-sm font-black text-brand-primary" x-text="formatRupiah(prod.price)"></span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[9px] text-gray-400 block leading-tight">WA Dest:</span>
+                                <span class="text-[10px] font-mono font-bold text-gray-700 uppercase" x-text="prod.whatsapp_destination || 'admin'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="p-3 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-1.5">
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                          :class="prod.status === 'Aktif' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-200'"
+                          x-text="prod.status"></span>
+
+                    <div class="flex items-center gap-1">
+                        <button @click="openEditModal(prod)" 
+                                type="button"
+                                class="px-2.5 py-1 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
+                            Edit
+                        </button>
+                        <button @click="toggleStatus(prod)" 
+                                type="button"
+                                class="p-1 rounded-modern text-xs font-semibold text-gray-500 hover:bg-gray-200 transition-colors cursor-pointer"
+                                :title="prod.status === 'Aktif' ? 'Nonaktifkan Produk' : 'Aktifkan Produk'">
+                            <span x-text="prod.status === 'Aktif' ? '👁' : '✓'"></span>
+                        </button>
+                        <button @click="openDelete(prod)" 
+                                type="button"
+                                class="p-1 rounded-modern text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer" 
+                                title="Hapus Produk">
+                            🗑
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </template>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- 4. MODAL EDITOR PRODUK (Form + REAL LIVE PREVIEW)       -->
+    <!-- ======================================================= -->
+    <div x-show="editorModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="editorModalOpen = false"></div>
+
+        <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
+            <div class="relative bg-white rounded-modern-xl max-w-5xl w-full p-6 sm:p-8 shadow-2xl border border-gray-200 overflow-hidden my-6">
+                
+                <div class="flex items-center justify-between pb-4 mb-6 border-b border-gray-100">
+                    <div>
+                        <h3 class="text-base sm:text-lg font-extrabold text-brand-dark"
+                            x-text="isEditing ? 'Edit Produk: ' + form.name : 'Tambah Produk Baru'">
+                        </h3>
+                        <p class="text-xs text-gray-500">Kategori produk terhubung dengan Category Manager sebagai Single Source of Truth.</p>
+                    </div>
+                    <button @click="editorModalOpen = false" 
+                            type="button" 
+                            class="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
+                        ✕
+                    </button>
+                </div>
+
+                <form @submit.prevent="saveProduct()" class="space-y-6">
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                        
+                        <!-- Left Form (7 cols on lg) -->
+                        <div class="lg:col-span-7 space-y-4">
+                            
+                            <!-- Nama Produk -->
+                            <div>
+                                <label class="block text-xs font-bold text-brand-dark mb-1">
+                                    Nama Produk <span class="text-rose-500">*</span>
+                                </label>
+                                <input type="text" 
+                                       x-model="form.name" 
+                                       required
+                                       placeholder="Contoh: Daging Sapi Shortplate Slice Premium"
+                                       class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary font-medium">
+                            </div>
+
+                            <!-- Kategori (SINGLE SOURCE OF TRUTH) & Status -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <label class="block text-xs font-bold text-brand-dark">
+                                            Kategori Produk <span class="text-rose-500">*</span>
+                                        </label>
+                                        <span class="text-[10px] text-emerald-600 font-semibold">Single Source of Truth</span>
+                                    </div>
+                                    <select x-model.number="form.category_id" 
+                                            @change="const c = categories.find(cat => cat.id == form.category_id); if (c) form.category = c.name;"
+                                            class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
+                                        <template x-for="cat in activeCategories" :key="cat.id">
+                                            <option :value="cat.id" x-text="cat.name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                                        Status Produk
+                                    </label>
+                                    <select x-model="form.status" 
+                                            class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold">
+                                        <option value="Aktif">Aktif (Tampil di Landing Page)</option>
+                                        <option value="Nonaktif">Nonaktif (Disembunyikan)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- UNLIMITED MULTI-SELECT CHARACTERISTICS -->
+                            <div class="p-3.5 rounded-modern bg-gray-50 border border-gray-200 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-xs font-bold text-brand-dark">
+                                        Karakteristik Produk (Pilih Semua yang Sesuai) <span class="text-rose-500">*</span>
+                                    </label>
+                                    <span class="text-[10px] text-emerald-700 font-bold" x-text="form.types.length + ' Karakteristik Terpilih'"></span>
+                                </div>
+                                <p class="text-[11px] text-gray-500">
+                                    Tidak ada batasan jumlah karakteristik. Seluruh badge yang dipilih akan tampil di kartu produk Landing Page.
+                                </p>
+
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                                    <template x-for="char in availableCharacteristics" :key="char.id">
+                                        <button type="button" 
+                                                @click="toggleTypeSelection(char.id)"
+                                                class="flex items-center gap-2 p-2 rounded-modern border text-xs font-bold transition-all cursor-pointer text-left"
+                                                :class="form.types.includes(char.id) 
+                                                    ? 'bg-brand-soft-green/60 text-brand-primary border-brand-primary ring-1 ring-brand-primary' 
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'">
+                                            <span class="w-4 h-4 rounded flex items-center justify-center text-[10px] font-black border shrink-0"
+                                                  :class="form.types.includes(char.id) ? 'bg-brand-primary text-white border-brand-primary' : 'bg-gray-100 text-transparent border-gray-300'">
+                                                ✓
+                                            </span>
+                                            <span class="truncate" x-text="char.label"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Harga & Berat Kemasan -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                                        Harga Satuan (Rupiah) <span class="text-rose-500">*</span>
+                                    </label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-xs font-bold text-gray-400">Rp</span>
+                                        <input type="number" 
+                                               x-model.number="form.price" 
+                                               step="500"
+                                               required
+                                               class="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-modern border border-gray-300 bg-white font-bold text-brand-primary">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                                        Berat Kemasan Default
+                                    </label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="number" 
+                                               x-model.number="form.weight_value" 
+                                               @input="form.weight = form.weight_value + (form.unit === 'gram' ? 'g' : (form.unit === 'kg' ? 'kg' : ' ' + form.unit))"
+                                               class="w-2/3 p-2 text-xs rounded-modern border border-gray-300 bg-white font-medium">
+                                        <select x-model="form.unit" 
+                                                @change="form.weight = form.weight_value + (form.unit === 'gram' ? 'g' : (form.unit === 'kg' ? 'kg' : ' ' + form.unit))"
+                                                class="w-1/3 p-2 text-xs rounded-modern border border-gray-300 bg-white">
+                                            <option value="gram">gram (g)</option>
+                                            <option value="kg">kg</option>
+                                            <option value="pcs">pcs</option>
+                                            <option value="pack">pack</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CENTRALIZED WHATSAPP DESTINATION -->
+                            <div class="p-3.5 rounded-modern bg-gray-50 border border-gray-200 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-xs font-bold text-brand-dark">
+                                        WhatsApp Destination (Tujuan Kontak)
+                                    </label>
+                                    <span class="text-[10px] text-emerald-700 font-semibold">Terkoneksi Contact Settings</span>
+                                </div>
+                                <p class="text-[11px] text-gray-500">
+                                    Admin tidak perlu memasukkan nomor manual. Sistem otomatis mengambil nomor dari pengaturan kontak pusat.
+                                </p>
+                                <select x-model="form.whatsapp_destination" 
+                                        class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold">
+                                    <option value="admin">Chat Admin (Default: +62 812-3456-7890)</option>
+                                    <option value="order">Nomor Pemesanan (+62 812-3456-7891)</option>
+                                </select>
+                            </div>
+
+                            <!-- Deskripsi Singkat Produk -->
+                            <div>
+                                <label class="block text-xs font-bold text-brand-dark mb-1">
+                                    Deskripsi Produk
+                                </label>
+                                <textarea x-model="form.description" 
+                                          rows="2" 
+                                          placeholder="Penjelasan potongan daging, saran masakan, atau resep..."
+                                          class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white"></textarea>
+                            </div>
+
+                            <!-- Gambar Produk via Global Media Picker -->
+                            <div class="p-4 rounded-modern bg-gray-50 border border-gray-200 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-xs font-bold text-brand-dark">
+                                        Foto Produk (Rasio 4:3)
+                                    </label>
+                                    <span class="text-[11px] font-semibold text-emerald-700">Global Media Picker</span>
+                                </div>
+
+                                <div class="flex items-center gap-4">
+                                    <div class="w-20 aspect-[4/3] rounded-modern overflow-hidden bg-brand-dark shrink-0 border border-gray-300 shadow-2xs">
+                                        <img :src="getImageUrl(form.image)" alt="Product Thumbnail" class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <button @click="openMediaPicker()" 
+                                                type="button" 
+                                                class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer inline-flex items-center gap-1.5">
+                                            <span>🖼️</span>
+                                            <span>Pilih dari Media Picker</span>
+                                        </button>
+                                        <p class="text-[11px] text-gray-500 font-mono truncate max-w-xs" x-text="form.image"></p>
+                                    </div>
+                                </div>
+
+                                <div class="pt-2 border-t border-gray-200 text-[11px] text-gray-500 space-y-1">
+                                    <p class="font-bold text-gray-700">Rekomendasi Gambar Produk:</p>
+                                    <p>1200 × 900 px • Rasio 4:3 • JPG / WebP • Disarankan ≤ 300 KB</p>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Right: REAL LANDING PAGE PRODUCT CARD PREVIEW (5 cols on lg) -->
+                        <div class="lg:col-span-5 space-y-3 sticky top-4">
+                            
+                            <div class="flex items-center justify-between">
+                                <label class="block text-xs font-extrabold text-brand-dark uppercase tracking-wider">
+                                    Real Landing Page Preview
+                                </label>
+                                <div class="flex items-center bg-gray-100 p-0.5 rounded text-[10px]">
+                                    <button @click="previewDevice = 'desktop'" type="button" 
+                                            :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
+                                            class="px-2 py-0.5 rounded cursor-pointer">💻 Desk</button>
+                                    <button @click="previewDevice = 'mobile'" type="button" 
+                                            :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
+                                            class="px-2 py-0.5 rounded cursor-pointer">📱 Mob</button>
+                                </div>
+                            </div>
+
+                            <!-- Real Shared Product Card Component Inclusion -->
+                            <div class="bg-gray-50 p-4 rounded-modern-xl border border-gray-200 flex justify-center">
+                                <div class="w-full transition-all duration-200"
+                                     :class="previewDevice === 'mobile' ? 'max-w-[220px]' : 'max-w-[280px]'">
+                                    
+                                    <!-- SHARED COMPONENT (100% Shared Markup with Landing Page) -->
+                                    @include('components.product-card-item', ['isLivePreview' => true])
+
+                                </div>
+                            </div>
+
+                            <p class="text-[11px] text-gray-400 text-center">
+                                Preview di atas 100% merefleksikan seluruh badge dan styling kartu produk Landing Page.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Actions Footer -->
+                    <div class="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                        <button @click="editorModalOpen = false" 
+                                type="button" 
+                                class="px-4 py-2.5 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
+                            Batal
+                        </button>
+                        <button type="submit" 
+                                class="px-6 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm transition-all cursor-pointer">
+                            Simpan Produk
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- 5. GLOBAL MEDIA PICKER MODAL                            -->
+    <!-- ======================================================= -->
+    <div x-show="mediaPickerOpen" 
+         x-cloak
+         class="fixed inset-0 z-[80] overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        
+        <div class="fixed inset-0 bg-black/75 backdrop-blur-xs" @click="mediaPickerOpen = false"></div>
+
+        <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
+            <div class="relative bg-white rounded-modern-xl max-w-3xl w-full p-6 shadow-2xl border border-gray-200 overflow-hidden my-6 space-y-5">
+                
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">🖼️</span>
+                        <div>
+                            <h3 class="text-base font-extrabold text-brand-dark">Pilih Gambar dari Media Picker</h3>
+                            <p class="text-xs text-gray-500">Pilih dari pustaka media atau unggah gambar produk baru.</p>
+                        </div>
+                    </div>
+                    <button @click="mediaPickerOpen = false" type="button" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer">✕</button>
+                </div>
+
+                <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
+                    <button @click="mediaTab = 'library'" type="button" 
+                            :class="mediaTab === 'library' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                            class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
+                        Media Library (<span x-text="mediaLibrary.length"></span>)
+                    </button>
+                    <button @click="mediaTab = 'upload'" type="button" 
+                            :class="mediaTab === 'upload' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                            class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
+                        Upload Gambar Baru
+                    </button>
+                </div>
+
+                <!-- Tab 1: Library -->
+                <div x-show="mediaTab === 'library'" class="space-y-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-72 overflow-y-auto p-1">
+                        <template x-for="media in mediaLibrary" :key="media.id">
+                            <div @click="selectMedia(media)"
+                                 class="group relative aspect-[4/3] rounded-modern overflow-hidden border-2 transition-all cursor-pointer bg-brand-dark"
+                                 :class="selectedMedia?.id === media.id ? 'border-brand-primary ring-2 ring-emerald-400' : 'border-gray-200 hover:border-gray-400'">
+                                <img :src="getImageUrl(media.path)" :alt="media.title" class="w-full h-full object-cover">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-between">
+                                    <div class="self-end" x-show="selectedMedia?.id === media.id">
+                                        <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">✓</span>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] font-bold text-white truncate" x-text="media.filename"></p>
+                                        <p class="text-[9px] text-gray-300" x-text="media.resolution + ' • ' + media.size"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="p-3 bg-gray-50 rounded-modern border border-gray-200 flex items-center justify-between text-xs">
+                        <div>
+                            <span class="text-gray-500">Terpilih: </span>
+                            <strong class="text-brand-dark" x-text="selectedMedia ? selectedMedia.filename : 'Belum ada'"></strong>
+                        </div>
+                        <button @click="confirmMediaSelection()" 
+                                :disabled="!selectedMedia"
+                                type="button" 
+                                class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark disabled:opacity-40 transition-all cursor-pointer">
+                            Pilih Gambar Produk
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Upload -->
+                <div x-show="mediaTab === 'upload'" class="space-y-4">
+                    <label class="block border-2 border-dashed border-gray-300 rounded-modern-xl p-8 text-center hover:border-brand-primary hover:bg-brand-soft-green/30 transition-all cursor-pointer"
+                           @dragover.prevent="" 
+                           @drop.prevent="handleFileUpload($event)">
+                        <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleFileUpload($event)">
+                        <div class="space-y-2">
+                            <span class="text-3xl">📤</span>
+                            <p class="text-xs font-bold text-brand-dark">Tarik & Lepaskan gambar ke sini, atau klik untuk memilih file</p>
+                            <p class="text-[11px] text-gray-400">Mendukung JPG, PNG, WebP (Rekomendasi 1200 × 900 px ≤ 300 KB)</p>
+                        </div>
+                    </label>
+
+                    <template x-if="uploadedPreviewUrl">
+                        <div class="p-3 bg-emerald-50/50 rounded-modern border border-emerald-200 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-14 aspect-[4/3] rounded overflow-hidden bg-brand-dark border border-gray-200">
+                                    <img :src="uploadedPreviewUrl" alt="Uploaded Preview" class="w-full h-full object-cover">
+                                </div>
+                                <div class="text-xs space-y-0.5">
+                                    <p class="font-bold text-brand-dark" x-text="uploadedFile?.name"></p>
+                                    <p class="text-[10px] text-gray-500" x-text="uploadedFile?.size + ' • ' + uploadedFile?.type"></p>
+                                </div>
+                            </div>
+                            <button @click="confirmMediaSelection()" 
+                                    type="button" 
+                                    class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm cursor-pointer">
+                                Gunakan Gambar Ini
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Delete Confirmation Modal -->
+    <div x-show="deleteModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="deleteModalOpen = false"></div>
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
+                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto text-xl">🗑</div>
+                <div class="space-y-1">
+                    <h3 class="text-base font-bold text-brand-dark">Hapus Produk?</h3>
+                    <p class="text-xs text-gray-500 leading-relaxed">Produk <strong class="text-brand-dark" x-text="selectedProduct?.name"></strong> akan dihapus dari katalog produk.</p>
+                </div>
+                <div class="pt-3 flex items-center justify-center gap-3">
+                    <button @click="deleteModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer">Batal</button>
+                    <button @click="confirmDelete()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">Hapus</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. Toast Notification -->
+    <div x-show="toastVisible" 
+         x-cloak
+         x-transition
+         class="fixed bottom-6 right-6 z-50 bg-brand-dark text-white px-4 py-3 rounded-modern-lg shadow-xl border border-white/10 flex items-center gap-2.5 text-xs font-semibold">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span x-text="toastMessage"></span>
+    </div>
+
+</div>
+@endsection
