@@ -25,103 +25,243 @@
          uploadedFile: null,
          uploadedPreviewUrl: null,
          
-         // Available Product Characteristics (Unlimited Multi-Select)
+         // 1. SECTION HEADER KATEGORI STATE
+         categorySection: {
+             label: 'Kategori Utama',
+             title: 'Mau Masak Apa Hari Ini?',
+             subtitle: 'Pilih bahan masak sesuai kebutuhanmu. Dari potongan daging segar, ayam bumbu, ikan laut, hingga sayuran siap cemplung.'
+         },
+         
+         // 2. MASTER BADGE KARAKTERISTIK PRODUK STATE
          availableCharacteristics: [
-             { id: 'Frozen', label: 'Frozen', desc: 'Dibekukan cold-chain' },
-             { id: 'Ready to Cook', label: 'Ready to Cook', desc: 'Sudah dipotong / marinasi' },
-             { id: 'Plain', label: 'Plain (Polos)', desc: 'Tanpa bumbu tambahan' },
-             { id: 'Berbumbu', label: 'Berbumbu', desc: 'Sudah diungkep / marinasi' },
-             { id: 'Curah', label: 'Curah (Bulk)', desc: 'Tersedia kemasan grosir' },
-             { id: 'Fresh', label: 'Fresh Segar', desc: 'Potong harian / segar' },
+             { id: 'Frozen', label: 'Frozen', name: 'Frozen', desc: 'Dibekukan cold-chain standar', color: '#059669', status: 'Aktif' },
+             { id: 'Ready to Cook', label: 'Ready to Cook', name: 'Ready to Cook', desc: 'Sudah dipotong / marinasi praktis', color: '#d97706', status: 'Aktif' },
+             { id: 'Plain', label: 'Plain', name: 'Plain', desc: 'Tanpa bumbu / murni alami', color: '#475569', status: 'Aktif' },
+             { id: 'Berbumbu', label: 'Berbumbu', name: 'Berbumbu', desc: 'Sudah diungkep / marinasi rempah', color: '#ea580c', status: 'Aktif' },
+             { id: 'Curah', label: 'Curah', name: 'Curah', desc: 'Tersedia kemasan grosir / horeka', color: '#7c3aed', status: 'Aktif' },
+             { id: 'Fresh', label: 'Fresh', name: 'Fresh', desc: 'Potong harian subuh / segar dingin', color: '#0284c7', status: 'Aktif' },
          ],
+         charModalOpen: false,
+         charDeleteModalOpen: false,
+         isEditingChar: false,
+         selectedChar: null,
+         charDeleteWarningCount: 0,
+         charForm: {
+             id: null,
+             name: '',
+             label: '',
+             desc: '',
+             color: '#059669',
+             status: 'Aktif'
+         },
          
+         // Color Badge Algorithm (Font Color -> Auto Background, Border & Contrast)
+         hexToBadgeStyle(hex) {
+             if (!hex) hex = '#059669';
+             var h = hex.replace('#', '');
+             if (h.length === 3) h = h.split('').map(function(x) { return x + x; }).join('');
+             var num = parseInt(h, 16);
+             var r = (num >> 16) & 255;
+             var g = (num >> 8) & 255;
+             var b = num & 255;
+             return 'color: rgb(' + r + ', ' + g + ', ' + b + '); background-color: rgba(' + r + ', ' + g + ', ' + b + ', 0.12); border-color: rgba(' + r + ', ' + g + ', ' + b + ', 0.25);';
+         },
+         
+         getBadgeStyle(typeIdOrName) {
+             var char = this.availableCharacteristics.find(function(c) {
+                 return c.id === typeIdOrName || c.name === typeIdOrName || c.label === typeIdOrName;
+             });
+             var color = char ? (char.color || '#059669') : '#475569';
+             return this.hexToBadgeStyle(color);
+         },
+         
+         getCharUsageCount(char) {
+             if (!char) return 0;
+             var target = char.name || char.id;
+             return this.products.filter(function(p) {
+                 return p.types && (p.types.includes(target) || p.types.includes(char.id) || p.types.includes(char.label));
+             }).length;
+         },
+         
+         openCreateCharModal() {
+             this.isEditingChar = false;
+             this.charForm = {
+                 id: 'char_' + Date.now(),
+                 name: '',
+                 label: '',
+                 desc: '',
+                 color: '#059669',
+                 status: 'Aktif'
+             };
+             this.charModalOpen = true;
+         },
+         
+         openEditCharModal(char) {
+             this.isEditingChar = true;
+             this.charForm = JSON.parse(JSON.stringify(char));
+             if (!this.charForm.name) this.charForm.name = this.charForm.label || this.charForm.id;
+             if (!this.charForm.color) this.charForm.color = '#059669';
+             if (!this.charForm.status) this.charForm.status = 'Aktif';
+             this.charModalOpen = true;
+         },
+         
+         saveChar() {
+             if (!this.charForm.name.trim()) {
+                 alert('Nama karakteristik wajib diisi.');
+                 return;
+             }
+             this.charForm.label = this.charForm.name.trim();
+             this.charForm.name = this.charForm.name.trim();
+             
+             if (this.isEditingChar) {
+                 var self = this;
+                 var idx = this.availableCharacteristics.findIndex(function(c) { return c.id === self.charForm.id; });
+                 if (idx !== -1) {
+                     var oldKey = this.availableCharacteristics[idx].id;
+                     var newKey = this.charForm.name;
+                     this.availableCharacteristics[idx] = JSON.parse(JSON.stringify(this.charForm));
+                     
+                     // Cascade name change to products
+                     if (oldKey !== newKey) {
+                         this.products.forEach(function(p) {
+                             if (p.types && p.types.includes(oldKey)) {
+                                 var tIdx = p.types.indexOf(oldKey);
+                                 p.types[tIdx] = newKey;
+                             }
+                         });
+                     }
+                 }
+                 this.showToast('Karakteristik ' + this.charForm.name + ' berhasil diperbarui!');
+             } else {
+                 var self = this;
+                 var exists = this.availableCharacteristics.some(function(c) {
+                     return (c.name || c.id).toLowerCase() === self.charForm.name.toLowerCase();
+                 });
+                 if (exists) {
+                     alert('Karakteristik dengan nama tersebut sudah ada.');
+                     return;
+                 }
+                 this.charForm.id = this.charForm.name;
+                 this.availableCharacteristics.push(JSON.parse(JSON.stringify(this.charForm)));
+                 this.showToast('Karakteristik ' + this.charForm.name + ' berhasil ditambahkan!');
+             }
+             this.charModalOpen = false;
+         },
+         
+         openDeleteCharFromEdit() {
+             this.selectedChar = JSON.parse(JSON.stringify(this.charForm));
+             this.charDeleteWarningCount = this.getCharUsageCount(this.selectedChar);
+             this.charDeleteModalOpen = true;
+         },
+         
+         confirmDeleteChar() {
+             if (this.selectedChar) {
+                 var charName = this.selectedChar.name || this.selectedChar.id;
+                 var charId = this.selectedChar.id;
+                 this.products.forEach(function(p) {
+                     if (p.types) {
+                         p.types = p.types.filter(function(t) { return t !== charName && t !== charId; });
+                     }
+                 });
+                 this.availableCharacteristics = this.availableCharacteristics.filter(function(c) {
+                     return c.id !== charId && c.name !== charName;
+                 });
+                 this.charDeleteModalOpen = false;
+                 this.charModalOpen = false;
+                 this.showToast('Karakteristik ' + charName + ' telah dihapus.');
+                 this.selectedChar = null;
+             }
+         },
+         
+         // 3. PRODUCT FORM STATE
          form: {
-            id: null,
-            name: '',
-            category_id: 1,
-            category: 'Daging Sapi',
-            types: ['Frozen', 'Plain'],
-            weight: '500g',
-            weight_value: 500,
-            unit: 'gram',
-            price: 50000,
-            status: 'Aktif',
-            image: 'images/prod-beef-slice.jpg',
-            description: '',
-            whatsapp_destination: 'admin', // 'admin' | 'order'
-        },
-        
-        selectedProduct: null,
-        
-        showToast(msg) {
-            this.toastMessage = msg;
-            this.toastVisible = true;
-            setTimeout(() => { this.toastVisible = false; }, 3000);
-        },
-        
-        get activeCategories() {
-            return this.categories.filter(c => c.status === 'active_landing' || c.status === 'active_catalog' || c.status === 'Aktif');
-        },
-        
-        get filteredProducts() {
-            return this.products.filter(p => {
-                const matchCat = this.selectedCategoryFilter === 'all' || p.category_id == this.selectedCategoryFilter || p.category === this.selectedCategoryFilter;
-                const matchType = this.selectedTypeFilter === 'all' || (p.types && p.types.includes(this.selectedTypeFilter));
-                const matchSearch = !this.searchQuery.trim() || 
-                    p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
-                    (p.category && p.category.toLowerCase().includes(this.searchQuery.toLowerCase()));
-                return matchCat && matchType && matchSearch;
-            });
-        },
-        
-        openCreateModal() {
-            this.isEditing = false;
-            const defaultCat = this.activeCategories[0] || { id: 1, name: 'Daging Sapi' };
-            this.form = {
-                id: Date.now(),
-                name: '',
-                category_id: defaultCat.id,
-                category: defaultCat.name,
-                types: ['Frozen', 'Plain'],
-                weight: '500g',
-                weight_value: 500,
-                unit: 'gram',
-                price: 45000,
-                status: 'Aktif',
-                image: 'images/prod-beef-slice.jpg',
-                description: '',
-                whatsapp_destination: 'admin',
-            };
-            this.editorModalOpen = true;
-        },
-        
-        openEditModal(p) {
-            this.isEditing = true;
-            this.form = JSON.parse(JSON.stringify(p));
-            if (!this.form.category_id) {
-                const matched = this.categories.find(c => c.name === this.form.category);
-                this.form.category_id = matched ? matched.id : 1;
-            }
-            if (!this.form.types) this.form.types = ['Frozen'];
-            if (!this.form.whatsapp_destination) this.form.whatsapp_destination = 'admin';
-            
-            // Parse weight_value and unit cleanly
-            if ((this.form.weight_value === undefined || this.form.weight_value === null) && this.form.weight) {
-                const match = String(this.form.weight).match(/^(\d+)\s*(g|gram|kg|pcs|pack)?/i);
-                if (match) {
-                    this.form.weight_value = Number(match[1]);
-                    const u = (match[2] || 'g').toLowerCase();
-                    this.form.unit = (u === 'g' || u === 'gram') ? 'gram' : u;
-                } else {
-                    this.form.weight_value = 500;
-                    this.form.unit = 'gram';
-                }
-            } else if (!this.form.unit) {
-                this.form.unit = 'gram';
-            }
-            this.editorModalOpen = true;
-        },
+             id: null,
+             name: '',
+             category_id: 1,
+             category: 'Daging Sapi',
+             types: ['Frozen', 'Plain'],
+             weight: '500g',
+             weight_value: 500,
+             unit: 'gram',
+             price: 50000,
+             status: 'Aktif',
+             image: 'images/prod-beef-slice.jpg',
+             description: '',
+             whatsapp_destination: 'admin', // 'admin' | 'order'
+         },
          
+         selectedProduct: null,
+         
+         showToast(msg) {
+             this.toastMessage = msg;
+             this.toastVisible = true;
+             setTimeout(() => { this.toastVisible = false; }, 3000);
+         },
+         
+         get activeCategories() {
+             return this.categories.filter(c => c.status === 'active_landing' || c.status === 'active_catalog' || c.status === 'Aktif');
+         },
+         
+         get filteredProducts() {
+             return this.products.filter(p => {
+                 const matchCat = this.selectedCategoryFilter === 'all' || p.category_id == this.selectedCategoryFilter || p.category === this.selectedCategoryFilter;
+                 const matchType = this.selectedTypeFilter === 'all' || (p.types && p.types.includes(this.selectedTypeFilter));
+                 const matchSearch = !this.searchQuery.trim() || 
+                     p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
+                     (p.category && p.category.toLowerCase().includes(this.searchQuery.toLowerCase()));
+                 return matchCat && matchType && matchSearch;
+             });
+         },
+         
+         openCreateModal() {
+             this.isEditing = false;
+             const defaultCat = this.activeCategories[0] || { id: 1, name: 'Daging Sapi' };
+             const defaultTypes = this.availableCharacteristics.filter(c => c.status === 'Aktif').slice(0, 2).map(c => c.name || c.id);
+             this.form = {
+                 id: Date.now(),
+                 name: '',
+                 category_id: defaultCat.id,
+                 category: defaultCat.name,
+                 types: defaultTypes.length > 0 ? defaultTypes : ['Frozen', 'Plain'],
+                 weight: '500g',
+                 weight_value: 500,
+                 unit: 'gram',
+                 price: 45000,
+                 status: 'Aktif',
+                 image: 'images/prod-beef-slice.jpg',
+                 description: '',
+                 whatsapp_destination: 'admin',
+             };
+             this.editorModalOpen = true;
+         },
+         
+         openEditModal(p) {
+             this.isEditing = true;
+             this.form = JSON.parse(JSON.stringify(p));
+             if (!this.form.category_id) {
+                 const matched = this.categories.find(c => c.name === this.form.category);
+                 this.form.category_id = matched ? matched.id : 1;
+             }
+             if (!this.form.types) this.form.types = ['Frozen'];
+             if (!this.form.whatsapp_destination) this.form.whatsapp_destination = 'admin';
+             
+             // Parse weight_value and unit cleanly
+             if ((this.form.weight_value === undefined || this.form.weight_value === null) && this.form.weight) {
+                 const match = String(this.form.weight).match(/^(\d+)\s*(g|gram|kg|pcs|pack)?/i);
+                 if (match) {
+                     this.form.weight_value = Number(match[1]);
+                     const u = (match[2] || 'g').toLowerCase();
+                     this.form.unit = (u === 'g' || u === 'gram') ? 'gram' : u;
+                 } else {
+                     this.form.weight_value = 500;
+                     this.form.unit = 'gram';
+                 }
+             } else if (!this.form.unit) {
+                 this.form.unit = 'gram';
+             }
+             this.editorModalOpen = true;
+         },
+          
          toggleTypeSelection(typeId) {
              const idx = this.form.types.indexOf(typeId);
              if (idx > -1) {
@@ -130,7 +270,7 @@
                  this.form.types.push(typeId);
              }
          },
-         
+          
          openMediaPicker() {
              this.mediaTab = 'library';
              this.selectedMedia = this.mediaLibrary.find(m => m.path === this.form.image) || this.mediaLibrary[0] || null;
@@ -138,11 +278,11 @@
              this.uploadedPreviewUrl = null;
              this.mediaPickerOpen = true;
          },
-         
+          
          selectMedia(media) {
              this.selectedMedia = media;
          },
-         
+          
          confirmMediaSelection() {
              if (this.mediaTab === 'library' && this.selectedMedia) {
                  this.form.image = this.selectedMedia.path;
@@ -154,7 +294,7 @@
                  this.showToast('Gambar hasil upload berhasil digunakan!');
              }
          },
-         
+          
          handleFileUpload(e) {
              const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
              if (!file) return;
@@ -169,7 +309,7 @@
              };
              this.uploadedPreviewUrl = URL.createObjectURL(file);
          },
-         
+          
          saveProduct() {
              if (!this.form.name.trim()) {
                  alert('Nama produk wajib diisi.');
@@ -193,17 +333,17 @@
              }
              this.editorModalOpen = false;
          },
-         
+          
          toggleStatus(p) {
              p.status = p.status === 'Aktif' ? 'Nonaktif' : 'Aktif';
              this.showToast('Status ' + p.name + ' diubah menjadi ' + p.status);
          },
-         
+          
          openDelete(p) {
              this.selectedProduct = p;
              this.deleteModalOpen = true;
          },
-         
+          
          confirmDelete() {
              if (this.selectedProduct) {
                  this.products = this.products.filter(p => p.id !== this.selectedProduct.id);
@@ -212,15 +352,15 @@
                  this.selectedProduct = null;
              }
          },
-         
+          
          formatRupiah(num) {
              return 'Rp ' + Number(num || 0).toLocaleString('id-ID');
          },
-         
+          
          getWaNumber(dest) {
              return dest === 'order' ? this.contactSettings.order_whatsapp : this.contactSettings.admin_whatsapp;
          },
-         
+          
          getImageUrl(path) {
              if (!path) return '/images/prod-beef-slice.jpg';
              if (path.startsWith('blob:') || path.startsWith('http')) return path;
@@ -228,7 +368,9 @@
          }
      }">
     
-    <!-- 1. Header Card -->
+    <!-- ======================================================= -->
+    <!-- 1. HEADER CARD                                          -->
+    <!-- ======================================================= -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="space-y-1.5">
@@ -241,11 +383,11 @@
                         <span>DYNAMIC CATALOG</span>
                     </span>
                     <span class="text-xs text-gray-500 font-medium">
-                        • Single Source of Truth Kategori & Multi-Badge Karakteristik
+                        • Single Source of Truth Kategori &amp; Master Badges
                     </span>
                 </div>
                 <p class="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-3xl">
-                    Kelola seluruh produk segar dan frozen. Pilihan kategori terhubung langsung dengan <strong>Category Manager</strong>, WhatsApp Destination terpusat ke <strong>Contact Settings</strong>, dan multi-badge karakteristik tanpa batasan.
+                    Kelola seluruh produk segar dan frozen. Pilihan kategori terhubung langsung dengan <strong>Category Manager</strong>, WhatsApp Destination terpusat ke <strong>Contact Settings</strong>, dan multi-badge karakteristik terintegrasi.
                 </p>
             </div>
 
@@ -261,7 +403,125 @@
         </div>
     </div>
 
-    <!-- 2. Filters & Search Toolbar -->
+    <!-- ======================================================= -->
+    <!-- 2. PENGATURAN SECTION KATEGORI & MASTER BADGE           -->
+    <!-- ======================================================= -->
+    <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-7 shadow-2xs space-y-6">
+        
+        <!-- PENGATURAN SECTION KATEGORI -->
+        <div class="space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">⚙️</span>
+                    <div>
+                        <h3 class="text-xs sm:text-sm font-extrabold text-brand-dark uppercase tracking-wider">
+                            Pengaturan Section Kategori
+                        </h3>
+                        <p class="text-[11px] text-gray-500">
+                            Kelola label badge, judul utama, dan deskripsi pengantar pada section kategori Landing Page.
+                        </p>
+                    </div>
+                </div>
+
+                <button @click="showToast('Header Section Kategori berhasil diperbarui!')" 
+                        type="button" 
+                        class="px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer">
+                    Simpan Header
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <!-- Label Badge -->
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                        Label Badge Section
+                    </label>
+                    <input type="text" 
+                           x-model="categorySection.label" 
+                           placeholder="Contoh: Kategori Utama"
+                           class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold text-brand-primary focus:ring-2 focus:ring-brand-primary/30">
+                </div>
+
+                <!-- Judul Utama -->
+                <div class="md:col-span-4">
+                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                        Judul Utama / Heading
+                    </label>
+                    <input type="text" 
+                           x-model="categorySection.title" 
+                           placeholder="Contoh: Mau Masak Apa Hari Ini?"
+                           class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-extrabold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
+                </div>
+
+                <!-- Deskripsi Pengantar -->
+                <div class="md:col-span-5">
+                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                        Deskripsi Pengantar
+                    </label>
+                    <textarea x-model="categorySection.subtitle" 
+                              rows="2" 
+                              placeholder="Pilih bahan masak sesuai kebutuhanmu..."
+                              class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white leading-relaxed focus:ring-2 focus:ring-brand-primary/30"></textarea>
+                </div>
+            </div>
+
+            <!-- Small Header Section Realtime Preview -->
+            <div class="pt-1">
+                <div class="bg-brand-cream/60 rounded-modern-xl border border-dashed border-gray-300 p-4 sm:p-5 text-center max-w-xl mx-auto shadow-2xs">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-brand-soft-green text-brand-primary mb-2 shadow-2xs transition-all"
+                          x-text="categorySection.label || 'Kategori Utama'">
+                    </span>
+                    <h4 class="text-lg sm:text-xl font-extrabold text-brand-dark tracking-tight mb-1.5 transition-all"
+                        x-text="categorySection.title || 'Mau Masak Apa Hari Ini?'">
+                    </h4>
+                    <p class="text-xs text-gray-600 font-normal leading-relaxed max-w-md mx-auto transition-all"
+                       x-text="categorySection.subtitle || 'Pilih bahan masak sesuai kebutuhanmu.'">
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- MASTER BADGE KARAKTERISTIK PRODUK -->
+        <div class="pt-4 border-t border-gray-100 space-y-3">
+            <div>
+                <h3 class="text-xs sm:text-sm font-extrabold text-brand-dark uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🏷️</span>
+                    <span>Karakteristik Produk</span>
+                </h3>
+                <p class="text-[11px] text-gray-500">
+                    Klik badge untuk mengedit warna/nama/status/hapus. Klik <strong>+ Tambah Badge</strong> untuk membuat badge baru.
+                </p>
+            </div>
+
+            <!-- Badges Grid -->
+            <div class="flex items-center gap-2.5 flex-wrap pt-1">
+                <template x-for="char in availableCharacteristics" :key="char.id">
+                    <button type="button" 
+                            @click="openEditCharModal(char)"
+                            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                            :style="hexToBadgeStyle(char.color)"
+                            :class="char.status === 'Nonaktif' ? 'opacity-50 line-through' : ''"
+                            :title="'Klik untuk edit: ' + (char.name || char.label) + (char.status === 'Nonaktif' ? ' (Nonaktif)' : '')">
+                        <span x-text="char.name || char.label"></span>
+                        <span x-show="char.status === 'Nonaktif'" class="text-[9px] no-underline font-normal text-gray-500">(off)</span>
+                    </button>
+                </template>
+
+                <!-- + Tambah Badge Item -->
+                <button type="button" 
+                        @click="openCreateCharModal()"
+                        class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border-2 border-dashed border-gray-300 text-gray-600 bg-gray-50 hover:bg-gray-100 hover:border-brand-primary hover:text-brand-primary transition-all cursor-pointer">
+                    <span class="text-sm leading-none font-black">＋</span>
+                    <span>Tambah Badge</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- 3. FILTERS & SEARCH TOOLBAR                             -->
+    <!-- ======================================================= -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-4 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
             
@@ -287,16 +547,13 @@
                 </template>
             </select>
 
-            <!-- Characteristic Filter -->
+            <!-- Characteristic Filter (From Master Badges) -->
             <select x-model="selectedTypeFilter" 
-                    class="w-full sm:w-40 py-2 px-3 rounded-modern text-xs border border-gray-300 bg-white font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
+                    class="w-full sm:w-44 py-2 px-3 rounded-modern text-xs border border-gray-300 bg-white font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
                 <option value="all">Semua Karakteristik</option>
-                <option value="Frozen">Frozen</option>
-                <option value="Ready to Cook">Ready to Cook</option>
-                <option value="Plain">Plain</option>
-                <option value="Berbumbu">Berbumbu</option>
-                <option value="Curah">Curah</option>
-                <option value="Fresh">Fresh</option>
+                <template x-for="char in availableCharacteristics" :key="char.id">
+                    <option :value="char.name || char.id" x-text="(char.name || char.label) + (char.status !== 'Aktif' ? ' (Nonaktif)' : '')"></option>
+                </template>
             </select>
         </div>
 
@@ -305,7 +562,9 @@
         </div>
     </div>
 
-    <!-- 3. Products Grid -->
+    <!-- ======================================================= -->
+    <!-- 4. PRODUCTS GRID                                        -->
+    <!-- ======================================================= -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         <template x-for="(prod, idx) in filteredProducts" :key="prod.id">
             <div class="bg-white rounded-modern-xl border border-gray-200/80 overflow-hidden shadow-2xs hover:shadow-card transition-all flex flex-col justify-between"
@@ -316,18 +575,11 @@
                     <div class="relative aspect-[4/3] w-full bg-brand-dark overflow-hidden">
                         <img :src="getImageUrl(prod.image)" :alt="prod.name" class="w-full h-full object-cover">
                         
-                        <!-- Top Left: Characteristic Badges (Multi-Badge Display) -->
+                        <!-- Top Left: Characteristic Badges (Multi-Badge Display from Master) -->
                         <div class="absolute top-2.5 left-2.5 flex flex-wrap gap-1 max-w-[70%]">
                             <template x-for="t in (prod.types || [])" :key="t">
-                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold shadow-2xs"
-                                      :class="{
-                                          'bg-brand-soft-green text-brand-primary': t === 'Frozen',
-                                          'bg-amber-100 text-amber-900': t === 'Ready to Cook',
-                                          'bg-sky-100 text-sky-800': t === 'Fresh',
-                                          'bg-orange-100 text-orange-800': t === 'Berbumbu',
-                                          'bg-purple-100 text-purple-800': t === 'Curah',
-                                          'bg-gray-100 text-gray-800': t === 'Plain'
-                                      }"
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border shadow-2xs transition-all"
+                                      :style="getBadgeStyle(t)"
                                       x-text="t">
                                 </span>
                             </template>
@@ -398,7 +650,182 @@
     </div>
 
     <!-- ======================================================= -->
-    <!-- 4. MODAL EDITOR PRODUK (Form + REAL LIVE PREVIEW)       -->
+    <!-- 5. MODAL TAMBAH / EDIT BADGE KARAKTERISTIK              -->
+    <!-- ======================================================= -->
+    <div x-show="charModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="charModalOpen = false"></div>
+
+        <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
+            <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 overflow-hidden my-6 space-y-5">
+                
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div>
+                        <h3 class="text-base font-extrabold text-brand-dark"
+                            x-text="isEditingChar ? 'Edit Karakteristik Produk' : 'Tambah Karakteristik Produk'">
+                        </h3>
+                        <p class="text-xs text-gray-500">Badge informasi visual yang tampil pada kartu produk.</p>
+                    </div>
+                    <button @click="charModalOpen = false" type="button" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer">✕</button>
+                </div>
+
+                <form @submit.prevent="saveChar()" class="space-y-4">
+                    
+                    <!-- Nama Badge -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Nama Badge <span class="text-rose-500">*</span>
+                        </label>
+                        <input type="text" 
+                               x-model="charForm.name" 
+                               required
+                               placeholder="Contoh: Frozen, Ready to Cook, Organik..."
+                               class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white font-semibold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
+                    </div>
+
+                    <!-- Deskripsi Singkat -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Deskripsi Singkat / Informasi
+                        </label>
+                        <textarea x-model="charForm.desc" 
+                                  rows="2" 
+                                  placeholder="Contoh: Dibekukan cepat standar cold-chain..."
+                                  class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white leading-relaxed"></textarea>
+                    </div>
+
+                    <!-- COLOR PICKER (Native Input + Hex + Auto Background & Contrast) -->
+                    <div class="p-3.5 rounded-modern bg-gray-50 border border-gray-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-brand-dark">
+                                Warna Badge (Color Picker) <span class="text-rose-500">*</span>
+                            </label>
+                            <span class="text-[10px] text-emerald-700 font-bold">Auto Background Tint</span>
+                        </div>
+                        <p class="text-[11px] text-gray-500">
+                            Pilih warna badge. Sistem otomatis menghitung warna latar dan kontras yang serasi.
+                        </p>
+
+                        <!-- Color Input & Hex Code -->
+                        <div class="flex items-center gap-3">
+                            <input type="color" 
+                                   x-model="charForm.color" 
+                                   class="w-10 h-10 rounded-modern border border-gray-300 p-0.5 cursor-pointer shrink-0 bg-white">
+                            <input type="text" 
+                                   x-model="charForm.color" 
+                                   placeholder="#059669"
+                                   maxlength="7"
+                                   class="w-28 text-xs font-mono font-bold uppercase rounded-modern border border-gray-300 p-2 bg-white">
+                            <span class="text-xs text-gray-400">HEX Code</span>
+                        </div>
+
+                        <!-- Real-time Live Badge Preview -->
+                        <div class="pt-2 border-t border-gray-200/80 flex items-center justify-between">
+                            <div>
+                                <span class="text-[11px] font-bold text-gray-500 block mb-1">Preview Badge:</span>
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shadow-2xs transition-all"
+                                      :style="hexToBadgeStyle(charForm.color)"
+                                      x-text="charForm.name || 'Nama Badge'">
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-gray-400 font-mono" x-text="charForm.color"></div>
+                        </div>
+                    </div>
+
+                    <!-- Status Badge -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Status Badge
+                        </label>
+                        <select x-model="charForm.status" 
+                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold">
+                            <option value="Aktif">Aktif (Dapat Dipilih pada Produk)</option>
+                            <option value="Nonaktif">Nonaktif (Disembunyikan dari Pilihan)</option>
+                        </select>
+                    </div>
+
+                    <!-- Modal Actions -->
+                    <div class="pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
+                        <!-- Hapus Button (Only in Edit Mode) -->
+                        <div>
+                            <template x-if="isEditingChar">
+                                <button type="button" 
+                                        @click="openDeleteCharFromEdit()"
+                                        class="px-3 py-2 rounded-modern text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer">
+                                    Hapus Badge
+                                </button>
+                            </template>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button @click="charModalOpen = false" 
+                                    type="button" 
+                                    class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-100 cursor-pointer">
+                                Batal
+                            </button>
+                            <button type="submit" 
+                                    class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm cursor-pointer"
+                                    x-text="isEditingChar ? 'Simpan Perubahan' : 'Tambah Badge'">
+                            </button>
+                        </div>
+                    </div>
+
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- 6. MODAL DELETE BADGE CONFIRMATION                      -->
+    <!-- ======================================================= -->
+    <div x-show="charDeleteModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-[60] overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="charDeleteModalOpen = false"></div>
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 space-y-4 text-center">
+                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto text-xl">🏷️</div>
+                
+                <div class="space-y-2">
+                    <h3 class="text-base font-bold text-brand-dark">Hapus Karakteristik Produk?</h3>
+                    <p class="text-xs text-gray-600 leading-relaxed">
+                        Anda akan menghapus karakteristik <strong class="text-brand-dark" x-text="selectedChar?.name || selectedChar?.label"></strong>.
+                    </p>
+
+                    <!-- Warning if badge is currently used by products -->
+                    <template x-if="charDeleteWarningCount > 0">
+                        <div class="p-3 rounded-modern bg-amber-50 border border-amber-200 text-amber-900 text-xs text-left leading-relaxed">
+                            <span class="font-bold">⚠️ Perhatian:</span>
+                            Karakteristik ini saat ini masih digunakan oleh <strong x-text="charDeleteWarningCount"></strong> produk. Jika dihapus, karakteristik akan dilepas dari seluruh produk tersebut. (Disarankan cukup ubah status menjadi Nonaktif).
+                        </div>
+                    </template>
+                </div>
+
+                <div class="pt-3 flex items-center justify-center gap-3">
+                    <button @click="charDeleteModalOpen = false" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="confirmDeleteChar()" 
+                            type="button" 
+                            class="px-5 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">
+                        Tetap Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- 7. MODAL EDITOR PRODUK (Form + REAL LIVE PREVIEW)       -->
     <!-- ======================================================= -->
     <div x-show="editorModalOpen" 
          x-cloak
@@ -474,7 +901,7 @@
                                 </div>
                             </div>
 
-                            <!-- UNLIMITED MULTI-SELECT CHARACTERISTICS -->
+                            <!-- UNLIMITED MULTI-SELECT CHARACTERISTICS FROM MASTER BADGES -->
                             <div class="p-3.5 rounded-modern bg-gray-50 border border-gray-200 space-y-2">
                                 <div class="flex items-center justify-between">
                                     <label class="block text-xs font-bold text-brand-dark">
@@ -487,18 +914,19 @@
                                 </p>
 
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
-                                    <template x-for="char in availableCharacteristics" :key="char.id">
+                                    <template x-for="char in availableCharacteristics.filter(c => c.status === 'Aktif' || form.types.includes(c.id) || form.types.includes(c.name))" :key="char.id">
                                         <button type="button" 
-                                                @click="toggleTypeSelection(char.id)"
+                                                @click="toggleTypeSelection(char.name || char.id)"
                                                 class="flex items-center gap-2 p-2 rounded-modern border text-xs font-bold transition-all cursor-pointer text-left"
-                                                :class="form.types.includes(char.id) 
-                                                    ? 'bg-brand-soft-green/60 text-brand-primary border-brand-primary ring-1 ring-brand-primary' 
+                                                :style="form.types.includes(char.name || char.id) ? hexToBadgeStyle(char.color) : ''"
+                                                :class="form.types.includes(char.name || char.id) 
+                                                    ? 'ring-1 ring-black/10' 
                                                     : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'">
                                             <span class="w-4 h-4 rounded flex items-center justify-center text-[10px] font-black border shrink-0"
-                                                  :class="form.types.includes(char.id) ? 'bg-brand-primary text-white border-brand-primary' : 'bg-gray-100 text-transparent border-gray-300'">
+                                                  :class="form.types.includes(char.name || char.id) ? 'bg-current text-white border-transparent' : 'bg-gray-100 text-transparent border-gray-300'">
                                                 ✓
                                             </span>
-                                            <span class="truncate" x-text="char.label"></span>
+                                            <span class="truncate" x-text="char.name || char.label"></span>
                                         </button>
                                     </template>
                                 </div>
@@ -658,7 +1086,7 @@
     </div>
 
     <!-- ======================================================= -->
-    <!-- 5. GLOBAL MEDIA PICKER MODAL                            -->
+    <!-- 8. GLOBAL MEDIA PICKER MODAL                            -->
     <!-- ======================================================= -->
     <div x-show="mediaPickerOpen" 
          x-cloak
@@ -738,7 +1166,7 @@
                         <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleFileUpload($event)">
                         <div class="space-y-2">
                             <span class="text-3xl">📤</span>
-                            <p class="text-xs font-bold text-brand-dark">Tarik & Lepaskan gambar ke sini, atau klik untuk memilih file</p>
+                            <p class="text-xs font-bold text-brand-dark">Tarik &amp; Lepaskan gambar ke sini, atau klik untuk memilih file</p>
                             <p class="text-[11px] text-gray-400">Mendukung JPG, PNG, WebP (Rekomendasi 1200 × 900 px ≤ 300 KB)</p>
                         </div>
                     </label>
@@ -767,7 +1195,9 @@
         </div>
     </div>
 
-    <!-- 6. Delete Confirmation Modal -->
+    <!-- ======================================================= -->
+    <!-- 9. DELETE PRODUCT CONFIRMATION MODAL                    -->
+    <!-- ======================================================= -->
     <div x-show="deleteModalOpen" 
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
@@ -789,7 +1219,9 @@
         </div>
     </div>
 
-    <!-- 7. Toast Notification -->
+    <!-- ======================================================= -->
+    <!-- 10. TOAST NOTIFICATION                                  -->
+    <!-- ======================================================= -->
     <div x-show="toastVisible" 
          x-cloak
          x-transition
