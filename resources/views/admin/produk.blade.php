@@ -25,11 +25,11 @@
          uploadedFile: null,
          uploadedPreviewUrl: null,
          
-         // 1. SECTION HEADER KATEGORI STATE
-         categorySection: {
-             label: 'Kategori Utama',
-             title: 'Mau Masak Apa Hari Ini?',
-             subtitle: 'Pilih bahan masak sesuai kebutuhanmu. Dari potongan daging segar, ayam bumbu, ikan laut, hingga sayuran siap cemplung.'
+         // 1. SECTION HEADER KATALOG PRODUK STATE
+         productSection: {
+             label: 'Katalog Lengkap',
+             title: 'Produk Pilihan',
+             subtitle: 'Pilih bahan masak sesuai kebutuhanmu. Tersedia skala retail rumah tangga maupun pembelian curah.'
          },
          
          // 2. MASTER BADGE KARAKTERISTIK PRODUK STATE
@@ -408,24 +408,24 @@
     <!-- ======================================================= -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-7 shadow-2xs space-y-6">
         
-        <!-- PENGATURAN SECTION KATEGORI -->
+        <!-- PENGATURAN SECTION KATALOG PRODUK -->
         <div class="space-y-4">
-            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-                <div class="flex items-center gap-2">
-                    <span class="text-base">⚙️</span>
-                    <div>
-                        <h3 class="text-xs sm:text-sm font-extrabold text-brand-dark uppercase tracking-wider">
-                            Pengaturan Section Kategori
+            <div class="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                    <span class="text-base shrink-0">⚙️</span>
+                    <div class="min-w-0 flex-1">
+                        <h3 class="text-xs sm:text-sm font-extrabold text-brand-dark uppercase tracking-wider truncate sm:whitespace-normal">
+                            Pengaturan Section Katalog Produk
                         </h3>
-                        <p class="text-[11px] text-gray-500">
-                            Kelola label badge, judul utama, dan deskripsi pengantar pada section kategori Landing Page.
+                        <p class="text-[11px] text-gray-500 leading-relaxed">
+                            Kelola label badge, judul utama (headline), dan deskripsi pengantar pada section katalog produk (<code>&lt;section id="produk"&gt;</code>) Landing Page.
                         </p>
                     </div>
                 </div>
 
-                <button @click="showToast('Header Section Kategori berhasil diperbarui!')" 
+                <button @click="showToast('Header Section Katalog Produk berhasil diperbarui!')" 
                         type="button" 
-                        class="px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer">
+                        class="px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer shrink-0 whitespace-nowrap">
                     Simpan Header
                 </button>
             </div>
@@ -437,8 +437,8 @@
                         Label Badge Section
                     </label>
                     <input type="text" 
-                           x-model="categorySection.label" 
-                           placeholder="Contoh: Kategori Utama"
+                           x-model="productSection.label" 
+                           placeholder="Contoh: Katalog Lengkap"
                            class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold text-brand-primary focus:ring-2 focus:ring-brand-primary/30">
                 </div>
 
@@ -448,8 +448,8 @@
                         Judul Utama / Heading
                     </label>
                     <input type="text" 
-                           x-model="categorySection.title" 
-                           placeholder="Contoh: Mau Masak Apa Hari Ini?"
+                           x-model="productSection.title" 
+                           placeholder="Contoh: Produk Pilihan"
                            class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-extrabold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
                 </div>
 
@@ -458,9 +458,9 @@
                     <label class="block text-xs font-bold text-brand-dark mb-1">
                         Deskripsi Pengantar
                     </label>
-                    <textarea x-model="categorySection.subtitle" 
+                    <textarea x-model="productSection.subtitle" 
                               rows="2" 
-                              placeholder="Pilih bahan masak sesuai kebutuhanmu..."
+                              placeholder="Pilih bahan masak sesuai kebutuhanmu. Tersedia skala retail rumah tangga maupun pembelian curah."
                               class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white leading-relaxed focus:ring-2 focus:ring-brand-primary/30"></textarea>
                 </div>
             </div>
@@ -469,13 +469,13 @@
             <div class="pt-1">
                 <div class="bg-brand-cream/60 rounded-modern-xl border border-dashed border-gray-300 p-4 sm:p-5 text-center max-w-xl mx-auto shadow-2xs">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-brand-soft-green text-brand-primary mb-2 shadow-2xs transition-all"
-                          x-text="categorySection.label || 'Kategori Utama'">
+                          x-text="productSection.label || 'Katalog Lengkap'">
                     </span>
                     <h4 class="text-lg sm:text-xl font-extrabold text-brand-dark tracking-tight mb-1.5 transition-all"
-                        x-text="categorySection.title || 'Mau Masak Apa Hari Ini?'">
+                        x-text="productSection.title || 'Produk Pilihan'">
                     </h4>
                     <p class="text-xs text-gray-600 font-normal leading-relaxed max-w-md mx-auto transition-all"
-                       x-text="categorySection.subtitle || 'Pilih bahan masak sesuai kebutuhanmu.'">
+                       x-text="productSection.subtitle || 'Pilih bahan masak sesuai kebutuhanmu. Tersedia skala retail rumah tangga maupun pembelian curah.'">
                     </p>
                 </div>
             </div>

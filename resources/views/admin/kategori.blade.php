@@ -260,14 +260,14 @@
     <!-- 2. SECTION KATEGORI SETTINGS (DYNAMIC SECTION HEADER)   -->
     <!-- ======================================================= -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-7 shadow-2xs space-y-4">
-        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-            <div class="flex items-center gap-2">
-                <span class="text-lg">⚙️</span>
-                <div>
-                    <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
+        <div class="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+                <span class="text-lg shrink-0">⚙️</span>
+                <div class="min-w-0 flex-1">
+                    <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider truncate sm:whitespace-normal">
                         Pengaturan Section Kategori (Landing Page Header)
                     </h3>
-                    <p class="text-xs text-gray-500">
+                    <p class="text-xs text-gray-500 leading-relaxed">
                         Kelola label badge, judul utama (headline), dan deskripsi pengantar pada section <code>&lt;section id="kategori"&gt;</code>.
                     </p>
                 </div>
@@ -275,8 +275,8 @@
 
             <button @click="saveSectionSettings()" 
                     type="button" 
-                    class="px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer">
-                Simpan Header Section
+                    class="px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer shrink-0 whitespace-nowrap">
+                Simpan Header
             </button>
         </div>
 
@@ -289,18 +289,18 @@
                 <input type="text" 
                        x-model="categorySection.label" 
                        placeholder="Contoh: Kategori Utama"
-                       class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold text-brand-primary">
+                       class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold text-brand-primary focus:ring-2 focus:ring-brand-primary/30">
             </div>
 
             <!-- Judul Utama (Heading) -->
             <div class="md:col-span-4">
                 <label class="block text-xs font-bold text-brand-dark mb-1">
-                    Judul Utama (Heading)
+                    Judul Utama / Heading
                 </label>
                 <input type="text" 
                        x-model="categorySection.title" 
                        placeholder="Contoh: Mau Masak Apa Hari Ini?"
-                       class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-extrabold text-brand-dark">
+                       class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-extrabold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
             </div>
 
             <!-- Deskripsi Pengantar -->
@@ -311,7 +311,22 @@
                 <textarea x-model="categorySection.subtitle" 
                           rows="2" 
                           placeholder="Pilih bahan masak sesuai kebutuhanmu..."
-                          class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white leading-relaxed"></textarea>
+                          class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white leading-relaxed focus:ring-2 focus:ring-brand-primary/30"></textarea>
+            </div>
+        </div>
+
+        <!-- Small Header Section Realtime Preview -->
+        <div class="pt-1">
+            <div class="bg-brand-cream/60 rounded-modern-xl border border-dashed border-gray-300 p-4 sm:p-5 text-center max-w-xl mx-auto shadow-2xs">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-brand-soft-green text-brand-primary mb-2 shadow-2xs transition-all"
+                      x-text="categorySection.label || 'Kategori Utama'">
+                </span>
+                <h4 class="text-lg sm:text-xl font-extrabold text-brand-dark tracking-tight mb-1.5 transition-all"
+                    x-text="categorySection.title || 'Mau Masak Apa Hari Ini?'">
+                </h4>
+                <p class="text-xs text-gray-600 font-normal leading-relaxed max-w-md mx-auto transition-all"
+                   x-text="categorySection.subtitle || 'Pilih bahan masak sesuai kebutuhanmu. Dari potongan daging segar, ayam bumbu, ikan laut, hingga sayuran siap cemplung.'">
+                </p>
             </div>
         </div>
     </div>
