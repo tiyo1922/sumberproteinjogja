@@ -26,10 +26,104 @@
          
          // Preview & Notification State
          previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
-         activePreviewImageIndex: 0,
+         previewBoxWidth: 640,
+         previewObserver: null,
+         currentSlide: 0,
+         autoplayTimer: null,
          toastMessage: '',
          toastVisible: false,
          isEditingDraft: false,
+         
+         // Reference Viewport Dimensions (Landing Page Standard)
+         virtualDimensions: {
+             desktop: { width: 1280, height: 720 },
+             tablet:  { width: 1024, height: 768 },
+             mobile:  { width: 390,  height: 600 }
+         },
+         
+         get currentVirtualWidth() {
+             return this.virtualDimensions[this.previewDevice]?.width || 1280;
+         },
+         
+         get currentVirtualHeight() {
+             return this.virtualDimensions[this.previewDevice]?.height || 720;
+         },
+         
+         get currentFrameWidth() {
+             const available = Math.max(300, this.previewBoxWidth || 640);
+             if (this.previewDevice === 'desktop') {
+                 return available;
+             } else if (this.previewDevice === 'tablet') {
+                 return Math.min(available, 540);
+             } else { // mobile
+                 return Math.min(available, 360);
+             }
+         },
+         
+         get currentFrameHeight() {
+             return Math.round(this.currentFrameWidth * (this.currentVirtualHeight / this.currentVirtualWidth));
+         },
+         
+         get currentScale() {
+             return this.currentFrameWidth / this.currentVirtualWidth;
+         },
+         
+         initPreviewObserver() {
+             this.$nextTick(() => {
+                 if (this.$refs.previewBoxWrapper) {
+                     const rect = this.$refs.previewBoxWrapper.getBoundingClientRect();
+                     if (rect.width > 50) {
+                         this.previewBoxWidth = rect.width;
+                     }
+                     if (!this.previewObserver && window.ResizeObserver) {
+                         this.previewObserver = new ResizeObserver((entries) => {
+                             for (let entry of entries) {
+                                 const width = entry.contentRect.width;
+                                 if (width > 50) {
+                                     this.previewBoxWidth = width;
+                                 }
+                             }
+                         });
+                         this.previewObserver.observe(this.$refs.previewBoxWrapper);
+                     }
+                 }
+             });
+         },
+         
+         startAutoplay() {
+             this.stopAutoplay();
+             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
+             this.autoplayTimer = setInterval(() => {
+                 this.currentSlide = (this.currentSlide + 1) % this.draftForm.images.length;
+             }, 5500);
+         },
+         
+         stopAutoplay() {
+             if (this.autoplayTimer) {
+                 clearInterval(this.autoplayTimer);
+                 this.autoplayTimer = null;
+             }
+         },
+         
+         goToSlide(index) {
+             this.stopAutoplay();
+             this.currentSlide = index;
+             this.startAutoplay();
+         },
+         
+         nextSlide() {
+             this.stopAutoplay();
+             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
+             this.currentSlide = (this.currentSlide + 1) % this.draftForm.images.length;
+             this.startAutoplay();
+         },
+         
+         prevSlide() {
+             this.stopAutoplay();
+             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
+             this.currentSlide = (this.currentSlide - 1 + this.draftForm.images.length) % this.draftForm.images.length;
+             this.startAutoplay();
+         },
          
          // Helper for Image URLs (handles relative paths, blob URLs, and external links)
          getImageUrl(path) {
@@ -78,7 +172,7 @@
              }
              this.isEditingDraft = false;
              this.previewDevice = 'desktop';
-             this.activePreviewImageIndex = 0;
+             this.currentSlide = 0;
              const nextNum = this.drafts.length + 1;
              this.draftForm = {
                  id: Date.now(),
@@ -102,12 +196,14 @@
                  updated_at: 'Baru saja'
              };
              this.editorModalOpen = true;
+             this.startAutoplay();
+             this.initPreviewObserver();
          },
          
          openEditDraftModal(draft) {
              this.isEditingDraft = true;
              this.previewDevice = 'desktop';
-             this.activePreviewImageIndex = 0;
+             this.currentSlide = 0;
              this.draftForm = JSON.parse(JSON.stringify(draft));
              // Ensure trust_items has 3 items
              if (!this.draftForm.trust_items || this.draftForm.trust_items.length === 0) {
@@ -118,6 +214,8 @@
                  ];
              }
              this.editorModalOpen = true;
+             this.startAutoplay();
+             this.initPreviewObserver();
          },
          
          saveDraft() {
@@ -137,6 +235,11 @@
                  this.drafts.push(JSON.parse(JSON.stringify(this.draftForm)));
                  this.showToast('Draft Hero baru berhasil dibuat!');
              }
+             this.closeEditorModal();
+         },
+         
+         closeEditorModal() {
+             this.stopAutoplay();
              this.editorModalOpen = false;
          },
          
@@ -229,6 +332,8 @@
                  }
              }
              
+             this.currentSlide = 0;
+             this.startAutoplay();
              this.mediaPickerOpen = false;
          },
          
@@ -238,9 +343,10 @@
                  return;
              }
              this.draftForm.images.splice(imgIndex, 1);
-             if (this.activePreviewImageIndex >= this.draftForm.images.length) {
-                 this.activePreviewImageIndex = 0;
+             if (this.currentSlide >= this.draftForm.images.length) {
+                 this.currentSlide = 0;
              }
+             this.startAutoplay();
              this.showToast('Gambar dihapus dari slideshow.');
          },
          
@@ -500,7 +606,7 @@
              x-transition:leave-start="opacity-100"
              x-transition:leave-end="opacity-0"
              class="fixed inset-0 bg-black/60 backdrop-blur-xs"
-             @click="editorModalOpen = false">
+             @click="closeEditorModal()">
         </div>
 
         <!-- Modal Dialog Container -->
@@ -527,7 +633,7 @@
                         </div>
                         <p class="text-xs text-gray-500">Teks Hero bersifat tetap di atas slideshow, latar berganti otomatis sesuai foto yang diupload.</p>
                     </div>
-                    <button @click="editorModalOpen = false" 
+                    <button @click="closeEditorModal()" 
                             type="button" 
                             class="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -541,8 +647,8 @@
                     
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                         
-                        <!-- Left Column: Form Fields (6 cols on lg) -->
-                        <div class="lg:col-span-6 space-y-6">
+                        <!-- Left Column: Form Fields (5 cols on lg) -->
+                        <div class="lg:col-span-5 space-y-6">
                             
                             <!-- 1. Background Slideshow Images (Media Picker Trigger) -->
                             <div class="p-5 rounded-modern-xl bg-gray-50 border border-gray-200 space-y-4">
@@ -861,14 +967,103 @@
 
                         </div>
 
-                        <!-- Right Column: Live Source-of-Truth Hero Preview (6 cols on lg) -->
-                        <div class="lg:col-span-6 space-y-3 sticky top-4">
+                        <!-- Right Column: Live Source-of-Truth Hero Preview (7 cols on lg) -->
+                        <div class="lg:col-span-7 space-y-3 sticky top-4">
+                            
+                            <style>
+                                .virtual-viewport > section {
+                                    width: 100% !important;
+                                    height: 100% !important;
+                                    min-height: 100% !important;
+                                }
+                                .virtual-viewport > section > div.relative.z-20 {
+                                    width: 100% !important;
+                                    height: 100% !important;
+                                    min-height: 100% !important;
+                                }
+
+                                /* Mobile Responsive Layout Context Overrides for Virtual Viewport */
+                                .virtual-viewport.preview-device-mobile div.inline-flex {
+                                    padding: 0.3rem 0.65rem !important;
+                                    font-size: 0.58rem !important;
+                                    margin-bottom: 0.75rem !important;
+                                    gap: 0.375rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.inline-flex span.w-2 {
+                                    width: 0.375rem !important;
+                                    height: 0.375rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile h1 {
+                                    font-size: 1.4rem !important;
+                                    line-height: 1.2 !important;
+                                    margin-bottom: 0.625rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile h1 .underline {
+                                    text-decoration-thickness: 2px !important;
+                                    text-underline-offset: 4px !important;
+                                }
+                                .virtual-viewport.preview-device-mobile p {
+                                    font-size: 0.75rem !important;
+                                    line-height: 1.5 !important;
+                                    margin-bottom: 1.125rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.max-w-3xl > div.flex {
+                                    flex-direction: column !important;
+                                    align-items: stretch !important;
+                                    gap: 0.5rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.max-w-3xl > div.flex > a {
+                                    width: 100% !important;
+                                    padding-top: 0.625rem !important;
+                                    padding-bottom: 0.625rem !important;
+                                    padding-left: 1rem !important;
+                                    padding-right: 1rem !important;
+                                    font-size: 0.8125rem !important;
+                                    gap: 0.375rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.max-w-3xl > div.flex > a svg {
+                                    width: 0.875rem !important;
+                                    height: 0.875rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.border-t {
+                                    margin-top: 1.25rem !important;
+                                    padding-top: 0.875rem !important;
+                                    gap: 0.375rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.border-t div.rounded-full {
+                                    width: 1.375rem !important;
+                                    height: 1.375rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.border-t svg {
+                                    width: 0.75rem !important;
+                                    height: 0.75rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.border-t span {
+                                    font-size: 0.625rem !important;
+                                }
+                                .virtual-viewport.preview-device-mobile div.z-30 {
+                                    bottom: 1rem !important;
+                                    left: 50% !important;
+                                    right: auto !important;
+                                    transform: translateX(-50%) !important;
+                                    padding: 0.3rem 0.75rem !important;
+                                    gap: 0.5rem !important;
+                                }
+                            </style>
                             
                             <!-- Preview Device Toggle Bar -->
                             <div class="flex items-center justify-between pb-1">
-                                <label class="block text-xs font-extrabold text-brand-dark">
-                                    5. Live Hero Preview
-                                </label>
+                                <div>
+                                    <label class="block text-xs font-extrabold text-brand-dark">
+                                        5. Live Hero Preview (Shared Component)
+                                    </label>
+                                    <p class="text-[11px] text-gray-500">
+                                        <span x-show="previewDevice === 'desktop'">💻 Virtual Desktop (1280×720) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
+                                        <span x-show="previewDevice === 'tablet'">📱 Virtual Tablet (1024×768) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
+                                        <span x-show="previewDevice === 'mobile'">📱 Virtual Mobile (390×600) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
+                                        • 100% Uniform Proportional Scale.
+                                    </p>
+                                </div>
                                 
                                 <!-- Device Simulator Switch -->
                                 <div class="flex items-center bg-gray-100 p-0.5 rounded-modern border border-gray-200 text-xs">
@@ -876,101 +1071,47 @@
                                             type="button"
                                             :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>💻 Desktop</span>
+                                        <span>💻 Desktop (16:9)</span>
                                     </button>
                                     <button @click="previewDevice = 'tablet'" 
                                             type="button"
                                             :class="previewDevice === 'tablet' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>📱 Tablet</span>
+                                        <span>📱 Tablet (4:3)</span>
                                     </button>
                                     <button @click="previewDevice = 'mobile'" 
                                             type="button"
                                             :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>📱 Mobile</span>
+                                        <span>📱 Mobile (Portrait)</span>
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Live Hero Simulation Container -->
-                            <div class="bg-gray-900 rounded-modern-xl p-3 flex justify-center items-center overflow-hidden border border-gray-800 shadow-inner">
+                            <div x-ref="previewBoxWrapper"
+                                 class="bg-gray-950 rounded-modern-xl p-3 sm:p-4 flex justify-center items-center overflow-hidden border border-gray-800 shadow-inner">
                                 
-                                <div class="relative rounded-modern-lg overflow-hidden bg-brand-dark text-white p-5 sm:p-7 flex flex-col justify-between shadow-2xl transition-all duration-300 min-h-[420px]"
-                                     :class="{
-                                         'w-full': previewDevice === 'desktop',
-                                         'w-[460px]': previewDevice === 'tablet',
-                                         'w-[320px]': previewDevice === 'mobile'
+                                <!-- Preview Frame (Explicit Scaled Bounds with smooth transition) -->
+                                <div class="relative overflow-hidden rounded-modern-lg shadow-2xl transition-all duration-300 bg-brand-dark mx-auto"
+                                     :style="{
+                                         width: currentFrameWidth + 'px',
+                                         height: currentFrameHeight + 'px'
                                      }">
                                     
-                                    <!-- Background Image based on activePreviewImageIndex -->
-                                    <img :src="getImageUrl(draftForm.images[activePreviewImageIndex] || draftForm.images[0] || 'images/hero-1.jpg')" 
-                                         alt="Live Preview Background" 
-                                         class="absolute inset-0 w-full h-full object-cover object-center">
-                                    
-                                    <!-- Multi-layer Gradient Overlay (Exact Source of Truth from Hero) -->
-                                    <div class="absolute inset-0 bg-gradient-to-t from-brand-dark/95 via-brand-dark/80 to-brand-dark/60 md:bg-gradient-to-r md:from-brand-dark/95 md:via-brand-dark/70 md:to-brand-dark/35"></div>
-                                    <div class="absolute inset-0 bg-black/20"></div>
-
-                                    <!-- Content Mockup -->
-                                    <div class="relative z-10 space-y-3">
+                                    <!-- Virtual Viewport (Reference Resolution: 1280x720, 1024x768, 390x600) -->
+                                    <div class="virtual-viewport absolute top-0 left-0 bg-brand-dark overflow-hidden"
+                                         :class="'preview-device-' + previewDevice"
+                                         :style="{
+                                             width: currentVirtualWidth + 'px',
+                                             height: currentVirtualHeight + 'px',
+                                             transformOrigin: '0 0',
+                                             transform: 'scale(' + currentScale + ')'
+                                         }">
                                         
-                                        <!-- Category Tag Pill -->
-                                        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-primary/30 border border-brand-primary/40 backdrop-blur-md text-brand-soft-green text-[10px] font-semibold shadow-xs max-w-full">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-                                            <span class="truncate" x-text="draftForm.badge || 'Badge Teks Hero'"></span>
-                                        </div>
+                                        <!-- SHARED HERO COMPONENT (SOURCE OF TRUTH) -->
+                                        @include('components.hero', ['isLivePreview' => true])
 
-                                        <!-- Main Heading with Highlight & Accent Underline -->
-                                        <h1 class="text-lg sm:text-xl font-extrabold text-white tracking-tight leading-tight drop-shadow-sm">
-                                            <span x-text="draftForm.headline_prefix || 'Headline'"></span> 
-                                            <span class="text-emerald-400 underline decoration-amber-500 decoration-2 underline-offset-4"
-                                                  x-text="draftForm.highlight || 'Highlight'"></span><span x-text="draftForm.headline_suffix || '.'"></span>
-                                        </h1>
-
-                                        <!-- Subheadline Description -->
-                                        <p class="text-[11px] sm:text-xs text-gray-200 font-normal leading-relaxed line-clamp-3 text-shadow"
-                                           x-text="draftForm.description || 'Deskripsi hero...'"></p>
-
-                                        <!-- Call to Actions -->
-                                        <div class="flex items-center gap-2 pt-1 flex-wrap">
-                                            <!-- Primary CTA -->
-                                            <div class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary shadow-md">
-                                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                                </svg>
-                                                <span x-text="draftForm.primary_cta_text || 'Belanja Sekarang'"></span>
-                                            </div>
-
-                                            <!-- Secondary CTA -->
-                                            <div class="inline-flex items-center gap-1 px-3 py-2 rounded-modern text-xs font-semibold text-white bg-white/10 border border-white/25 backdrop-blur-md">
-                                                <span x-text="draftForm.secondary_cta_text || 'Lihat Produk'"></span>
-                                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </div>
-                                        </div>
-
-                                        <!-- Trust Checklist Section in Preview -->
-                                        <div class="pt-3 border-t border-white/15 grid grid-cols-3 gap-2 text-white/90 text-[9px]">
-                                            <template x-for="(item, tIdx) in draftForm.trust_items" :key="tIdx">
-                                                <div x-show="item.active" class="flex items-center gap-1">
-                                                    <div class="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-emerald-400 shrink-0">✓</div>
-                                                    <span class="truncate" x-text="item.text"></span>
-                                                </div>
-                                            </template>
-                                        </div>
-
-                                    </div>
-
-                                    <!-- Slideshow Interactive Indicator Dots in Preview -->
-                                    <div class="relative z-10 self-end mt-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 flex items-center gap-1.5">
-                                        <template x-for="(img, dotIdx) in draftForm.images" :key="dotIdx">
-                                            <button @click="activePreviewImageIndex = dotIdx"
-                                                    type="button"
-                                                    class="rounded-full transition-all cursor-pointer"
-                                                    :class="activePreviewImageIndex === dotIdx ? 'w-4 h-1.5 bg-amber-400' : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/80'"></button>
-                                        </template>
                                     </div>
 
                                 </div>
@@ -978,7 +1119,7 @@
                             </div>
 
                             <div class="p-3 rounded-modern bg-gray-50 border border-gray-200 text-[11px] text-gray-500 leading-relaxed">
-                                💡 <strong>Layout Locked:</strong> Struktur section hero pada website bersifat paten. Pergantian gambar slideshow tidak mempengaruhi tata letak teks dan tombol.
+                                💡 <strong>Virtual Viewport Uniform Scale:</strong> Seluruh elemen Hero (typography, button, badge, checklist, slideshow, dan image) di-scale secara proporsional dan presisi dari resolusi viewport Landing Page aslinya.
                             </div>
 
                         </div>
@@ -987,7 +1128,7 @@
 
                     <!-- Modal Actions Footer -->
                     <div class="pt-5 border-t border-gray-100 flex items-center justify-end gap-3">
-                        <button @click="editorModalOpen = false" 
+                        <button @click="closeEditorModal()" 
                                 type="button" 
                                 class="px-4 py-2.5 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
                             Batal

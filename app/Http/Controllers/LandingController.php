@@ -6,6 +6,31 @@ class LandingController
 {
     public function index()
     {
+        $hero = [
+            'id' => 1,
+            'name' => 'Hero Draft 01',
+            'status' => 'Aktif',
+            'badge' => 'Penyedia Bahan Segar & Frozen Food Terpercaya di Jogja',
+            'headline_prefix' => 'Bahan Masak',
+            'highlight' => 'Siap Olah',
+            'headline_suffix' => ', Tinggal Masak.',
+            'description' => 'Daging, ayam, ikan, dan sayuran pilihan dalam bentuk frozen dan ready to cook untuk kebutuhan rumah tangga maupun pembelian curah.',
+            'primary_cta_text' => 'Belanja Sekarang',
+            'primary_cta_link' => '#produk',
+            'secondary_cta_text' => 'Lihat Produk',
+            'secondary_cta_link' => '#kategori',
+            'images' => [
+                'images/hero-1.jpg',
+                'images/hero-2.jpg',
+                'images/hero-3.jpg',
+            ],
+            'trust_items' => [
+                ['id' => 1, 'text' => '100% Halal', 'active' => true],
+                ['id' => 2, 'text' => 'Cold Chain', 'active' => true],
+                ['id' => 3, 'text' => 'Kirim Se-Jogja', 'active' => true],
+            ],
+        ];
+
         $categorySection = [
             'label' => 'Kategori Utama',
             'title' => 'Mau Masak Apa Hari Ini?',
@@ -545,6 +570,7 @@ class LandingController
         unset($cat);
 
         return view('landing', compact(
+            'hero',
             'categorySection',
             'categories',
             'products',
