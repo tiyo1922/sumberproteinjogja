@@ -34,19 +34,19 @@
          toastVisible: false,
          isEditingDraft: false,
          
-         // Reference Viewport Dimensions (Landing Page Standard)
+         // Reference Viewport Dimensions (Landing Page Standard & iPhone 15)
          virtualDimensions: {
              desktop: { width: 1280, height: 720 },
              tablet:  { width: 1024, height: 768 },
-             mobile:  { width: 390,  height: 600 }
+             mobile:  { width: 393,  height: 852 }
          },
          
          get currentVirtualWidth() {
-             return this.virtualDimensions[this.previewDevice]?.width || 1280;
+             return this.virtualDimensions[this.previewDevice]?.width || (this.previewDevice === 'mobile' ? 393 : 1280);
          },
          
          get currentVirtualHeight() {
-             return this.virtualDimensions[this.previewDevice]?.height || 720;
+             return this.virtualDimensions[this.previewDevice]?.height || (this.previewDevice === 'mobile' ? 852 : 720);
          },
          
          get currentFrameWidth() {
@@ -55,8 +55,8 @@
                  return available;
              } else if (this.previewDevice === 'tablet') {
                  return Math.min(available, 540);
-             } else { // mobile
-                 return Math.min(available, 360);
+             } else { // mobile iPhone 15
+                 return Math.min(available, 330);
              }
          },
          
@@ -618,7 +618,7 @@
                  x-transition:leave="transition ease-in duration-150 transform"
                  x-transition:leave-start="opacity-100 scale-100"
                  x-transition:leave-end="opacity-0 scale-95"
-                 class="relative bg-white rounded-modern-xl max-w-7xl w-full p-5 sm:p-8 shadow-2xl border border-gray-200 overflow-hidden my-6">
+                 class="relative bg-white rounded-modern-xl max-w-7xl w-full p-5 sm:p-8 shadow-2xl border border-gray-200 my-6">
                 
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between pb-4 mb-6 border-b border-gray-100">
@@ -968,86 +968,131 @@
                         </div>
 
                         <!-- Right Column: Live Source-of-Truth Hero Preview (7 cols on lg) -->
-                        <div class="lg:col-span-7 space-y-3 sticky top-4">
+                        <div class="lg:col-span-7 space-y-3 sticky top-6 self-start">
                             
                             <style>
-                                .virtual-viewport > section {
+                                /* Desktop & Tablet Full Viewport */
+                                .virtual-viewport-desktop > section {
                                     width: 100% !important;
                                     height: 100% !important;
                                     min-height: 100% !important;
                                 }
-                                .virtual-viewport > section > div.relative.z-20 {
+                                .virtual-viewport-desktop > section > div.relative.z-20 {
                                     width: 100% !important;
                                     height: 100% !important;
                                     min-height: 100% !important;
                                 }
 
-                                /* Mobile Responsive Layout Context Overrides for Virtual Viewport */
-                                .virtual-viewport.preview-device-mobile div.inline-flex {
-                                    padding: 0.3rem 0.65rem !important;
-                                    font-size: 0.58rem !important;
-                                    margin-bottom: 0.75rem !important;
-                                    gap: 0.375rem !important;
+                                /* ========================================================================= */
+                                /* ISOLATED MOBILE RESPONSIVE CONTEXT FOR iPHONE 15 SIMULATOR (393px)        */
+                                /* Overrides desktop browser media queries to simulate true mobile viewport  */
+                                /* ========================================================================= */
+                                
+                                /* Section & Container */
+                                .preview-device-mobile section {
+                                    width: 100% !important;
+                                    min-height: 852px !important;
+                                    height: 100% !important;
                                 }
-                                .virtual-viewport.preview-device-mobile div.inline-flex span.w-2 {
-                                    width: 0.375rem !important;
-                                    height: 0.375rem !important;
+                                .preview-device-mobile section > div.relative.z-20 {
+                                    width: 100% !important;
+                                    max-width: 100% !important;
+                                    padding-top: 5rem !important;     /* pt-20 = 80px */
+                                    padding-bottom: 5rem !important;  /* pb-20 = 80px */
+                                    padding-left: 1rem !important;    /* px-4 = 16px */
+                                    padding-right: 1rem !important;   /* px-4 = 16px */
                                 }
-                                .virtual-viewport.preview-device-mobile h1 {
-                                    font-size: 1.4rem !important;
+
+                                /* Category Tag Badge */
+                                .preview-device-mobile div.inline-flex {
+                                    font-size: 11px !important;
+                                    line-height: 1rem !important;
+                                    padding: 0.375rem 0.875rem !important; /* py-1.5 px-3.5 */
+                                    margin-bottom: 1rem !important;        /* mb-4 */
+                                    gap: 0.5rem !important;
+                                }
+                                .preview-device-mobile div.inline-flex span.w-2 {
+                                    width: 0.5rem !important;  /* 8px */
+                                    height: 0.5rem !important; /* 8px */
+                                }
+
+                                /* Headline H1 (text-2xl = 24px, line-height 1.2) */
+                                .preview-device-mobile h1 {
+                                    font-size: 1.5rem !important;          /* 24px */
                                     line-height: 1.2 !important;
-                                    margin-bottom: 0.625rem !important;
+                                    margin-bottom: 1rem !important;        /* mb-4 */
+                                    letter-spacing: -0.025em !important;
+                                    font-weight: 800 !important;
                                 }
-                                .virtual-viewport.preview-device-mobile h1 .underline {
+                                .preview-device-mobile h1 span.underline {
                                     text-decoration-thickness: 2px !important;
                                     text-underline-offset: 4px !important;
                                 }
-                                .virtual-viewport.preview-device-mobile p {
-                                    font-size: 0.75rem !important;
-                                    line-height: 1.5 !important;
-                                    margin-bottom: 1.125rem !important;
+
+                                /* Subheadline Description (text-xs = 12px, line-height 1.625) */
+                                .preview-device-mobile p {
+                                    font-size: 0.75rem !important;         /* 12px */
+                                    line-height: 1.625 !important;
+                                    margin-bottom: 1.5rem !important;      /* mb-6 */
+                                    max-width: 100% !important;
                                 }
-                                .virtual-viewport.preview-device-mobile div.max-w-3xl > div.flex {
+
+                                /* CTA Buttons (Stack vertically, full width, text-sm = 14px) */
+                                .preview-device-mobile div.max-w-3xl > div.flex {
                                     flex-direction: column !important;
                                     align-items: stretch !important;
+                                    gap: 0.75rem !important;               /* gap-3 = 12px */
+                                    width: 100% !important;
+                                }
+                                .preview-device-mobile div.max-w-3xl > div.flex > a {
+                                    width: 100% !important;
+                                    padding: 0.875rem 1.5rem !important;  /* py-3.5 px-6 */
+                                    font-size: 0.875rem !important;        /* text-sm = 14px */
                                     gap: 0.5rem !important;
                                 }
-                                .virtual-viewport.preview-device-mobile div.max-w-3xl > div.flex > a {
-                                    width: 100% !important;
-                                    padding-top: 0.625rem !important;
-                                    padding-bottom: 0.625rem !important;
-                                    padding-left: 1rem !important;
-                                    padding-right: 1rem !important;
-                                    font-size: 0.8125rem !important;
-                                    gap: 0.375rem !important;
+                                .preview-device-mobile div.max-w-3xl > div.flex > a svg {
+                                    width: 1rem !important;                /* 16px */
+                                    height: 1rem !important;
                                 }
-                                .virtual-viewport.preview-device-mobile div.max-w-3xl > div.flex > a svg {
-                                    width: 0.875rem !important;
+
+                                /* Quick Trust Badges (Grid 3 columns, text-[10px]) */
+                                .preview-device-mobile div.border-t {
+                                    margin-top: 2rem !important;           /* mt-8 = 32px */
+                                    padding-top: 1.25rem !important;       /* pt-5 = 20px */
+                                    display: grid !important;
+                                    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                                    gap: 0.5rem !important;                /* gap-2 = 8px */
+                                }
+                                .preview-device-mobile div.border-t div.rounded-full {
+                                    width: 1.5rem !important;              /* w-6 = 24px */
+                                    height: 1.5rem !important;
+                                }
+                                .preview-device-mobile div.border-t svg {
+                                    width: 0.875rem !important;            /* 14px */
                                     height: 0.875rem !important;
                                 }
-                                .virtual-viewport.preview-device-mobile div.border-t {
-                                    margin-top: 1.25rem !important;
-                                    padding-top: 0.875rem !important;
-                                    gap: 0.375rem !important;
+                                .preview-device-mobile div.border-t span {
+                                    font-size: 10px !important;            /* text-[10px] */
+                                    line-height: 1.25 !important;
                                 }
-                                .virtual-viewport.preview-device-mobile div.border-t div.rounded-full {
-                                    width: 1.375rem !important;
-                                    height: 1.375rem !important;
-                                }
-                                .virtual-viewport.preview-device-mobile div.border-t svg {
-                                    width: 0.75rem !important;
-                                    height: 0.75rem !important;
-                                }
-                                .virtual-viewport.preview-device-mobile div.border-t span {
-                                    font-size: 0.625rem !important;
-                                }
-                                .virtual-viewport.preview-device-mobile div.z-30 {
-                                    bottom: 1rem !important;
+
+                                /* Slideshow Navigation Controls (Bottom Centered Pill) */
+                                .preview-device-mobile div.z-30.absolute {
+                                    bottom: 1.25rem !important;            /* bottom-5 = 20px */
                                     left: 50% !important;
                                     right: auto !important;
                                     transform: translateX(-50%) !important;
-                                    padding: 0.3rem 0.75rem !important;
-                                    gap: 0.5rem !important;
+                                    padding: 0.375rem 0.875rem !important; /* py-1.5 px-3.5 */
+                                    gap: 0.75rem !important;               /* gap-3 = 12px */
+                                }
+
+                                /* Scrollbar styling */
+                                .hero-iphone-viewport::-webkit-scrollbar {
+                                    width: 4px;
+                                }
+                                .hero-iphone-viewport::-webkit-scrollbar-thumb {
+                                    background-color: rgba(255, 255, 255, 0.25);
+                                    border-radius: 9999px;
                                 }
                             </style>
                             
@@ -1057,11 +1102,10 @@
                                     <label class="block text-xs font-extrabold text-brand-dark">
                                         5. Live Hero Preview (Shared Component)
                                     </label>
-                                    <p class="text-[11px] text-gray-500">
-                                        <span x-show="previewDevice === 'desktop'">💻 Virtual Desktop (1280×720) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
-                                        <span x-show="previewDevice === 'tablet'">📱 Virtual Tablet (1024×768) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
-                                        <span x-show="previewDevice === 'mobile'">📱 Virtual Mobile (390×600) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
-                                        • 100% Uniform Proportional Scale.
+                                    <p class="text-[11px] text-gray-500 font-mono">
+                                        <span x-show="previewDevice === 'desktop'">💻 Desktop (1280×720) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
+                                        <span x-show="previewDevice === 'tablet'">📱 Tablet (1024×768) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
+                                        <span x-show="previewDevice === 'mobile'">📱 Mobile (393×852) • Scale <span x-text="Math.round(currentScale * 100)"></span>% • Scrollable</span>
                                     </p>
                                 </div>
                                 
@@ -1071,55 +1115,104 @@
                                             type="button"
                                             :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>💻 Desktop (16:9)</span>
+                                        <span>💻 Desktop</span>
                                     </button>
                                     <button @click="previewDevice = 'tablet'" 
                                             type="button"
                                             :class="previewDevice === 'tablet' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>📱 Tablet (4:3)</span>
+                                        <span>📱 Tablet</span>
                                     </button>
                                     <button @click="previewDevice = 'mobile'" 
                                             type="button"
                                             :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>📱 Mobile (Portrait)</span>
+                                        <span>📱 Mobile</span>
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Live Hero Simulation Container -->
                             <div x-ref="previewBoxWrapper"
-                                 class="bg-gray-950 rounded-modern-xl p-3 sm:p-4 flex justify-center items-center overflow-hidden border border-gray-800 shadow-inner">
+                                 class="bg-gray-950 rounded-modern-xl p-3 sm:p-4 flex justify-center items-start overflow-hidden border border-gray-800 shadow-inner min-h-[380px]">
                                 
-                                <!-- Preview Frame (Explicit Scaled Bounds with smooth transition) -->
-                                <div class="relative overflow-hidden rounded-modern-lg shadow-2xl transition-all duration-300 bg-brand-dark mx-auto"
-                                     :style="{
-                                         width: currentFrameWidth + 'px',
-                                         height: currentFrameHeight + 'px'
-                                     }">
-                                    
-                                    <!-- Virtual Viewport (Reference Resolution: 1280x720, 1024x768, 390x600) -->
-                                    <div class="virtual-viewport absolute top-0 left-0 bg-brand-dark overflow-hidden"
-                                         :class="'preview-device-' + previewDevice"
+                                <!-- =================================================== -->
+                                <!-- A. DESKTOP & TABLET VIEWPORT PREVIEW (FROZEN)       -->
+                                <!-- =================================================== -->
+                                <template x-if="previewDevice !== 'mobile'">
+                                    <div class="relative overflow-hidden rounded-modern-lg shadow-2xl transition-all duration-300 bg-brand-dark mx-auto"
                                          :style="{
-                                             width: currentVirtualWidth + 'px',
-                                             height: currentVirtualHeight + 'px',
-                                             transformOrigin: '0 0',
-                                             transform: 'scale(' + currentScale + ')'
+                                             width: currentFrameWidth + 'px',
+                                             height: currentFrameHeight + 'px'
                                          }">
                                         
-                                        <!-- SHARED HERO COMPONENT (SOURCE OF TRUTH) -->
-                                        @include('components.hero', ['isLivePreview' => true])
+                                        <!-- Virtual Viewport (Reference Resolution: 1280x720 or 1024x768) -->
+                                        <div class="virtual-viewport-desktop absolute top-0 left-0 bg-brand-dark overflow-hidden"
+                                             :style="{
+                                                 width: currentVirtualWidth + 'px',
+                                                 height: currentVirtualHeight + 'px',
+                                                 transformOrigin: '0 0',
+                                                 transform: 'scale(' + currentScale + ')'
+                                             }">
+                                            
+                                            <!-- SHARED HERO COMPONENT (SOURCE OF TRUTH) -->
+                                            @include('components.hero', ['isLivePreview' => true])
+
+                                        </div>
 
                                     </div>
+                                </template>
 
-                                </div>
+                                <!-- =================================================== -->
+                                <!-- B. iPHONE 15 DEVICE SIMULATOR (393×852 SCROLLABLE) -->
+                                <!-- =================================================== -->
+                                <template x-if="previewDevice === 'mobile'">
+                                    <div class="relative overflow-hidden transition-all duration-300 mx-auto select-none"
+                                         :style="{
+                                             width: currentFrameWidth + 'px',
+                                             height: currentFrameHeight + 'px'
+                                         }">
+                                        
+                                        <!-- iPhone 15 Outer Scaled Shell (393px × 852px scaled) -->
+                                        <div class="absolute top-0 left-0 rounded-[44px] border-[4px] border-slate-700 bg-slate-950 shadow-2xl overflow-hidden flex flex-col"
+                                             :style="{
+                                                 width: '393px',
+                                                 height: '852px',
+                                                 transformOrigin: '0 0',
+                                                 transform: 'scale(' + currentScale + ')'
+                                             }">
+                                            
+                                            <!-- Dynamic Island Overlay (Top Center) -->
+                                            <div class="absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-40 pointer-events-none shadow-md flex items-center justify-between px-2.5">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800"></span>
+                                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            </div>
+
+                                            <!-- Mobile Scrollable Screen (Isolated 393×852 Mobile Responsive Context) -->
+                                            <div class="preview-device-mobile hero-iphone-viewport w-full h-full overflow-y-auto overflow-x-hidden text-left relative bg-brand-dark"
+                                                 style="scroll-behavior: smooth;">
+                                                
+                                                <div class="w-[393px] min-h-[852px] h-full relative">
+                                                    <!-- SHARED HERO COMPONENT (RENDERED WITH TRUE 1:1 MOBILE VIEWPORT RULES) -->
+                                                    @include('components.hero', ['isLivePreview' => true])
+                                                </div>
+
+                                            </div>
+
+                                            <!-- iPhone 15 Bottom Home Bar -->
+                                            <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/40 rounded-full z-40 pointer-events-none"></div>
+
+                                        </div>
+
+                                    </div>
+                                </template>
 
                             </div>
 
                             <div class="p-3 rounded-modern bg-gray-50 border border-gray-200 text-[11px] text-gray-500 leading-relaxed">
-                                💡 <strong>Virtual Viewport Uniform Scale:</strong> Seluruh elemen Hero (typography, button, badge, checklist, slideshow, dan image) di-scale secara proporsional dan presisi dari resolusi viewport Landing Page aslinya.
+                                <span x-show="previewDevice === 'desktop'">💻 <strong>Desktop 1280px:</strong> Seluruh elemen Hero di-scale secara proporsional dan presisi dari resolusi Desktop 16:9.</span>
+                                <span x-show="previewDevice === 'tablet'">📱 <strong>Tablet 1024px:</strong> Seluruh elemen Hero di-scale secara proporsional dan presisi dari resolusi Tablet 4:3.</span>
+                                <span x-show="previewDevice === 'mobile'">📱 <strong>Mobile (393&times;852):</strong> Viewport 393&times;852 dengan isolasi context responsive mobile murni (1:1 Landing Page Mobile).</span>
                             </div>
 
                         </div>

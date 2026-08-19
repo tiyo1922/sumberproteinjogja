@@ -288,25 +288,35 @@ class LandingController
         }
         unset($cat);
 
+        $benefitsSection = [
+            'badge' => 'Kenapa Memilih Kami',
+            'title' => 'Lebih Praktis, Lebih Siap',
+            'subtitle' => 'Komitmen kami menghadirkan bahan makanan segar dan frozen bermutu tinggi untuk memudahkan dapur rumah tangga dan operasional usaha Anda di Yogyakarta.'
+        ];
+
         $benefits = [
             [
+                'id' => 1,
                 'title' => 'Pilihan Produk Lengkap',
-                'subtitle' => 'Daging sapi, ayam, ikan laut/tawar, hingga sayuran harian dalam satu tempat.',
+                'desc' => 'Daging sapi kualitas premium, ayam potong segar, ikan laut/tawar tanpa duri, hingga sayuran harian dalam satu tempat terpadu.',
                 'icon' => 'grid'
             ],
             [
+                'id' => 2,
                 'title' => 'Frozen & Terjaga Higienis',
-                'subtitle' => 'Dibekukan cepat dengan standar cold-chain terjaga agar kesegaran dan nutrisi terkunci.',
+                'desc' => 'Dibekukan dengan standar cold-chain ketat serta kemasan kedap udara untuk mengunci kelembapan, rasa, dan nutrisi asli bahan pangan.',
                 'icon' => 'shield'
             ],
             [
+                'id' => 3,
                 'title' => 'Ready to Cook Praktis',
-                'subtitle' => 'Sudah dipotong, dibersihkan, dan tersedia varian berbumbu siap masak tanpa repot.',
+                'desc' => 'Bahan sudah dipotong presisi, dicuci bersih, dan tersedia opsi bumbu racikan tradisional khas Jogja yang tinggal dimasak tanpa repot.',
                 'icon' => 'clock'
             ],
             [
-                'title' => 'Rumah Tangga & Pembelian Curah',
-                'subtitle' => 'Fleksibel mulai dari eceran 250g untuk menu keluarga hingga pesanan partai besar (curah) resto/katering.',
+                'id' => 4,
+                'title' => 'Rumah Tangga & Curah',
+                'desc' => 'Fleksibilitas belanja: mulai dari pack eceran 200g untuk menu keluarga harian hingga kemasan 10kg-50kg harga grosir bagi pengusaha kuliner.',
                 'icon' => 'truck'
             ],
         ];
@@ -493,26 +503,36 @@ class LandingController
             ],
         ];
 
+        $qualitySection = [
+            'badge' => 'Standar Mutu',
+            'title' => 'Mengenal Standar Produk Kami',
+            'subtitle' => 'Setiap produk yang keluar dari fasilitas penyimpanan Sumber Protein Jogja melewati proses seleksi ketat untuk menjamin keamanan pangan keluarga Anda.'
+        ];
+
         $productKnowledge = [
             [
+                'id' => 1,
                 'name' => 'Daging Sapi',
                 'tag' => 'Grade Pilihan',
                 'desc' => 'Daging sapi segar lokal dan impor pilihan. Diproses dengan higienitas tinggi, dipotong presisi menggunakan mesin modern, dan dikemas vacuum untuk menjaga kelembapan alami.',
                 'features' => ['Halal Certified', 'Bebas Pengawet', 'Kemasan Vacuum Food-grade', 'Tersedia Potongan Custom']
             ],
             [
+                'id' => 2,
                 'name' => 'Ayam Pilihan',
                 'tag' => 'Segar & Bersih',
                 'desc' => 'Ayam broiler dan kampung hasil pemotongan subuh bersertifikat Halal MUI. Tersedia dalam kondisi fresh maupun frozen dengan teknologi blast freezer untuk mencegah pertumbuhan bakteri.',
                 'features' => ['100% Halal MUI', 'Bebas Bau & Lendir', 'Rantai Dingin Terjamin', 'Varian Bumbu Tradisional']
             ],
             [
+                'id' => 3,
                 'name' => 'Ikan & Seafood',
                 'tag' => 'Segar Beku Kapal',
                 'desc' => 'Ikan air laut dan air tawar dibekukan seketika di atas kapal nelayan untuk mengunci kesegaran alami laut. Fillet bersih tanpa duri siap olah untuk anak-anak dan keluarga.',
                 'features' => ['Kaya Omega 3 & Protein', 'Tanpa Duri (Boneless)', 'Bebas Formalin/Kimia', 'Higienis Siap Masak']
             ],
             [
+                'id' => 4,
                 'name' => 'Sayuran Segar',
                 'tag' => 'Bebas Pestisida Berlebih',
                 'desc' => 'Sayuran segar dipetik dari petani lokal Yogyakarta dan lereng Merapi. Dicuci menggunakan air ozon steril, dipotong higienis, dan dikemas kedap udara.',
@@ -574,8 +594,10 @@ class LandingController
             'categorySection',
             'categories',
             'products',
+            'benefitsSection',
             'benefits',
             'knowledgeArticles',
+            'qualitySection',
             'productKnowledge',
             'testimonials',
             'storeInfo'

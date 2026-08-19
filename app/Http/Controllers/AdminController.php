@@ -895,50 +895,50 @@ class AdminController extends Controller
             'items' => [
                 [
                     'id' => 1,
-                    'name' => 'Daging Sapi Segar & Halal',
-                    'tag' => 'Cold Chain Storage',
-                    'desc' => 'Daging sapi lokal dan impor pilihan dengan potongan presisi. Diproses higienis dan disimpan dalam cold storage bersuhu -18°C.',
+                    'name' => 'Daging Sapi',
+                    'tag' => 'Grade Pilihan',
+                    'desc' => 'Daging sapi segar lokal dan impor pilihan. Diproses dengan higienitas tinggi, dipotong presisi menggunakan mesin modern, dan dikemas vacuum untuk menjaga kelembapan alami.',
                     'features' => [
-                        'Sertifikasi Halal MUI',
-                        'Kemasan Vacuum Pack Rapi',
-                        'Bebas Pengawet Berbahaya',
-                        'Tekstur Daging Alami'
+                        'Halal Certified',
+                        'Bebas Pengawet',
+                        'Kemasan Vacuum Food-grade',
+                        'Tersedia Potongan Custom'
                     ]
                 ],
                 [
                     'id' => 2,
-                    'name' => 'Ayam Broiler & Ungkep',
-                    'tag' => 'Higienis & Gurih',
-                    'desc' => 'Ayam segar potong harian dan olahan ayam ungkep bumbu kuning tradisional khas Yogyakarta yang siap goreng.',
+                    'name' => 'Ayam Pilihan',
+                    'tag' => 'Segar & Bersih',
+                    'desc' => 'Ayam broiler dan kampung hasil pemotongan subuh bersertifikat Halal MUI. Tersedia dalam kondisi fresh maupun frozen dengan teknologi blast freezer untuk mencegah pertumbuhan bakteri.',
                     'features' => [
-                        'Potongan Bersih Tanpa Bulu',
-                        'Bumbu Rempah Asli Meresap',
-                        'Daging Empuk & Juicy',
-                        'Siap Olah Tanpa Repot'
+                        '100% Halal MUI',
+                        'Bebas Bau & Lendir',
+                        'Rantai Dingin Terjamin',
+                        'Varian Bumbu Tradisional'
                     ]
                 ],
                 [
                     'id' => 3,
-                    'name' => 'Ikan Laut & Tawar Fillet',
-                    'tag' => 'Bebas Bau Amis',
-                    'desc' => 'Ikan gurame, dori fillet, dan udang kupas bersih. Tanpa duri berbahaya dan dibersihkan dari kotoran insang.',
+                    'name' => 'Ikan & Seafood',
+                    'tag' => 'Segar Beku Kapal',
+                    'desc' => 'Ikan air laut dan air tawar dibekukan seketika di atas kapal nelayan untuk mengunci kesegaran alami laut. Fillet bersih tanpa duri siap olah untuk anak-anak dan keluarga.',
                     'features' => [
-                        'Fillet Bebas Duri Halus',
-                        'Kadar Glazing Rendah',
-                        'Aroma Segar Anti Lumpur',
-                        'Kaya Omega-3 & Protein'
+                        'Kaya Omega 3 & Protein',
+                        'Tanpa Duri (Boneless)',
+                        'Bebas Formalin/Kimia',
+                        'Higienis Siap Masak'
                     ]
                 ],
                 [
                     'id' => 4,
-                    'name' => 'Sayuran Siap Olah',
-                    'tag' => 'Cuci Bersih Higienis',
-                    'desc' => 'Paket sayur sop, sayur asem, dan sayur lodeh yang sudah dipotong rapi dan dicuci bersih dengan air steril.',
+                    'name' => 'Sayuran Segar',
+                    'tag' => 'Bebas Pestisida Berlebih',
+                    'desc' => 'Sayuran segar dipetik dari petani lokal Yogyakarta dan lereng Merapi. Dicuci menggunakan air ozon steril, dipotong higienis, dan dikemas kedap udara.',
                     'features' => [
-                        'Sayuran Segar Pilihan Petani',
-                        'Sudah Bersih Siap Masak',
-                        'Termasuk Racikan Bumbu',
-                        'Hemat Waktu 30 Menit'
+                        'Petani Lokal Jogja',
+                        'Cuci Bersih Ozon',
+                        'Tahan Lebih Lama',
+                        'Paket Resep Komplit'
                     ]
                 ]
             ]
