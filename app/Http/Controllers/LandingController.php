@@ -321,6 +321,12 @@ class LandingController
             ],
         ];
 
+        $knowledgeSection = [
+            'label' => 'Edukasi & Inspirasi Dapur',
+            'title' => 'Dapur & Knowledge',
+            'subtitle' => 'Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.'
+        ];
+
         $knowledgeArticles = [
             [
                 'id' => 1,
@@ -596,6 +602,7 @@ class LandingController
             'products',
             'benefitsSection',
             'benefits',
+            'knowledgeSection',
             'knowledgeArticles',
             'qualitySection',
             'productKnowledge',

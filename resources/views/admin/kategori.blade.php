@@ -781,17 +781,23 @@
          aria-modal="true">
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="deleteModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
-            <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
+            <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
                 
                 <template x-if="deleteBlocked">
-                    <div class="space-y-3">
-                        <div class="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto text-xl font-bold">⚠️</div>
+                    <div class="space-y-4">
+                        <div class="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
                         <div class="space-y-1">
                             <h3 class="text-base font-bold text-brand-dark">Kategori Tidak Dapat Dihapus</h3>
                             <p class="text-xs text-gray-600 leading-relaxed" x-text="deleteBlockMessage"></p>
                         </div>
                         <div class="pt-3">
-                            <button @click="deleteModalOpen = false" type="button" class="w-full px-4 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark cursor-pointer">
+                            <button @click="deleteModalOpen = false" 
+                                    type="button" 
+                                    class="w-full px-4 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer">
                                 Mengerti &amp; Kembali
                             </button>
                         </div>
@@ -799,17 +805,29 @@
                 </template>
 
                 <template x-if="!deleteBlocked">
-                    <div class="space-y-3">
-                        <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto text-xl">🗑</div>
+                    <div class="space-y-4">
+                        <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </div>
                         <div class="space-y-1">
-                            <h3 class="text-base font-bold text-brand-dark">Hapus Kategori?</h3>
+                            <h3 class="text-base font-bold text-brand-dark">Hapus Kategori ini?</h3>
                             <p class="text-xs text-gray-500 leading-relaxed">
-                                Kategori <strong class="text-brand-dark" x-text="selectedCategory?.name"></strong> (tidak memiliki produk terkait) akan dihapus dari daftar master kategori.
+                                Kategori <strong class="text-brand-dark" x-text="selectedCategory?.name"></strong> akan dihapus dari daftar master kategori.
                             </p>
                         </div>
                         <div class="pt-3 flex items-center justify-center gap-3">
-                            <button @click="deleteModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer">Batal</button>
-                            <button @click="confirmDelete()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">Hapus Kategori</button>
+                            <button @click="deleteModalOpen = false" 
+                                    type="button" 
+                                    class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                                Batal
+                            </button>
+                            <button @click="confirmDelete()" 
+                                    type="button" 
+                                    class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
+                                Hapus Kategori
+                            </button>
                         </div>
                     </div>
                 </template>

@@ -9,6 +9,11 @@
          articles: {{ json_encode($articles) }},
          categories: {{ json_encode($knowledgeCategories) }},
          mediaLibrary: {{ json_encode($mediaLibrary) }},
+         knowledgeSection: {{ json_encode($knowledgeSection ?? [
+             'label' => 'Edukasi & Inspirasi Dapur',
+             'title' => 'Dapur & Knowledge',
+             'subtitle' => 'Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.'
+         ]) }},
          activeMainTab: 'articles', // 'articles' | 'categories'
          editorModalOpen: false,
          categoryModalOpen: false,
@@ -322,7 +327,87 @@
         </div>
     </div>
 
-    <!-- 2. Main Navigation Tabs -->
+    <!-- ======================================================= -->
+    <!-- 2. PENGATURAN SECTION KNOWLEDGE & TIPS                 -->
+    <!-- ======================================================= -->
+    <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-7 shadow-2xs space-y-6">
+        
+        <!-- PENGATURAN SECTION KNOWLEDGE & TIPS -->
+        <div class="space-y-4">
+            <div class="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                    <span class="text-base shrink-0">⚙️</span>
+                    <div class="min-w-0 flex-1">
+                        <h3 class="text-xs sm:text-sm font-extrabold text-brand-dark uppercase tracking-wider truncate sm:whitespace-normal">
+                            Pengaturan Section Knowledge & Tips
+                        </h3>
+                        <p class="text-[11px] text-gray-500 leading-relaxed">
+                            Kelola label badge, judul utama (headline), dan deskripsi pengantar pada section knowledge & tips (<code>&lt;section id="knowledge"&gt;</code>) Landing Page.
+                        </p>
+                    </div>
+                </div>
+
+                <button @click="showToast('Header Section Knowledge & Tips berhasil diperbarui!')" 
+                        type="button" 
+                        class="px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer shrink-0 whitespace-nowrap">
+                    Simpan Header
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <!-- Label Badge Section -->
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                        Label Badge Section
+                    </label>
+                    <input type="text" 
+                           x-model="knowledgeSection.label" 
+                           placeholder="Contoh: Edukasi & Inspirasi Dapur"
+                           class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold text-brand-primary focus:ring-2 focus:ring-brand-primary/30">
+                </div>
+
+                <!-- Judul Utama / Heading -->
+                <div class="md:col-span-4">
+                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                        Judul Utama / Heading
+                    </label>
+                    <input type="text" 
+                           x-model="knowledgeSection.title" 
+                           placeholder="Contoh: Dapur & Knowledge"
+                           class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-extrabold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
+                </div>
+
+                <!-- Deskripsi Pengantar -->
+                <div class="md:col-span-5">
+                    <label class="block text-xs font-bold text-brand-dark mb-1">
+                        Deskripsi Pengantar
+                    </label>
+                    <textarea x-model="knowledgeSection.subtitle" 
+                              rows="2" 
+                              placeholder="Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta."
+                              class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white leading-relaxed focus:ring-2 focus:ring-brand-primary/30"></textarea>
+                </div>
+            </div>
+
+            <!-- Small Header Section Realtime Preview -->
+            <div class="pt-1">
+                <div class="bg-brand-cream/60 rounded-modern-xl border border-dashed border-gray-300 p-4 sm:p-5 text-center max-w-xl mx-auto shadow-2xs">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-brand-soft-green text-brand-primary mb-2 shadow-2xs transition-all"
+                          x-text="knowledgeSection.label || 'Edukasi & Inspirasi Dapur'">
+                    </span>
+                    <h4 class="text-lg sm:text-xl font-extrabold text-brand-dark tracking-tight mb-1.5 transition-all"
+                        x-text="knowledgeSection.title || 'Dapur & Knowledge'">
+                    </h4>
+                    <p class="text-xs text-gray-600 font-normal leading-relaxed max-w-md mx-auto transition-all"
+                       x-text="knowledgeSection.subtitle || 'Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.'">
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 3. Main Navigation Tabs -->
     <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
         <button @click="activeMainTab = 'articles'" 
                 type="button"
@@ -930,15 +1015,31 @@
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="deleteModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
-                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto text-xl">🗑</div>
+                
+                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </div>
+
                 <div class="space-y-1">
-                    <h3 class="text-base font-bold text-brand-dark">Hapus Artikel?</h3>
+                    <h3 class="text-base font-bold text-brand-dark">Hapus Artikel ini?</h3>
                     <p class="text-xs text-gray-500 leading-relaxed">Artikel <strong class="text-brand-dark" x-text="selectedArticle?.title"></strong> akan dihapus dari modul Knowledge.</p>
                 </div>
+
                 <div class="pt-3 flex items-center justify-center gap-3">
-                    <button @click="deleteModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer">Batal</button>
-                    <button @click="confirmDelete()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">Hapus</button>
+                    <button @click="deleteModalOpen = false" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="confirmDelete()" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
+                        Hapus Artikel
+                    </button>
                 </div>
+
             </div>
         </div>
     </div>
@@ -951,15 +1052,31 @@
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="deleteCategoryModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
-                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto text-xl">🗑</div>
+                
+                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </div>
+
                 <div class="space-y-1">
-                    <h3 class="text-base font-bold text-brand-dark">Hapus Kategori Artikel?</h3>
+                    <h3 class="text-base font-bold text-brand-dark">Hapus Kategori Artikel ini?</h3>
                     <p class="text-xs text-gray-500 leading-relaxed">Kategori <strong class="text-brand-dark" x-text="selectedCategoryItem?.name"></strong> akan dihapus dari daftar master kategori.</p>
                 </div>
+
                 <div class="pt-3 flex items-center justify-center gap-3">
-                    <button @click="deleteCategoryModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer">Batal</button>
-                    <button @click="confirmDeleteCategory()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">Hapus</button>
+                    <button @click="deleteCategoryModalOpen = false" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="confirmDeleteCategory()" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
+                        Hapus Kategori
+                    </button>
                 </div>
+
             </div>
         </div>
     </div>

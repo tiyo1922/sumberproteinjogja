@@ -87,6 +87,11 @@
          // =========================================================
          // Add & Delete Item Handlers
          // =========================================================
+         deleteModalOpen: false,
+         deleteTargetType: null, // 'benefit' | 'quality'
+         selectedItemIndex: null,
+         selectedItemName: '',
+
          addBenefitItem() {
              const nextId = (this.benefits.items && this.benefits.items.length > 0) 
                  ? Math.max(...this.benefits.items.map(i => parseInt(i.id) || 0)) + 1 
@@ -100,13 +105,20 @@
              this.showToast('Poin keunggulan baru berhasil ditambahkan!');
          },
 
-         removeBenefitItem(idx) {
+         openDeleteBenefit(idx, item) {
              if (this.benefits.items.length <= 1) {
                  this.showToast('Minimal harus ada 1 poin keunggulan.');
                  return;
              }
-             this.benefits.items.splice(idx, 1);
-             this.showToast('Poin keunggulan berhasil dihapus.');
+             this.deleteTargetType = 'benefit';
+             this.selectedItemIndex = idx;
+             this.selectedItemName = item.title || ('Keunggulan ' + (idx + 1));
+             this.deleteModalOpen = true;
+         },
+
+         removeBenefitItem(idx) {
+             const item = this.benefits.items[idx];
+             this.openDeleteBenefit(idx, item || {});
          },
 
          addQualityItem() {
@@ -127,13 +139,34 @@
              this.showToast('Pilar standar mutu baru berhasil ditambahkan!');
          },
 
-         removeQualityItem(idx) {
+         openDeleteQuality(idx, pk) {
              if (this.quality.items.length <= 1) {
                  this.showToast('Minimal harus ada 1 pilar standar mutu.');
                  return;
              }
-             this.quality.items.splice(idx, 1);
-             this.showToast('Pilar standar mutu berhasil dihapus.');
+             this.deleteTargetType = 'quality';
+             this.selectedItemIndex = idx;
+             this.selectedItemName = pk.name || ('Pilar ' + (idx + 1));
+             this.deleteModalOpen = true;
+         },
+
+         removeQualityItem(idx) {
+             const pk = this.quality.items[idx];
+             this.openDeleteQuality(idx, pk || {});
+         },
+
+         confirmDelete() {
+             if (this.deleteTargetType === 'benefit' && this.selectedItemIndex !== null) {
+                 this.benefits.items.splice(this.selectedItemIndex, 1);
+                 this.showToast('Poin keunggulan berhasil dihapus.');
+             } else if (this.deleteTargetType === 'quality' && this.selectedItemIndex !== null) {
+                 this.quality.items.splice(this.selectedItemIndex, 1);
+                 this.showToast('Pilar standar mutu berhasil dihapus.');
+             }
+             this.deleteModalOpen = false;
+             this.deleteTargetType = null;
+             this.selectedItemIndex = null;
+             this.selectedItemName = '';
          },
          
          initPreviewObserver() {
@@ -335,7 +368,7 @@
                                 <div class="flex items-center gap-2 shrink-0">
                                     <span class="text-[11px] text-gray-400 font-mono" x-text="'ID: ' + item.id"></span>
                                     <!-- Delete Button -->
-                                    <button @click="removeBenefitItem(idx)" 
+                                    <button @click="openDeleteBenefit(idx, item)" 
                                             :disabled="benefits.items.length <= 1"
                                             type="button" 
                                             :title="benefits.items.length <= 1 ? 'Minimal harus ada 1 poin' : 'Hapus poin keunggulan ini'"
@@ -462,7 +495,7 @@
                                 <div class="flex items-center gap-2 shrink-0">
                                     <span class="text-[11px] text-gray-400 font-mono" x-text="'Tag: ' + pk.tag"></span>
                                     <!-- Delete Button -->
-                                    <button @click="removeQualityItem(idx)" 
+                                    <button @click="openDeleteQuality(idx, pk)" 
                                             :disabled="quality.items.length <= 1"
                                             type="button" 
                                             :title="quality.items.length <= 1 ? 'Minimal harus ada 1 pilar' : 'Hapus pilar standar mutu ini'"
@@ -919,6 +952,52 @@
             <span x-show="previewDevice === 'mobile'">📱 Virtual Mobile (393&times;852, 9:16) &bull; Arahkan kursor &amp; scroll di dalam layar mobile (natural height).</span>
         </p>
 
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- DELETE CONFIRMATION MODAL (HERO SLIDER STANDARD)        -->
+    <!-- ======================================================= -->
+    <div x-show="deleteModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="deleteModalOpen = false"></div>
+
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
+                
+                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </div>
+
+                <div class="space-y-1">
+                    <h3 class="text-base font-bold text-brand-dark" 
+                        x-text="deleteTargetType === 'benefit' ? 'Hapus Poin Keunggulan ini?' : 'Hapus Pilar Standar Mutu ini?'">
+                    </h3>
+                    <p class="text-xs text-gray-500 leading-relaxed">
+                        Item <strong class="text-brand-dark" x-text="selectedItemName"></strong> akan dihapus dari daftar.
+                    </p>
+                </div>
+
+                <div class="pt-3 flex items-center justify-center gap-3">
+                    <button @click="deleteModalOpen = false" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="confirmDelete()" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
+                        Hapus
+                    </button>
+                </div>
+
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notification -->

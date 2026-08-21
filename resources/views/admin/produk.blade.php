@@ -790,20 +790,25 @@
          aria-modal="true">
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="charDeleteModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
-            <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 space-y-4 text-center">
-                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto text-xl">🏷️</div>
+            <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 space-y-4 text-center">
                 
-                <div class="space-y-2">
-                    <h3 class="text-base font-bold text-brand-dark">Hapus Karakteristik Produk?</h3>
-                    <p class="text-xs text-gray-600 leading-relaxed">
-                        Anda akan menghapus karakteristik <strong class="text-brand-dark" x-text="selectedChar?.name || selectedChar?.label"></strong>.
+                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </div>
+                
+                <div class="space-y-1">
+                    <h3 class="text-base font-bold text-brand-dark">Hapus Karakteristik ini?</h3>
+                    <p class="text-xs text-gray-500 leading-relaxed">
+                        Karakteristik <strong class="text-brand-dark" x-text="selectedChar?.name || selectedChar?.label"></strong> akan dihapus.
                     </p>
 
                     <!-- Warning if badge is currently used by products -->
                     <template x-if="charDeleteWarningCount > 0">
-                        <div class="p-3 rounded-modern bg-amber-50 border border-amber-200 text-amber-900 text-xs text-left leading-relaxed">
+                        <div class="mt-2 p-2.5 rounded-modern bg-amber-50 border border-amber-200 text-amber-900 text-[11px] text-left leading-relaxed">
                             <span class="font-bold">⚠️ Perhatian:</span>
-                            Karakteristik ini saat ini masih digunakan oleh <strong x-text="charDeleteWarningCount"></strong> produk. Jika dihapus, karakteristik akan dilepas dari seluruh produk tersebut. (Disarankan cukup ubah status menjadi Nonaktif).
+                            Karakteristik ini masih digunakan oleh <strong x-text="charDeleteWarningCount"></strong> produk. Jika dihapus, karakteristik akan dilepas dari produk tersebut.
                         </div>
                     </template>
                 </div>
@@ -811,12 +816,12 @@
                 <div class="pt-3 flex items-center justify-center gap-3">
                     <button @click="charDeleteModalOpen = false" 
                             type="button" 
-                            class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer">
+                            class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                         Batal
                     </button>
                     <button @click="confirmDeleteChar()" 
                             type="button" 
-                            class="px-5 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">
+                            class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
                         Tetap Hapus
                     </button>
                 </div>
@@ -1206,15 +1211,31 @@
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="deleteModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
-                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto text-xl">🗑</div>
+                
+                <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </div>
+
                 <div class="space-y-1">
-                    <h3 class="text-base font-bold text-brand-dark">Hapus Produk?</h3>
+                    <h3 class="text-base font-bold text-brand-dark">Hapus Produk ini?</h3>
                     <p class="text-xs text-gray-500 leading-relaxed">Produk <strong class="text-brand-dark" x-text="selectedProduct?.name"></strong> akan dihapus dari katalog produk.</p>
                 </div>
+
                 <div class="pt-3 flex items-center justify-center gap-3">
-                    <button @click="deleteModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer">Batal</button>
-                    <button @click="confirmDelete()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">Hapus</button>
+                    <button @click="deleteModalOpen = false" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="confirmDelete()" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
+                        Hapus Produk
+                    </button>
                 </div>
+
             </div>
         </div>
     </div>

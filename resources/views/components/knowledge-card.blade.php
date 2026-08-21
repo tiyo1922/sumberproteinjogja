@@ -88,13 +88,13 @@
         <!-- Section Header -->
         <div class="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-soft-green text-brand-primary mb-3">
-                Edukasi & Inspirasi Dapur
+                {{ $knowledgeSection['label'] ?? 'Edukasi & Inspirasi Dapur' }}
             </span>
             <h2 class="text-2xl sm:text-4xl font-extrabold text-brand-dark tracking-tight mb-3">
-                Dapur & Knowledge
+                {{ $knowledgeSection['title'] ?? 'Dapur & Knowledge' }}
             </h2>
             <p class="text-sm sm:text-base text-gray-600 font-normal leading-relaxed">
-                Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.
+                {{ $knowledgeSection['subtitle'] ?? 'Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.' }}
             </p>
         </div>
 

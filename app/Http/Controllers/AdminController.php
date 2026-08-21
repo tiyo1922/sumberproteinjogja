@@ -950,10 +950,23 @@ class AdminController extends Controller
     }
 
     /**
+     * Knowledge Section Settings (Header).
+     */
+    public function getKnowledgeSectionSettings(): array
+    {
+        return [
+            'label' => 'Edukasi & Inspirasi Dapur',
+            'title' => 'Dapur & Knowledge',
+            'subtitle' => 'Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.'
+        ];
+    }
+
+    /**
      * Knowledge & Tips Management Screen.
      */
     public function knowledge()
     {
+        $knowledgeSection = $this->getKnowledgeSectionSettings();
         $knowledgeCategories = [
             ['id' => 1, 'name' => 'Tips Penyimpanan', 'color' => 'blue', 'status' => 'Aktif', 'articles_count' => 5],
             ['id' => 2, 'name' => 'Edukasi Dapur', 'color' => 'green', 'status' => 'Aktif', 'articles_count' => 5],
@@ -1166,7 +1179,7 @@ class AdminController extends Controller
 
         $mediaLibrary = $this->getMediaLibrary();
 
-        return view('admin.knowledge', compact('articles', 'knowledgeCategories', 'mediaLibrary'));
+        return view('admin.knowledge', compact('knowledgeSection', 'articles', 'knowledgeCategories', 'mediaLibrary'));
     }
 
     /**
