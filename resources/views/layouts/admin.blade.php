@@ -91,7 +91,7 @@
             <div class="flex flex-col flex-1">
                 
                 <!-- Brand Header -->
-                <div class="h-18 px-6 flex items-center justify-between border-b border-white/10 shrink-0 sticky top-0 bg-brand-dark z-10">
+                <div class="px-6 pt-3 pb-3.5 flex items-center justify-between border-b border-white/10 shrink-0 sticky top-0 bg-brand-dark z-10">
                     <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 group">
                         <div class="w-9 h-9 rounded-modern bg-brand-primary flex items-center justify-center text-white shadow-md shadow-brand-primary/30 group-hover:scale-105 transition-transform">
                             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
