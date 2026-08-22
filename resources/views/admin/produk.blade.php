@@ -396,7 +396,9 @@
                 <button @click="openCreateModal()" 
                         type="button"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs sm:text-sm text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
-                    <span class="text-base leading-none">＋</span>
+                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
                     <span>Tambah Produk</span>
                 </button>
             </div>
@@ -511,7 +513,9 @@
                 <button type="button" 
                         @click="openCreateCharModal()"
                         class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border-2 border-dashed border-gray-300 text-gray-600 bg-gray-50 hover:bg-gray-100 hover:border-brand-primary hover:text-brand-primary transition-all cursor-pointer">
-                    <span class="text-sm leading-none font-black">＋</span>
+                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
                     <span>Tambah Badge</span>
                 </button>
             </div>
@@ -620,27 +624,37 @@
 
                 <!-- Footer Actions -->
                 <div class="p-3 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-1.5">
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                          :class="prod.status === 'Aktif' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-200'"
-                          x-text="prod.status"></span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1.5"
+                          :class="prod.status === 'Aktif' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-gray-100 text-gray-600 border-gray-300'">
+                        <span class="w-1.5 h-1.5 rounded-full shrink-0"
+                              :class="prod.status === 'Aktif' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'"></span>
+                        <span x-text="prod.status"></span>
+                    </span>
 
                     <div class="flex items-center gap-1">
                         <button @click="openEditModal(prod)" 
                                 type="button"
-                                class="px-2.5 py-1 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
-                            Edit
+                                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
+                            <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            <span>Edit</span>
                         </button>
                         <button @click="toggleStatus(prod)" 
                                 type="button"
-                                class="p-1 rounded-modern text-xs font-semibold text-gray-500 hover:bg-gray-200 transition-colors cursor-pointer"
+                                class="inline-flex items-center gap-1 px-2 py-1 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
                                 :title="prod.status === 'Aktif' ? 'Nonaktifkan Produk' : 'Aktifkan Produk'">
-                            <span x-text="prod.status === 'Aktif' ? '👁' : '✓'"></span>
+                            <span class="w-2 h-2 rounded-full shrink-0"
+                                  :class="prod.status === 'Aktif' ? 'bg-emerald-500' : 'bg-gray-400'"></span>
+                            <span class="text-[10px]" x-text="prod.status === 'Aktif' ? 'On' : 'Off'"></span>
                         </button>
                         <button @click="openDelete(prod)" 
                                 type="button"
-                                class="p-1 rounded-modern text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer" 
+                                class="p-1.5 rounded-modern text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer inline-flex items-center justify-center" 
                                 title="Hapus Produk">
-                            🗑
+                            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -670,7 +684,13 @@
                         </h3>
                         <p class="text-xs text-gray-500">Badge informasi visual yang tampil pada kartu produk.</p>
                     </div>
-                    <button @click="charModalOpen = false" type="button" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer">✕</button>
+                    <button @click="charModalOpen = false" 
+                            type="button" 
+                            class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 <form @submit.prevent="saveChar()" class="space-y-4">
@@ -852,8 +872,10 @@
                     </div>
                     <button @click="editorModalOpen = false" 
                             type="button" 
-                            class="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
-                        ✕
+                            class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                     </button>
                 </div>
 
@@ -1044,11 +1066,21 @@
                                 </label>
                                 <div class="flex items-center bg-gray-100 p-0.5 rounded text-[10px]">
                                     <button @click="previewDevice = 'desktop'" type="button" 
-                                            :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
-                                            class="px-2 py-0.5 rounded cursor-pointer">💻 Desk</button>
+                                            :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-all">
+                                        <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        <span>Desk</span>
+                                    </button>
                                     <button @click="previewDevice = 'mobile'" type="button" 
-                                            :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
-                                            class="px-2 py-0.5 rounded cursor-pointer">📱 Mob</button>
+                                            :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-all">
+                                        <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                        <span>Mob</span>
+                                    </button>
                                 </div>
                             </div>
 
@@ -1112,7 +1144,13 @@
                             <p class="text-xs text-gray-500">Pilih dari pustaka media atau unggah gambar produk baru.</p>
                         </div>
                     </div>
-                    <button @click="mediaPickerOpen = false" type="button" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer">✕</button>
+                    <button @click="mediaPickerOpen = false" 
+                            type="button" 
+                            class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
@@ -1138,7 +1176,11 @@
                                 <img :src="getImageUrl(media.path)" :alt="media.title" class="w-full h-full object-cover">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-between">
                                     <div class="self-end" x-show="selectedMedia?.id === media.id">
-                                        <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">✓</span>
+                                        <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                                            <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </span>
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-white truncate" x-text="media.filename"></p>
@@ -1169,9 +1211,13 @@
                            @dragover.prevent="" 
                            @drop.prevent="handleFileUpload($event)">
                         <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleFileUpload($event)">
-                        <div class="space-y-2">
-                            <span class="text-3xl">📤</span>
-                            <p class="text-xs font-bold text-brand-dark">Tarik &amp; Lepaskan gambar ke sini, atau klik untuk memilih file</p>
+                        <div class="space-y-2 flex flex-col items-center">
+                            <div class="w-12 h-12 rounded-full bg-brand-soft-green text-brand-primary flex items-center justify-center shadow-xs">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                            </div>
+                            <p class="text-xs font-bold text-brand-dark">Tarik & Lepaskan gambar ke sini, atau klik untuk memilih file</p>
                             <p class="text-[11px] text-gray-400">Mendukung JPG, PNG, WebP (Rekomendasi 1200 × 900 px ≤ 300 KB)</p>
                         </div>
                     </label>

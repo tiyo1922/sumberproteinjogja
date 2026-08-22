@@ -164,8 +164,9 @@
                         <label class="block text-xs font-bold text-brand-dark">
                             A. Nomor WhatsApp Pemesanan (Order) <span class="text-rose-500">*</span>
                         </label>
-                        <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            ● Status: Aktif
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>Status: Aktif</span>
                         </span>
                     </div>
                     <div class="relative">
@@ -185,8 +186,9 @@
                         <label class="block text-xs font-bold text-brand-dark">
                             B. Nomor WhatsApp Admin (Default Product Destination) <span class="text-rose-500">*</span>
                         </label>
-                        <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            ● Status: Aktif
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>Status: Aktif</span>
                         </span>
                     </div>
                     <div class="relative">
@@ -469,7 +471,13 @@
                             <p class="text-xs text-gray-500">Pilih dari pustaka media atau unggah file logo/ikon baru.</p>
                         </div>
                     </div>
-                    <button @click="mediaPickerOpen = false" type="button" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer">✕</button>
+                    <button @click="mediaPickerOpen = false" 
+                            type="button" 
+                            class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
@@ -495,7 +503,11 @@
                                 <img :src="getImageUrl(media.path)" :alt="media.title" class="w-full h-full object-cover">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-between">
                                     <div class="self-end" x-show="selectedMedia?.id === media.id">
-                                        <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">✓</span>
+                                        <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                                            <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </span>
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-white truncate" x-text="media.filename"></p>
@@ -526,8 +538,12 @@
                            @dragover.prevent="" 
                            @drop.prevent="handleFileUpload($event)">
                         <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon" class="hidden" @change="handleFileUpload($event)">
-                        <div class="space-y-2">
-                            <span class="text-3xl">📤</span>
+                        <div class="space-y-2 flex flex-col items-center">
+                            <div class="w-12 h-12 rounded-full bg-brand-soft-green text-brand-primary flex items-center justify-center shadow-xs">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                            </div>
                             <p class="text-xs font-bold text-brand-dark">Tarik & Lepaskan file ke sini, atau klik untuk memilih file</p>
                             <p class="text-[11px] text-gray-400">Mendukung PNG, SVG, JPG, WebP, ICO</p>
                         </div>

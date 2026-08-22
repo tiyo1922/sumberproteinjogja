@@ -344,7 +344,9 @@
                     <button @click="addBenefitItem()" 
                             type="button"
                             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 border border-brand-soft-green-border transition-colors cursor-pointer shadow-2xs">
-                        <span class="text-sm leading-none font-bold">＋</span>
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
                         <span>Tambah Keunggulan</span>
                     </button>
                 </div>
@@ -541,7 +543,9 @@
                                     <div class="space-y-1.5">
                                         <template x-for="(point, pIdx) in pk.features" :key="pIdx">
                                             <div class="flex items-center gap-2">
-                                                <span class="text-emerald-500 font-bold text-xs">✓</span>
+                                                <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
                                                 <input type="text" 
                                                        x-model="pk.features[pIdx]"
                                                        class="w-full text-xs rounded-modern border border-gray-300 px-2 py-1 focus:ring-1 focus:ring-brand-primary text-gray-800"
@@ -602,19 +606,28 @@
                         type="button" 
                         :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
-                    <span>💻 Desktop</span>
+                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span>Desktop</span>
                 </button>
                 <button @click="previewDevice = 'tablet'" 
                         type="button" 
                         :class="previewDevice === 'tablet' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
-                    <span>📱 Tablet</span>
+                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span>Tablet</span>
                 </button>
                 <button @click="previewDevice = 'mobile'" 
                         type="button" 
                         :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
-                    <span>📱 Mobile</span>
+                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span>Mobile</span>
                 </button>
             </div>
         </div>

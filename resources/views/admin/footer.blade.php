@@ -155,7 +155,13 @@
                                     </div>
 
                                     <div class="flex items-center gap-2">
-                                        <span class="text-amber-400 font-bold text-xs">★★★★★</span>
+                                        <div class="flex items-center gap-0.5 text-amber-400">
+                                            <template x-for="i in 5" :key="i">
+                                                <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
+                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                </svg>
+                                            </template>
+                                        </div>
                                         <label class="flex items-center gap-1 text-[11px] font-semibold text-gray-600 cursor-pointer">
                                             <input type="checkbox" x-model="item.is_active" class="rounded text-brand-primary">
                                             <span>Tampil</span>
@@ -290,11 +296,21 @@
                 </label>
                 <div class="flex items-center bg-gray-100 p-0.5 rounded text-[10px]">
                     <button @click="previewDevice = 'desktop'" type="button" 
-                            :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
-                            class="px-2 py-0.5 rounded cursor-pointer">💻 Desk</button>
+                            :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
+                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-all">
+                        <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <span>Desk</span>
+                    </button>
                     <button @click="previewDevice = 'mobile'" type="button" 
-                            :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
-                            class="px-2 py-0.5 rounded cursor-pointer">📱 Mob</button>
+                            :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
+                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-all">
+                        <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <span>Mob</span>
+                    </button>
                 </div>
             </div>
 
@@ -316,9 +332,15 @@
                         G
                     </div>
                     <div>
-                        <div class="flex items-center gap-1">
+                        <div class="flex items-center gap-1.5">
                             <span class="text-sm font-extrabold text-brand-dark" x-text="footer.reviews.rating + ' / 5.0'"></span>
-                            <span class="text-amber-400 text-xs">★★★★★</span>
+                            <div class="flex items-center gap-0.5 text-amber-400">
+                                <template x-for="i in 5" :key="i">
+                                    <svg class="w-3 h-3 fill-current" viewBox="0 0 20 20">
+                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                </template>
+                            </div>
                         </div>
                         <span class="text-[10px] text-gray-500" x-text="'Berdasarkan ' + footer.reviews.total_reviews + ' Google Reviews'"></span>
                     </div>
@@ -330,7 +352,13 @@
                         <div class="p-3 bg-gray-50 rounded-modern border border-gray-200 text-left space-y-1">
                             <div class="flex items-center justify-between">
                                 <span class="font-bold text-brand-dark text-xs" x-text="item.name"></span>
-                                <span class="text-amber-400 text-xs">★★★★★</span>
+                                <div class="flex items-center gap-0.5 text-amber-400">
+                                    <template x-for="i in 5" :key="i">
+                                        <svg class="w-3 h-3 fill-current" viewBox="0 0 20 20">
+                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                        </svg>
+                                    </template>
+                                </div>
                             </div>
                             <p class="text-[10px] text-gray-400" x-text="item.role + ' • ' + item.date"></p>
                             <p class="text-[11px] italic text-gray-600 leading-relaxed" x-text="'&ldquo;' + item.comment + '&rdquo;'"></p>

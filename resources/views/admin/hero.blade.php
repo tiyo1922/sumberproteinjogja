@@ -571,13 +571,19 @@
                              class="absolute right-0 mt-1 w-36 bg-white rounded-modern border border-gray-200 shadow-lg py-1 z-20 text-xs font-medium text-gray-700">
                             <button @click="duplicateDraft(draft); menuOpen = false" 
                                     type="button" 
-                                    class="w-full text-left px-3.5 py-2 hover:bg-gray-50 flex items-center gap-2 cursor-pointer">
-                                <span>📋 Duplikat</span>
+                                    class="w-full text-left px-3.5 py-2 hover:bg-gray-50 flex items-center gap-2 cursor-pointer text-gray-700">
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                                </svg>
+                                <span>Duplikat</span>
                             </button>
                             <button @click="openDeleteModal(draft); menuOpen = false" 
                                     type="button" 
                                     class="w-full text-left px-3.5 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2 cursor-pointer">
-                                <span>🗑 Hapus</span>
+                                <svg class="w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Hapus</span>
                             </button>
                         </div>
                     </div>
@@ -1102,10 +1108,25 @@
                                     <label class="block text-xs font-extrabold text-brand-dark">
                                         5. Live Hero Preview (Shared Component)
                                     </label>
-                                    <p class="text-[11px] text-gray-500 font-mono">
-                                        <span x-show="previewDevice === 'desktop'">💻 Desktop (1280×720) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
-                                        <span x-show="previewDevice === 'tablet'">📱 Tablet (1024×768) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
-                                        <span x-show="previewDevice === 'mobile'">📱 Mobile (393×852) • Scale <span x-text="Math.round(currentScale * 100)"></span>% • Scrollable</span>
+                                    <p class="text-[11px] text-gray-500 font-mono flex items-center gap-1.5 flex-wrap">
+                                        <span x-show="previewDevice === 'desktop'" class="inline-flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                            </svg>
+                                            <span>Desktop (1280×720) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
+                                        </span>
+                                        <span x-show="previewDevice === 'tablet'" class="inline-flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                            </svg>
+                                            <span>Tablet (1024×768) • Scale <span x-text="Math.round(currentScale * 100)"></span>%</span>
+                                        </span>
+                                        <span x-show="previewDevice === 'mobile'" class="inline-flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                            </svg>
+                                            <span>Mobile (393×852) • Scale <span x-text="Math.round(currentScale * 100)"></span>% • Scrollable</span>
+                                        </span>
                                     </p>
                                 </div>
                                 
@@ -1114,20 +1135,29 @@
                                     <button @click="previewDevice = 'desktop'" 
                                             type="button"
                                             :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
-                                            class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>💻 Desktop</span>
+                                            class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1.5 text-[11px]">
+                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        <span>Desktop</span>
                                     </button>
                                     <button @click="previewDevice = 'tablet'" 
                                             type="button"
                                             :class="previewDevice === 'tablet' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
-                                            class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>📱 Tablet</span>
+                                            class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1.5 text-[11px]">
+                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                        <span>Tablet</span>
                                     </button>
                                     <button @click="previewDevice = 'mobile'" 
                                             type="button"
                                             :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
-                                            class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px]">
-                                        <span>📱 Mobile</span>
+                                            class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1.5 text-[11px]">
+                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                        <span>Mobile</span>
                                     </button>
                                 </div>
                             </div>
@@ -1322,7 +1352,9 @@
                                     <template x-if="selectedMediaItem?.id === item.id">
                                         <div class="absolute inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center text-white">
                                             <div class="w-7 h-7 rounded-full bg-brand-primary text-white flex items-center justify-center font-bold text-sm shadow-md">
-                                                ✓
+                                                <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
                                             </div>
                                         </div>
                                     </template>
@@ -1393,8 +1425,11 @@
                                     <p class="text-[10px] text-gray-500 font-mono" x-text="uploadedMockImage.resolution + ' • 16:9 • ' + uploadedMockImage.size"></p>
                                 </div>
                             </div>
-                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                ✓ Siap Digunakan
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <svg class="w-3 h-3 text-emerald-700 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span>Siap Digunakan</span>
                             </span>
                         </div>
                     </template>
