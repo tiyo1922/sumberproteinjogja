@@ -114,3 +114,174 @@
 .snap-center {
     scroll-snap-align: center;
 }
+
+/* ======================================================= */
+/* DOCUMENT EDITOR CANVAS (Word / Google Docs Experience)  */
+/* ======================================================= */
+#documentCanvas {
+    font-size: 16px;
+    outline: none !important;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    cursor: text;
+}
+
+#documentCanvas p {
+    font-size: 16px;
+    margin-bottom: 1.15rem;
+    line-height: 1.8;
+    color: #374151;
+}
+
+#documentCanvas p.lead {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+#documentCanvas h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #17231D;
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.35;
+}
+
+#documentCanvas h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #17231D;
+    margin-top: 1.5rem;
+    margin-bottom: 0.6rem;
+    line-height: 1.4;
+}
+
+#documentCanvas ul {
+    list-style-type: disc;
+    list-style-position: outside;
+    margin-top: 0.75rem;
+    margin-bottom: 1.15rem;
+    margin-left: 1.5rem;
+    padding-left: 0.5rem;
+    line-height: 1.8;
+    color: #374151;
+}
+
+#documentCanvas ul ul {
+    list-style-type: circle;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    margin-left: 1.25rem;
+    padding-left: 0.25rem;
+}
+
+#documentCanvas ul ul ul {
+    list-style-type: square;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    margin-left: 1.25rem;
+    padding-left: 0.25rem;
+}
+
+#documentCanvas ol {
+    list-style-type: decimal;
+    list-style-position: outside;
+    margin-top: 0.75rem;
+    margin-bottom: 1.15rem;
+    margin-left: 1.5rem;
+    padding-left: 0;
+    line-height: 1.8;
+    color: #374151;
+}
+
+#documentCanvas ol ol {
+    list-style-type: decimal;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    margin-left: 1.5rem;
+    padding-left: 0;
+}
+
+#documentCanvas ol ol ol {
+    list-style-type: decimal;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    margin-left: 1.5rem;
+    padding-left: 0;
+}
+
+#documentCanvas li {
+    display: list-item;
+    margin-bottom: 0.4rem;
+    padding-left: 0.25rem;
+}
+
+#documentCanvas li::marker {
+    font-size: 1em;
+    line-height: inherit;
+}
+
+#documentCanvas blockquote {
+    margin: 1.5rem 0;
+    padding: 0.75rem 1.25rem;
+    border-left: 4px solid #1F6B45;
+    background-color: rgba(234, 243, 237, 0.45);
+    border-radius: 0 0.5rem 0.5rem 0;
+    font-style: italic;
+    color: #374151;
+}
+
+#documentCanvas hr {
+    margin: 2rem 0;
+    border: 0;
+    border-top: 1.5px solid #E5E7EB;
+}
+
+#documentCanvas figure {
+    margin: 1.5rem 0;
+    text-align: center;
+}
+
+#documentCanvas figure img {
+    max-height: 420px;
+    margin: 0 auto;
+    border-radius: 0.5rem;
+    object-fit: cover;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+#documentCanvas figcaption {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: #6B7280;
+    font-style: italic;
+}
+
+/* Callout Independent Block Styles */
+#documentCanvas .callout-box {
+    position: relative;
+    user-select: text;
+}
+
+#documentCanvas .callout-header {
+    user-select: none;
+}
+
+#documentCanvas .callout-delete-btn {
+    opacity: 0.7;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+
+#documentCanvas .callout-delete-btn:hover {
+    opacity: 1;
+    color: #E11D48 !important;
+    background-color: rgba(225, 29, 72, 0.12);
+}
+
+#documentCanvas .callout-body:empty::before {
+    content: attr(data-placeholder);
+    color: #9CA3AF;
+    font-style: italic;
+    pointer-events: none;
+}

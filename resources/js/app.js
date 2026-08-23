@@ -1,9 +1,14 @@
 import Alpine from 'alpinejs';
+import './knowledge-parser.js';
+
+import { createKnowledgeManager } from './knowledge-admin.js';
 
 window.Alpine = Alpine;
 
 // Store global UI states if needed
 document.addEventListener('alpine:init', () => {
+    Alpine.data('knowledgeManager', createKnowledgeManager);
+
     Alpine.data('heroSlider', () => ({
         currentSlide: 0,
         totalSlides: 3,

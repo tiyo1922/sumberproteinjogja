@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="space-y-6"
-     x-data="{
+     x-data="knowledgeManager({
          articles: {{ json_encode($articles) }},
          categories: {{ json_encode($knowledgeCategories) }},
          mediaLibrary: {{ json_encode($mediaLibrary) }},
@@ -13,278 +13,8 @@
              'label' => 'Edukasi & Inspirasi Dapur',
              'title' => 'Dapur & Knowledge',
              'subtitle' => 'Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.'
-         ]) }},
-         activeMainTab: 'articles', // 'articles' | 'categories'
-         editorModalOpen: false,
-         categoryModalOpen: false,
-         mediaPickerOpen: false,
-         previewModalOpen: false,
-         deleteModalOpen: false,
-         deleteCategoryModalOpen: false,
-         isEditing: false,
-         isEditingCategory: false,
-         toastMessage: '',
-         toastVisible: false,
-         searchQuery: '',
-         selectedCategoryFilter: 'all',
-         previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
-         mediaTab: 'library', // 'library' | 'upload'
-         selectedMedia: null,
-         uploadedFile: null,
-         uploadedPreviewUrl: null,
-         previewIsExpanded: false,
-         
-         colorOptions: [
-             { id: 'blue', name: 'Biru (Edukasi)', class: 'bg-blue-100 text-blue-800 border-blue-300' },
-             { id: 'green', name: 'Hijau (Tips/Fresh)', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-             { id: 'purple', name: 'Ungu (Produk)', class: 'bg-purple-100 text-purple-800 border-purple-300' },
-             { id: 'orange', name: 'Oranye (Resep)', class: 'bg-orange-100 text-orange-800 border-orange-300' },
-             { id: 'yellow', name: 'Kuning (Belanja)', class: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
-             { id: 'red', name: 'Merah (Protein)', class: 'bg-rose-100 text-rose-800 border-rose-300' },
-             { id: 'teal', name: 'Teal (Higienis)', class: 'bg-teal-100 text-teal-800 border-teal-300' }
-         ],
-         
-         form: {
-             id: null,
-             title: '',
-             slug: '',
-             category: 'Tips Penyimpanan',
-             status: 'Published',
-             published_at: '17 Agustus 2026',
-             image: 'images/know-thawing.jpg',
-             excerpt: '',
-             content: '',
-         },
-         
-         categoryForm: {
-             id: null,
-             name: '',
-             color: 'blue',
-             status: 'Aktif',
-             articles_count: 0
-         },
-         
-         selectedArticle: null,
-         selectedCategoryItem: null,
-         
-         showToast(msg) {
-             this.toastMessage = msg;
-             this.toastVisible = true;
-             setTimeout(() => { this.toastVisible = false; }, 3000);
-         },
-         
-         getColorClass(color) {
-             const map = {
-                 orange: 'bg-orange-50 text-orange-800 border-orange-200',
-                 yellow: 'bg-yellow-50 text-yellow-900 border-yellow-200',
-                 blue: 'bg-blue-50 text-blue-800 border-blue-200',
-                 green: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-                 purple: 'bg-purple-50 text-purple-800 border-purple-200',
-                 red: 'bg-rose-50 text-rose-800 border-rose-200',
-                 teal: 'bg-teal-50 text-teal-800 border-teal-200'
-             };
-             return map[color] || map.green;
-         },
-         
-         getCategoryColor(catName) {
-             const found = this.categories.find(c => c.name === catName);
-             return found ? found.color : 'green';
-         },
-         
-         get activeCategories() {
-             return this.categories.filter(c => c.status === 'Aktif');
-         },
-         
-         get filteredArticles() {
-             return this.articles.filter(a => {
-                 const matchCat = this.selectedCategoryFilter === 'all' || a.category === this.selectedCategoryFilter;
-                 const matchSearch = !this.searchQuery.trim() || 
-                     a.title.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
-                     a.category.toLowerCase().includes(this.searchQuery.toLowerCase());
-                 return matchCat && matchSearch;
-             });
-         },
-         
-         openCreateModal() {
-             this.isEditing = false;
-             this.previewIsExpanded = false;
-             const defaultCat = this.activeCategories[0]?.name || 'Tips Penyimpanan';
-             this.form = {
-                 id: Date.now(),
-                 title: '',
-                 slug: '',
-                 category: defaultCat,
-                 status: 'Published',
-                 published_at: '17 Agustus 2026',
-                 image: 'images/know-thawing.jpg',
-                 excerpt: 'Ringkasan singkat artikel edukasi dapur untuk pembaca sebelum membuka isi lengkap...',
-                 content: 'Tulis isi artikel lengkap di sini dengan paragraf terstruktur dan tips bermanfaat...',
-             };
-             this.editorModalOpen = true;
-         },
-         
-         openEditModal(a) {
-             this.isEditing = true;
-             this.previewIsExpanded = false;
-             this.form = JSON.parse(JSON.stringify(a));
-             this.editorModalOpen = true;
-         },
-         
-         openCreateCategoryModal() {
-             this.isEditingCategory = false;
-             this.categoryForm = {
-                 id: Date.now(),
-                 name: '',
-                 color: 'blue',
-                 status: 'Aktif',
-                 articles_count: 0
-             };
-             this.categoryModalOpen = true;
-         },
-         
-         openEditCategoryModal(cat) {
-             this.isEditingCategory = true;
-             this.categoryForm = JSON.parse(JSON.stringify(cat));
-             this.categoryModalOpen = true;
-         },
-         
-         saveCategory() {
-             if (!this.categoryForm.name.trim()) {
-                 alert('Nama kategori artikel wajib diisi.');
-                 return;
-             }
-             if (this.isEditingCategory) {
-                 const idx = this.categories.findIndex(c => c.id === this.categoryForm.id);
-                 if (idx !== -1) {
-                     const oldName = this.categories[idx].name;
-                     const newName = this.categoryForm.name;
-                     this.categories[idx] = JSON.parse(JSON.stringify(this.categoryForm));
-                     // Update associated articles category name
-                     this.articles.forEach(a => {
-                         if (a.category === oldName) a.category = newName;
-                     });
-                 }
-                 this.showToast('Kategori ' + this.categoryForm.name + ' berhasil diperbarui!');
-             } else {
-                 this.categories.push(JSON.parse(JSON.stringify(this.categoryForm)));
-                 this.showToast('Kategori baru ' + this.categoryForm.name + ' berhasil ditambahkan!');
-             }
-             this.categoryModalOpen = false;
-         },
-         
-         toggleCategoryStatus(cat) {
-             cat.status = cat.status === 'Aktif' ? 'Nonaktif' : 'Aktif';
-             this.showToast('Status kategori ' + cat.name + ' diubah menjadi ' + cat.status);
-         },
-         
-         openDeleteCategory(cat) {
-             this.selectedCategoryItem = cat;
-             this.deleteCategoryModalOpen = true;
-         },
-         
-         confirmDeleteCategory() {
-             if (this.selectedCategoryItem) {
-                 this.categories = this.categories.filter(c => c.id !== this.selectedCategoryItem.id);
-                 this.deleteCategoryModalOpen = false;
-                 this.showToast('Kategori ' + this.selectedCategoryItem.name + ' telah dihapus.');
-                 this.selectedCategoryItem = null;
-             }
-         },
-         
-         openPreview(a) {
-             this.selectedArticle = a;
-             this.previewModalOpen = true;
-         },
-         
-         autoSlug() {
-             this.form.slug = this.form.title.toLowerCase()
-                 .replace(/[^a-z0-9\s-]/g, '')
-                 .trim()
-                 .replace(/\s+/g, '-');
-         },
-         
-         openMediaPicker() {
-             this.mediaTab = 'library';
-             this.selectedMedia = this.mediaLibrary.find(m => m.path === this.form.image) || this.mediaLibrary[0] || null;
-             this.uploadedFile = null;
-             this.uploadedPreviewUrl = null;
-             this.mediaPickerOpen = true;
-         },
-         
-         selectMedia(media) {
-             this.selectedMedia = media;
-         },
-         
-         confirmMediaSelection() {
-             if (this.mediaTab === 'library' && this.selectedMedia) {
-                 this.form.image = this.selectedMedia.path;
-                 this.mediaPickerOpen = false;
-                 this.showToast('Gambar artikel dipilih dari Media Library!');
-             } else if (this.mediaTab === 'upload' && this.uploadedPreviewUrl) {
-                 this.form.image = this.uploadedPreviewUrl;
-                 this.mediaPickerOpen = false;
-                 this.showToast('Gambar hasil upload berhasil digunakan!');
-             }
-         },
-         
-         handleFileUpload(e) {
-             const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
-             if (!file) return;
-             if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
-                 alert('Format file tidak didukung. Gunakan JPG, PNG, atau WebP.');
-                 return;
-             }
-             this.uploadedFile = {
-                 name: file.name,
-                 size: (file.size / 1024).toFixed(0) + ' KB',
-                 type: file.type,
-             };
-             this.uploadedPreviewUrl = URL.createObjectURL(file);
-         },
-         
-         saveArticle() {
-             if (!this.form.title.trim()) {
-                 alert('Judul artikel wajib diisi.');
-                 return;
-             }
-             if (this.isEditing) {
-                 const idx = this.articles.findIndex(a => a.id === this.form.id);
-                 if (idx !== -1) {
-                     this.articles[idx] = JSON.parse(JSON.stringify(this.form));
-                 }
-                 this.showToast('Artikel berhasil diperbarui!');
-             } else {
-                 this.articles.unshift(JSON.parse(JSON.stringify(this.form)));
-                 this.showToast('Artikel baru berhasil ditambahkan!');
-             }
-             this.editorModalOpen = false;
-         },
-         
-         togglePublish(a) {
-             a.status = a.status === 'Published' ? 'Draft' : 'Published';
-             this.showToast('Status artikel diubah menjadi ' + a.status);
-         },
-         
-         openDelete(a) {
-             this.selectedArticle = a;
-             this.deleteModalOpen = true;
-         },
-         
-         confirmDelete() {
-             if (this.selectedArticle) {
-                 this.articles = this.articles.filter(a => a.id !== this.selectedArticle.id);
-                 this.deleteModalOpen = false;
-                 this.showToast('Artikel telah dihapus.');
-                 this.selectedArticle = null;
-             }
-         },
-         
-         getImageUrl(path) {
-             if (!path) return '/images/know-thawing.jpg';
-             if (path.startsWith('blob:') || path.startsWith('http')) return path;
-             return path.startsWith('/') ? path : '/' + path;
-         }
-     }">
+         ]) }}
+     })">
     
     <!-- 1. Header Card -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs">
@@ -616,228 +346,653 @@
     </div>
 
     <!-- ======================================================= -->
-    <!-- 5. MODAL EDITOR ARTIKEL (Form + REAL LIVE PREVIEW)      -->
+    <!-- 5. MODAL EDITOR DOKUMEN ARTIKEL (B1-R DOCUMENT UX)      -->
     <!-- ======================================================= -->
     <div x-show="editorModalOpen" 
          x-cloak
-         class="fixed inset-0 z-50 overflow-y-auto"
+         class="fixed inset-0 z-50 overflow-hidden flex items-center justify-center"
+         :class="isFocusMode ? 'p-0' : 'p-2 sm:p-4'"
          role="dialog" 
          aria-modal="true">
         
-        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="editorModalOpen = false"></div>
+        <!-- Backdrop (hidden in focus mode) -->
+        <div x-show="!isFocusMode" class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="closeEditorModal()"></div>
 
-        <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
-            <div class="relative bg-white rounded-modern-xl max-w-5xl w-full p-6 sm:p-8 shadow-2xl border border-gray-200 overflow-hidden my-6">
-                
-                <div class="flex items-center justify-between pb-4 mb-6 border-b border-gray-100">
+        <!-- Modal Window (Strict 100dvh in focus mode, 92vh in normal mode) -->
+        <div :class="isFocusMode ? 'fixed inset-0 w-screen h-[100dvh] max-h-[100dvh] rounded-none m-0 border-0' : 'relative bg-white rounded-modern-xl max-w-7xl w-full mx-auto my-auto shadow-2xl border border-gray-200 h-[92vh] max-h-[92vh]'"
+             class="bg-white flex flex-col overflow-hidden transition-all duration-200 z-10">
+            
+            <!-- 1. MODAL TOP HEADER BAR -->
+            <div class="px-5 py-3 border-b border-gray-200 bg-white flex items-center justify-between gap-4 shrink-0">
+                <!-- Left: Title & Subtitle -->
+                <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-modern bg-brand-soft-green text-brand-primary flex items-center justify-center text-base">✍️</span>
                     <div>
-                        <h3 class="text-base sm:text-lg font-extrabold text-brand-dark"
-                            x-text="isEditing ? 'Edit Artikel: ' + form.title : 'Tambah Artikel Baru'">
+                        <h3 class="text-sm sm:text-base font-extrabold text-brand-dark leading-snug"
+                            x-text="isEditing ? 'Edit Artikel: ' + (form.title || 'Tanpa Judul') : 'Tambah Artikel Baru'">
                         </h3>
-                        <p class="text-xs text-gray-500">Pilihan kategori terhubung langsung dengan Knowledge Category Manager.</p>
+                        <p class="text-[11px] text-gray-500 hidden sm:block">Editor Dokumen Penulisan Artikel Knowledge & Edukasi Dapur</p>
                     </div>
-                    <button @click="editorModalOpen = false" 
+                </div>
+
+                <!-- Middle: Navigation Tabs ([ Konten ] [ Informasi ] [ Preview ]) -->
+                <div class="flex items-center bg-gray-100/90 p-1 rounded-modern border border-gray-200/80 text-xs">
+                    <button @click="editorTab = 'content'" 
                             type="button" 
-                            class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                            :class="editorTab === 'content' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-600 hover:text-brand-dark'"
+                            class="px-3.5 py-1.5 rounded-modern transition-all cursor-pointer flex items-center gap-1.5">
+                        <span>✍️</span>
+                        <span>Konten</span>
+                    </button>
+                    <button @click="editorTab = 'info'" 
+                            type="button" 
+                            :class="editorTab === 'info' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-600 hover:text-brand-dark'"
+                            class="px-3.5 py-1.5 rounded-modern transition-all cursor-pointer flex items-center gap-1.5">
+                        <span>📋</span>
+                        <span>Informasi</span>
+                    </button>
+                    <button @click="editorTab = 'preview'" 
+                            type="button" 
+                            :class="editorTab === 'preview' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-600 hover:text-brand-dark'"
+                            class="px-3.5 py-1.5 rounded-modern transition-all cursor-pointer flex items-center gap-1.5">
+                        <span>👁️</span>
+                        <span>Preview</span>
+                    </button>
+                </div>
+
+                <!-- Right: Focus Mode + Close Button -->
+                <div class="flex items-center gap-2 shrink-0">
+                    <button @click="isFocusMode = !isFocusMode" 
+                            type="button"
+                            :class="isFocusMode ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                            class="px-3 py-1.5 rounded-modern text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+                            title="Toggle Mode Fokus / Fullscreen">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
+                        <span class="hidden sm:inline whitespace-nowrap" x-text="isFocusMode ? 'Keluar Fokus' : 'Mode Fokus'"></span>
+                    </button>
+                    <button @click="closeEditorModal()" 
+                            type="button" 
+                            class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Tutup Editor"
+                            aria-label="Tutup modal editor artikel">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
+            </div>
 
-                <form @submit.prevent="saveArticle()" class="space-y-6">
+            <!-- 2. TAB 1: KONTEN (WRITING WORKSPACE) -->
+            <div x-show="editorTab === 'content'" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+                
+                <!-- STICKY DOCUMENT TOOLBAR -->
+                <div class="bg-gray-50/95 backdrop-blur-xs border-b border-gray-200 py-2 flex items-center justify-between gap-2.5 shrink-0 select-none overflow-x-auto sm:overflow-x-visible transition-all duration-200"
+                     :class="isFocusMode ? 'px-6 sm:px-8 md:px-10' : 'px-4 sm:px-6'">
                     
-                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                        
-                        <!-- Left Form (7 cols on lg) -->
-                        <div class="lg:col-span-7 space-y-4">
-                            
-                            <!-- Judul Artikel -->
-                            <div>
-                                <label class="block text-xs font-bold text-brand-dark mb-1">
-                                    Judul Artikel <span class="text-rose-500">*</span>
-                                </label>
-                                <input type="text" 
-                                       x-model="form.title" 
-                                       @input="autoSlug()"
-                                       required
-                                       placeholder="Contoh: 5 Tips Menyimpan Daging Beku Agar Tetap Segar"
-                                       class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
-                            </div>
+                    <!-- Left Tools (Undo, Redo, Heading, Font Size, Formatting, Align, Lists, Quick Callouts) -->
+                    <div class="flex items-center flex-wrap gap-1 sm:gap-1.5 text-xs min-w-0">
+                        <!-- Undo / Redo -->
+                        <button @click="docUndo()" type="button" title="Undo (Ctrl+Z)" class="p-1.5 rounded hover:bg-gray-200 text-gray-700 cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a5 5 0 015 5v2m0 0l-4-4m4 4l4-4M3 10l4-4m-4 4l4 4" /></svg>
+                        </button>
+                        <button @click="docRedo()" type="button" title="Redo (Ctrl+Y)" class="p-1.5 rounded hover:bg-gray-200 text-gray-700 cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 10H11a5 5 0 00-5 5v2m0 0l4-4m-4 4l-4-4m20-4l-4-4m4 4l-4 4" /></svg>
+                        </button>
 
-                            <!-- Kategori (FROM KNOWLEDGE CATEGORY MANAGER) -->
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div>
-                                    <div class="flex items-center justify-between mb-1">
-                                        <label class="block text-xs font-bold text-brand-dark">
-                                            Kategori Artikel
-                                        </label>
-                                    </div>
-                                    <select x-model="form.category" 
-                                            class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
-                                        <template x-for="cat in activeCategories" :key="cat.id">
-                                            <option :value="cat.name" x-text="cat.name"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-brand-dark mb-1">
-                                        Status Publikasi
-                                    </label>
-                                    <select x-model="form.status" 
-                                            class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white">
-                                        <option value="Published">Published (Tayang)</option>
-                                        <option value="Draft">Draft (Disimpan)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-brand-dark mb-1">
-                                        Tanggal Publikasi
-                                    </label>
-                                    <input type="text" 
-                                           x-model="form.published_at" 
-                                           placeholder="17 Agustus 2026"
-                                           class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white">
-                                </div>
-                            </div>
+                        <div class="w-px h-5 bg-gray-300 mx-0.5"></div>
 
-                            <!-- Excerpt / Ringkasan -->
-                            <div>
-                                <label class="block text-xs font-bold text-brand-dark mb-1">
-                                    Excerpt / Ringkasan Singkat (Tampil di Kartu) <span class="text-rose-500">*</span>
-                                </label>
-                                <textarea x-model="form.excerpt" 
-                                          rows="2" 
-                                          required
-                                          placeholder="Ringkasan 1-2 kalimat pengantar artikel..."
-                                          class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"></textarea>
-                            </div>
+                        <!-- Block Style Selector (Normal, H2, H3) -->
+                        <select :value="activeFormats.blockStyle"
+                                @change="applyBlockStyle($event.target.value)" 
+                                title="Format Gaya Blok"
+                                class="text-xs font-semibold rounded-modern border border-gray-300 py-1 px-2 bg-white text-gray-700 cursor-pointer hover:border-gray-400">
+                            <option value="p">¶ Normal</option>
+                            <option value="h2">H2 Sub-Judul</option>
+                            <option value="h3">H3 Sub-Poin</option>
+                        </select>
 
-                            <!-- Isi Lengkap Artikel -->
-                            <div>
-                                <label class="block text-xs font-bold text-brand-dark mb-1">
-                                    Isi Lengkap Artikel (Tampil saat Expand "Baca Selengkapnya") <span class="text-rose-500">*</span>
-                                </label>
-                                <textarea x-model="form.content" 
-                                          rows="6" 
-                                          required
-                                          placeholder="Tuliskan isi artikel lengkap dengan paragraf panjang, poin-poin penjelasan, dan tips..."
-                                          class="w-full text-xs sm:text-sm font-sans rounded-modern border border-gray-300 p-3 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary leading-relaxed"></textarea>
-                            </div>
+                        <!-- Font Size Selector (12 to 32px + Mixed) -->
+                        <select :value="activeFormats.fontSize"
+                                @change="setFontSize($event.target.value)" 
+                                title="Ukuran Huruf (Font Size)"
+                                class="text-xs font-semibold rounded-modern border border-gray-300 py-1 px-1.5 bg-white text-gray-700 cursor-pointer hover:border-gray-400">
+                            <option value="mixed" x-show="activeFormats.fontSize === 'mixed'" disabled>— (Mixed)</option>
+                            <option value="12">12px</option>
+                            <option value="14">14px</option>
+                            <option value="16">16px (Normal)</option>
+                            <option value="18">18px</option>
+                            <option value="20">20px</option>
+                            <option value="24">24px</option>
+                            <option value="28">28px</option>
+                            <option value="32">32px</option>
+                        </select>
 
-                            <!-- Thumbnail via Global Media Picker -->
-                            <div class="p-4 rounded-modern bg-gray-50 border border-gray-200 space-y-3">
-                                <div class="flex items-center justify-between">
-                                    <label class="block text-xs font-bold text-brand-dark">
-                                        Gambar Thumbnail (Rasio 3:2)
-                                    </label>
-                                    <span class="text-[11px] font-semibold text-emerald-700">Global Media Picker</span>
-                                </div>
+                        <div class="w-px h-5 bg-gray-300 mx-0.5"></div>
 
-                                <div class="flex items-center gap-4">
-                                    <div class="w-24 aspect-[3/2] rounded-modern overflow-hidden bg-brand-dark shrink-0 border border-gray-300 shadow-2xs">
-                                        <img :src="getImageUrl(form.image)" alt="Article Thumbnail" class="w-full h-full object-cover">
-                                    </div>
-                                    <div class="space-y-2">
-                                        <button @click="openMediaPicker()" 
-                                                type="button" 
-                                                class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer inline-flex items-center gap-1.5">
-                                            <span>🖼️</span>
-                                            <span>Pilih dari Media Picker</span>
-                                        </button>
-                                        <p class="text-[11px] text-gray-500 font-mono truncate max-w-xs" x-text="form.image"></p>
-                                    </div>
-                                </div>
-
-                                <div class="pt-2 border-t border-gray-200 text-[11px] text-gray-500 space-y-1">
-                                    <p class="font-bold text-gray-700">Rekomendasi Gambar Artikel:</p>
-                                    <p>1200 × 800 px • Rasio 3:2 • JPG / WebP • Disarankan ≤ 300 KB</p>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <!-- Right: REAL LANDING PAGE KNOWLEDGE CARD & READER PREVIEW (5 cols on lg) -->
-                        <div class="lg:col-span-5 space-y-3 sticky top-4">
-                            
-                            <div class="flex items-center justify-between">
-                                <label class="block text-xs font-extrabold text-brand-dark uppercase tracking-wider">
-                                    Real Landing Page Preview
-                                </label>
-                                <div class="flex items-center bg-gray-100 p-0.5 rounded text-[10px]">
-                                    <button @click="previewIsExpanded = false" type="button" 
-                                            :class="!previewIsExpanded ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
-                                            class="px-2 py-0.5 rounded cursor-pointer">Card</button>
-                                    <button @click="previewIsExpanded = true" type="button" 
-                                            :class="previewIsExpanded ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
-                                            class="px-2 py-0.5 rounded cursor-pointer">Inline Reader</button>
-                                </div>
-                            </div>
-
-                            <!-- Real Knowledge Card Component Replica -->
-                            <div class="bg-gray-50 p-4 rounded-modern-xl border border-gray-200">
-                                
-                                <!-- Card Mode -->
-                                <div x-show="!previewIsExpanded" class="bg-white rounded-modern-lg border border-gray-200 shadow-sm overflow-hidden space-y-0">
-                                    <div class="relative aspect-[3/2] w-full bg-brand-dark overflow-hidden">
-                                        <img :src="getImageUrl(form.image)" :alt="form.title" class="w-full h-full object-cover">
-                                        <div class="absolute top-2.5 left-2.5">
-                                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-xs"
-                                                  :class="getColorClass(getCategoryColor(form.category))"
-                                                  x-text="form.category"></span>
-                                        </div>
-                                    </div>
-                                    <div class="p-4 space-y-2">
-                                        <span class="text-[10px] text-gray-400 font-medium" x-text="form.published_at"></span>
-                                        <h4 class="font-extrabold text-brand-dark text-sm leading-snug line-clamp-2" x-text="form.title || 'Judul Artikel'"></h4>
-                                        <p class="text-xs text-gray-500 line-clamp-3 leading-relaxed" x-text="form.excerpt || 'Ringkasan singkat...'"></p>
-                                        <div class="pt-2 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-brand-primary">
-                                            <span>Baca Selengkapnya</span>
-                                            <span>▾</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Inline Reader Mode -->
-                                <div x-show="previewIsExpanded" class="bg-white rounded-modern-lg border border-gray-200 shadow-md p-4 space-y-3">
-                                    <div class="flex items-center justify-between border-b border-gray-100 pb-2">
-                                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border"
-                                              :class="getColorClass(getCategoryColor(form.category))"
-                                              x-text="form.category"></span>
-                                        <span class="text-[10px] text-gray-400" x-text="form.published_at"></span>
-                                    </div>
-                                    <h3 class="font-black text-brand-dark text-sm leading-tight" x-text="form.title"></h3>
-                                    <div class="aspect-[3/2] w-full rounded overflow-hidden bg-brand-dark">
-                                        <img :src="getImageUrl(form.image)" :alt="form.title" class="w-full h-full object-cover">
-                                    </div>
-                                    <div class="text-xs text-gray-700 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto" x-text="form.content"></div>
-                                </div>
-
-                            </div>
-
-                            <p class="text-[11px] text-gray-400 text-center">
-                                Preview di atas 100% sama dengan komponen artikel Knowledge pada Landing Page.
-                            </p>
-
-                        </div>
-
-                    </div>
-
-                    <!-- Actions Footer -->
-                    <div class="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
-                        <button @click="editorModalOpen = false" 
+                        <!-- Bold, Italic, Underline, Strikethrough, Link -->
+                        <button @click="formatDoc('bold')" 
                                 type="button" 
-                                class="px-4 py-2.5 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
-                            Batal
+                                title="Tebal / Bold (Ctrl+B)" 
+                                :class="activeFormats.bold ? 'bg-gray-300 text-brand-dark font-black' : 'text-gray-700 hover:bg-gray-200'"
+                                class="p-1 px-2 rounded font-black cursor-pointer text-xs">
+                            B
                         </button>
-                        <button type="submit" 
-                                class="px-6 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm transition-all cursor-pointer">
-                            Simpan Artikel
+                        <button @click="formatDoc('italic')" 
+                                type="button" 
+                                title="Miring / Italic (Ctrl+I)" 
+                                :class="activeFormats.italic ? 'bg-gray-300 text-brand-dark' : 'text-gray-700 hover:bg-gray-200'"
+                                class="p-1 px-2 rounded italic font-serif cursor-pointer text-xs">
+                            I
+                        </button>
+                        <button @click="formatDoc('underline')" 
+                                type="button" 
+                                title="Garis Bawah / Underline (Ctrl+U)" 
+                                :class="activeFormats.underline ? 'bg-gray-300 text-brand-dark underline font-bold' : 'text-gray-700 hover:bg-gray-200 underline'"
+                                class="p-1 px-2 rounded cursor-pointer text-xs">
+                            U
+                        </button>
+                        <button @click="formatDoc('strikeThrough')" 
+                                type="button" 
+                                title="Coret / Strikethrough" 
+                                :class="activeFormats.strikethrough ? 'bg-gray-300 text-brand-dark line-through font-bold' : 'text-gray-700 hover:bg-gray-200 line-through'"
+                                class="p-1 px-2 rounded cursor-pointer text-xs">
+                            S
+                        </button>
+                        <button @click="openLinkModal()" type="button" title="Sisipkan Tautan / Link (Ctrl+K)" class="p-1.5 rounded hover:bg-gray-200 text-gray-700 cursor-pointer">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                        </button>
+
+                        <div class="w-px h-5 bg-gray-300 mx-0.5"></div>
+
+                        <!-- Alignment Dropdown / Controls -->
+                        <div class="inline-flex items-center rounded-modern border border-gray-300 bg-white p-0.5 shadow-2xs">
+                            <button @click="setAlignment('left')" 
+                                    type="button" 
+                                    title="Rata Kiri" 
+                                    :class="activeFormats.align === 'left' ? 'bg-gray-200 text-brand-dark' : 'text-gray-600 hover:bg-gray-100'"
+                                    class="p-1 rounded cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h14" /></svg>
+                            </button>
+                            <button @click="setAlignment('center')" 
+                                    type="button" 
+                                    title="Rata Tengah" 
+                                    :class="activeFormats.align === 'center' ? 'bg-gray-200 text-brand-dark' : 'text-gray-600 hover:bg-gray-100'"
+                                    class="p-1 rounded cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M7 12h10M5 18h14" /></svg>
+                            </button>
+                            <button @click="setAlignment('right')" 
+                                    type="button" 
+                                    title="Rata Kanan" 
+                                    :class="activeFormats.align === 'right' ? 'bg-gray-200 text-brand-dark' : 'text-gray-600 hover:bg-gray-100'"
+                                    class="p-1 rounded cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M10 12h10M6 18h14" /></svg>
+                            </button>
+                            <button @click="setAlignment('justify')" 
+                                    type="button" 
+                                    title="Rata Kiri-Kanan (Justify)" 
+                                    :class="activeFormats.align === 'justify' ? 'bg-gray-200 text-brand-dark' : 'text-gray-600 hover:bg-gray-100'"
+                                    class="p-1 rounded cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                            </button>
+                        </div>
+
+                        <!-- Line Spacing Dropdown -->
+                        <select :value="activeFormats.lineHeight"
+                                @change="setLineSpacing($event.target.value)" 
+                                title="Spasi Baris (Line Spacing)"
+                                class="text-xs font-semibold rounded-modern border border-gray-300 py-1 px-1 bg-white text-gray-700 cursor-pointer hover:border-gray-400">
+                            <option value="1.4">Spasi Rapat (1.4)</option>
+                            <option value="1.75">Spasi Normal (1.75)</option>
+                            <option value="2.0">Spasi Lega (2.0)</option>
+                        </select>
+
+                        <div class="w-px h-5 bg-gray-300 mx-0.5"></div>
+
+                        <!-- Bulleted & Numbered Lists & Indentation -->
+                        <button @click="formatDoc('insertUnorderedList')" 
+                                type="button" 
+                                title="Daftar Poin (Bullet List)" 
+                                :class="activeFormats.isUnorderedList ? 'bg-gray-300 text-brand-dark' : 'hover:bg-gray-200 text-gray-700'"
+                                class="p-1.5 rounded cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16M2 6h.01M2 12h.01M2 18h.01" /></svg>
+                        </button>
+                        <button @click="formatDoc('insertOrderedList')" 
+                                type="button" 
+                                title="Daftar Nomor (Numbered List)" 
+                                :class="activeFormats.isOrderedList ? 'bg-gray-300 text-brand-dark' : 'hover:bg-gray-200 text-gray-700'"
+                                class="p-1.5 rounded cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 6h13M7 12h13M7 18h13M3 6h1v4M3 18h2" /></svg>
+                        </button>
+                        <button @click="formatDoc('outdent')" 
+                                type="button" 
+                                title="Kurangi Indent / Level List (Shift+Tab)" 
+                                class="p-1.5 rounded hover:bg-gray-200 text-gray-700 cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
+                        </button>
+                        <button @click="formatDoc('indent')" 
+                                type="button" 
+                                title="Tambah Indent / Sub-Level List (Tab)" 
+                                class="p-1.5 rounded hover:bg-gray-200 text-gray-700 cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                        </button>
+
+                        <div class="w-px h-5 bg-gray-300 mx-0.5"></div>
+
+                        <!-- Quick Callout Insert -->
+                        <button @click="insertCallout('tips')" type="button" title="Sisipkan Tips Box (Hijau)" class="px-2 py-1 rounded bg-emerald-50 text-emerald-800 border border-emerald-200/80 hover:bg-emerald-100 font-bold inline-flex items-center gap-1 cursor-pointer">
+                            <span>💡</span>
+                            <span class="hidden sm:inline">Tips</span>
+                        </button>
+                        <button @click="insertCallout('info')" type="button" title="Sisipkan Info Box (Krem)" class="px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 font-bold inline-flex items-center gap-1 cursor-pointer">
+                            <span>📋</span>
+                            <span class="hidden sm:inline">Info</span>
+                        </button>
+                        <button @click="openMediaPicker('inline')" type="button" title="Sisipkan Gambar dari Media Picker" class="px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 font-semibold inline-flex items-center gap-1 cursor-pointer">
+                            <span>🖼️</span>
+                            <span class="hidden sm:inline">Gambar</span>
                         </button>
                     </div>
 
-                </form>
+                    <!-- Right View Toggles (Panel Sisipkan) -->
+                    <div class="flex items-center gap-2 text-xs shrink-0 pl-3 sm:pl-5" :class="isFocusMode ? 'pr-2 sm:pr-4' : ''">
+                        <button @click="showInsertPanel = !showInsertPanel" 
+                                type="button"
+                                :class="showInsertPanel ? 'bg-brand-soft-green text-brand-primary border-brand-soft-green-border font-bold' : 'bg-white text-gray-700 border-gray-300 font-medium'"
+                                class="px-3.5 py-1.5 rounded-modern border cursor-pointer transition-all inline-flex items-center gap-1.5 shrink-0 shadow-2xs hover:bg-gray-100"
+                                title="Buka/Tutup Panel Sisipkan">
+                            <span class="text-sm">◫</span>
+                            <span class="font-semibold text-xs whitespace-nowrap">Sisipkan</span>
+                        </button>
+                    </div>
 
+                </div>
+
+                <!-- WORKSPACE 3-COLUMN LAYOUT -->
+                <div class="flex-1 flex min-h-0 bg-[#F4F6F4] overflow-hidden">
+                    
+                    <!-- LEFT COLUMN: PANEL SISIPKAN (Collapsible, works in both Normal & Focus Mode) -->
+                    <div x-show="showInsertPanel" 
+                         x-transition
+                         class="w-56 shrink-0 bg-white border-r border-gray-200 p-4 overflow-y-auto space-y-5 hidden md:block">
+                        
+                        <div>
+                            <h4 class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Konten Khusus</h4>
+                            <div class="space-y-2">
+                                <!-- Tips Penting -->
+                                <button @click="insertCallout('tips')" 
+                                        type="button" 
+                                        class="w-full text-left p-2.5 rounded-modern bg-brand-soft-green/50 hover:bg-brand-soft-green border border-brand-soft-green-border transition-colors cursor-pointer group">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-base">💡</span>
+                                        <div>
+                                            <p class="text-xs font-bold text-brand-primary">Tips Penting</p>
+                                            <p class="text-[10px] text-emerald-800/80">Highlight tips praktis dapur</p>
+                                        </div>
+                                    </div>
+                                </button>
+
+                                <!-- Info Penting -->
+                                <button @click="insertCallout('info')" 
+                                        type="button" 
+                                        class="w-full text-left p-2.5 rounded-modern bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 transition-colors cursor-pointer group">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-base">📋</span>
+                                        <div>
+                                            <p class="text-xs font-bold text-amber-900">Info Penting</p>
+                                            <p class="text-[10px] text-amber-800/80">Catatan & edukasi penting</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Elemen Dokumen</h4>
+                            <div class="space-y-1.5 text-xs">
+                                <button @click="openMediaPicker('inline')" type="button" class="w-full text-left px-3 py-2 rounded-modern hover:bg-gray-100 font-medium text-gray-700 flex items-center gap-2 cursor-pointer">
+                                    <span>🖼️</span>
+                                    <span>Gambar Artikel</span>
+                                </button>
+                                <button @click="insertQuote()" type="button" class="w-full text-left px-3 py-2 rounded-modern hover:bg-gray-100 font-medium text-gray-700 flex items-center gap-2 cursor-pointer">
+                                    <span>❝</span>
+                                    <span>Kutipan (Quote)</span>
+                                </button>
+                                <button @click="insertDivider()" type="button" class="w-full text-left px-3 py-2 rounded-modern hover:bg-gray-100 font-medium text-gray-700 flex items-center gap-2 cursor-pointer">
+                                    <span>➖</span>
+                                    <span>Garis Pemisah (HR)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-gray-100 text-[11px] text-gray-400 space-y-1">
+                            <p class="font-bold text-gray-500">Shortcut Keyboard:</p>
+                            <p>• <strong>Ctrl+B</strong> Tebal</p>
+                            <p>• <strong>Ctrl+I</strong> Miring</p>
+                            <p>• <strong>Ctrl+K</strong> Tautan</p>
+                            <p>• <strong>Ctrl+S</strong> Simpan</p>
+                        </div>
+
+                    </div>
+
+                    <!-- CENTER COLUMN: THE BLANK CANVAS (Paper-like Document Workspace) -->
+                    <div class="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 md:py-10 flex justify-center items-start bg-[#F4F6F4]" 
+                         @click="if ($event.target === $el) { document.getElementById('documentCanvas')?.focus() }">
+                        <div class="w-full max-w-3xl bg-white rounded-modern-xl shadow-md border border-gray-200/90 p-8 sm:p-14 mb-16 shrink-0 min-h-[720px] h-auto">
+                            
+                            <!-- Title Field in Document -->
+                            <div class="space-y-2 mb-6 border-b border-gray-100 pb-4">
+                                <textarea x-model="form.title" 
+                                          @input="autoSlug(); updateDocStats(); $el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'" 
+                                          x-init="$nextTick(() => { $el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px' })"
+                                          rows="1"
+                                          placeholder="Ketik Judul Artikel di Sini..." 
+                                          class="w-full text-2xl sm:text-3xl font-extrabold text-brand-dark tracking-tight leading-snug border-0 p-0 focus:ring-0 focus:outline-hidden placeholder:text-gray-300 resize-none overflow-hidden bg-transparent block"></textarea>
+                                <div class="flex items-center gap-2 text-xs text-gray-400 font-medium pt-1">
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs"
+                                          :class="getColorClass(getCategoryColor(form.category))"
+                                          x-text="form.category"></span>
+                                    <span>•</span>
+                                    <span x-text="form.published_at"></span>
+                                </div>
+                            </div>
+
+                            <!-- Contenteditable Canvas -->
+                            <div id="documentCanvas" 
+                                 contenteditable="true"
+                                 @input="onCanvasInput()"
+                                 @keydown="onCanvasKeydown($event)"
+                                 @keyup="updateDocStats()"
+                                 @mouseup="updateDocStats()"
+                                 class="w-full text-gray-800 text-[16px] leading-relaxed focus:outline-hidden min-h-[480px]">
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: REALTIME PREVIEW BACA (Collapsible) -->
+                    <div x-show="showPreviewPanel && !isFocusMode" 
+                         x-transition
+                         class="w-80 shrink-0 bg-white border-l border-gray-200 p-4 overflow-y-auto space-y-4 hidden lg:block">
+                        
+                        <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                            <label class="block text-xs font-extrabold text-brand-dark uppercase tracking-wider">
+                                Preview Baca
+                            </label>
+                            <div class="flex items-center bg-gray-100 p-0.5 rounded text-[10px]">
+                                <button @click="previewIsExpanded = false" type="button" 
+                                        :class="!previewIsExpanded ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
+                                        class="px-2 py-0.5 rounded cursor-pointer">Card</button>
+                                <button @click="previewIsExpanded = true" type="button" 
+                                        :class="previewIsExpanded ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500'"
+                                        class="px-2 py-0.5 rounded cursor-pointer">Reader</button>
+                            </div>
+                        </div>
+
+                        <!-- Card Mode -->
+                        <div x-show="!previewIsExpanded" class="bg-white rounded-modern-lg border border-gray-200 shadow-sm overflow-hidden space-y-0">
+                            <div class="relative aspect-[3/2] w-full bg-brand-dark overflow-hidden">
+                                <img :src="getImageUrl(form.image)" :alt="form.title" class="w-full h-full object-cover">
+                                <div class="absolute top-2.5 left-2.5">
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-xs"
+                                          :class="getColorClass(getCategoryColor(form.category))"
+                                          x-text="form.category"></span>
+                                </div>
+                            </div>
+                            <div class="p-3.5 space-y-2">
+                                <span class="text-[10px] text-gray-400 font-medium" x-text="form.published_at"></span>
+                                <h4 class="font-extrabold text-brand-dark text-xs leading-snug line-clamp-2" x-text="form.title || 'Judul Artikel'"></h4>
+                                <p class="text-[11px] text-gray-500 line-clamp-3 leading-relaxed" x-text="form.excerpt || 'Ringkasan singkat...'"></p>
+                                <div class="pt-2 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-brand-primary">
+                                    <span>Baca Selengkapnya</span>
+                                    <span>▾</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Inline Reader Mode -->
+                        <div x-show="previewIsExpanded" class="bg-gray-50 p-3.5 rounded-modern-lg border border-gray-200 shadow-sm space-y-3">
+                            <div class="flex items-center justify-between border-b border-gray-200 pb-2">
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border"
+                                      :class="getColorClass(getCategoryColor(form.category))"
+                                      x-text="form.category"></span>
+                                <span class="text-[10px] text-gray-400" x-text="form.published_at"></span>
+                            </div>
+                            <h3 class="font-black text-brand-dark text-xs leading-tight" x-text="form.title || 'Judul Artikel'"></h3>
+                            <div class="aspect-[3/2] w-full rounded overflow-hidden bg-brand-dark">
+                                <img :src="getImageUrl(form.image)" :alt="form.title" class="w-full h-full object-cover">
+                            </div>
+                            <div class="text-xs text-gray-700 leading-relaxed max-h-96 overflow-y-auto space-y-3 bg-white p-3 rounded border border-gray-200" 
+                                 x-html="canvasHtml"></div>
+                        </div>
+
+                        <p class="text-[11px] text-gray-400 text-center leading-relaxed">
+                            Tampilan otomatis diperbarui secara live sesuai dengan teks di Canvas.
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- 3. TAB 2: INFORMASI (METADATA WORKSPACE) -->
+            <div x-show="editorTab === 'info'" class="flex-1 p-6 sm:p-8 overflow-y-auto space-y-6 max-w-4xl mx-auto w-full">
+                
+                <div>
+                    <h3 class="text-base font-extrabold text-brand-dark">Informasi & Metadata Artikel</h3>
+                    <p class="text-xs text-gray-500">Kelola kategori, status publikasi, excerpt ringkas, dan gambar thumbnail.</p>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Judul & Slug -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Judul Artikel <span class="text-rose-500">*</span>
+                        </label>
+                        <input type="text" 
+                               x-model="form.title" 
+                               @input="autoSlug()"
+                               required
+                               placeholder="Contoh: 5 Tips Menyimpan Daging Beku Agar Tetap Segar"
+                               class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
+                    </div>
+
+                    <!-- Kategori, Status, Tanggal -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">
+                                Kategori Artikel
+                            </label>
+                            <select x-model="form.category" 
+                                    class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
+                                <template x-for="cat in activeCategories" :key="cat.id">
+                                    <option :value="cat.name" x-text="cat.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">
+                                Status Publikasi
+                            </label>
+                            <select x-model="form.status" 
+                                    class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
+                                <option value="Published">Published (Tayang)</option>
+                                <option value="Draft">Draft (Disimpan)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">
+                                Tanggal Publikasi
+                            </label>
+                            <input type="text" 
+                                   x-model="form.published_at" 
+                                   placeholder="17 Agustus 2026"
+                                   class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white">
+                        </div>
+                    </div>
+
+                    <!-- Excerpt / Ringkasan -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Excerpt / Ringkasan Singkat (Tampil di Kartu) <span class="text-rose-500">*</span>
+                        </label>
+                        <textarea x-model="form.excerpt" 
+                                  rows="3" 
+                                  required
+                                  placeholder="Ringkasan 1-2 kalimat pengantar artikel yang akan tampil pada kartu artikel Landing Page..."
+                                  class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"></textarea>
+                    </div>
+
+                    <!-- Thumbnail via Global Media Picker -->
+                    <div class="p-4 rounded-modern-lg bg-gray-50 border border-gray-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-brand-dark">
+                                Gambar Thumbnail Kartu (Rasio 3:2)
+                            </label>
+                            <span class="text-[11px] font-semibold text-emerald-700">Global Media Picker</span>
+                        </div>
+
+                        <div class="flex items-center gap-4">
+                            <div class="w-28 aspect-[3/2] rounded-modern overflow-hidden bg-brand-dark shrink-0 border border-gray-300 shadow-2xs">
+                                <img :src="getImageUrl(form.image)" alt="Article Thumbnail" class="w-full h-full object-cover">
+                            </div>
+                            <div class="space-y-2">
+                                <button @click="openMediaPicker('thumbnail')" 
+                                        type="button" 
+                                        class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer inline-flex items-center gap-1.5">
+                                    <span>🖼️</span>
+                                    <span>Pilih dari Media Picker</span>
+                                </button>
+                                <p class="text-[11px] text-gray-500 font-mono truncate max-w-xs" x-text="form.image"></p>
+                            </div>
+                        </div>
+
+                        <div class="pt-2 border-t border-gray-200 text-[11px] text-gray-500 space-y-1">
+                            <p class="font-bold text-gray-700">Rekomendasi Gambar Thumbnail:</p>
+                            <p>1200 × 800 px • Rasio 3:2 • JPG / WebP • Disarankan ≤ 300 KB</p>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- 4. TAB 3: PREVIEW (FULL READING PREVIEW) -->
+            <div x-show="editorTab === 'preview'" class="flex-1 p-6 sm:p-8 overflow-y-auto bg-gray-100 flex flex-col items-center">
+                
+                <!-- Viewport Simulator Controls -->
+                <div class="mb-6 bg-white p-1 rounded-modern border border-gray-200 shadow-2xs flex items-center gap-1 text-xs">
+                    <button @click="previewDevice = 'desktop'" type="button" 
+                            :class="previewDevice === 'desktop' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-600 hover:bg-gray-100'"
+                            class="px-3 py-1.5 rounded-modern transition-all cursor-pointer">Desktop (100%)</button>
+                    <button @click="previewDevice = 'tablet'" type="button" 
+                            :class="previewDevice === 'tablet' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-600 hover:bg-gray-100'"
+                            class="px-3 py-1.5 rounded-modern transition-all cursor-pointer">Tablet (768px)</button>
+                    <button @click="previewDevice = 'mobile'" type="button" 
+                            :class="previewDevice === 'mobile' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-600 hover:bg-gray-100'"
+                            class="px-3 py-1.5 rounded-modern transition-all cursor-pointer">Mobile (425px)</button>
+                </div>
+
+                <!-- Reading Container -->
+                <div :class="{
+                    'max-w-3xl w-full': previewDevice === 'desktop',
+                    'max-w-xl w-full': previewDevice === 'tablet',
+                    'max-w-sm w-full': previewDevice === 'mobile'
+                }" class="bg-white rounded-modern-xl shadow-lg border border-gray-200 p-6 sm:p-10 space-y-6 transition-all duration-300">
+                    
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <span class="px-3 py-1 rounded-full text-xs font-bold border shadow-xs"
+                              :class="getColorClass(getCategoryColor(form.category))"
+                              x-text="form.category"></span>
+                        <span class="text-xs text-gray-400 font-medium" x-text="form.published_at"></span>
+                    </div>
+
+                    <h1 class="text-2xl sm:text-3xl font-black text-brand-dark tracking-tight leading-tight" x-text="form.title || 'Judul Artikel'"></h1>
+
+                    <div class="aspect-[3/2] w-full rounded-modern overflow-hidden bg-brand-dark shadow-xs">
+                        <img :src="getImageUrl(form.image)" :alt="form.title" class="w-full h-full object-cover">
+                    </div>
+
+                    <div class="prose prose-sm sm:prose-base max-w-none text-gray-800 leading-relaxed space-y-4" 
+                         x-html="canvasHtml"></div>
+
+                </div>
+
+            </div>
+
+            <!-- 5. BOTTOM STATUS & SAVE BAR -->
+            <div class="px-6 py-3.5 border-t border-gray-200 bg-white flex items-center justify-between gap-4 shrink-0">
+                <!-- Left: Word and Char Count -->
+                <div class="text-xs text-gray-500 font-medium flex items-center gap-2">
+                    <span class="font-bold text-gray-700" x-text="wordCount + ' kata'"></span>
+                    <span>•</span>
+                    <span x-text="charCount + ' karakter'"></span>
+                </div>
+
+                <!-- Middle: Save Status Badge -->
+                <div class="hidden sm:flex items-center gap-2">
+                    <span :class="isDirty() ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'"
+                          class="px-2.5 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full" :class="isDirty() ? 'bg-amber-500' : 'bg-emerald-500'"></span>
+                        <span x-text="isDirty() ? 'Perubahan belum disimpan' : 'Semua perubahan tersimpan'"></span>
+                    </span>
+                </div>
+
+                <!-- Right: Actions -->
+                <div class="flex items-center gap-3">
+                    <button @click="closeEditorModal()" 
+                            type="button" 
+                            class="px-4 py-2.5 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="saveArticle()" 
+                            type="button" 
+                            class="px-6 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Simpan Artikel</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- LINK INSERTION MODAL (DOCUMENT EDITOR)                  -->
+    <!-- ======================================================= -->
+    <div x-show="linkModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-[75] overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        <div class="fixed inset-0 bg-black/40 backdrop-blur-xs" @click="linkModalOpen = false"></div>
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-5 shadow-2xl border border-gray-200 space-y-4">
+                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <h3 class="text-sm font-extrabold text-brand-dark flex items-center gap-2">
+                        <span>🔗</span>
+                        <span>Sisipkan Tautan (Link)</span>
+                    </h3>
+                    <button @click="linkModalOpen = false" type="button" class="p-1 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">URL Target Web</label>
+                    <input type="url" 
+                           x-model="linkInputUrl" 
+                           placeholder="https://..."
+                           @keydown.enter.prevent="applyLink()"
+                           class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 font-mono">
+                </div>
+                <div class="pt-2 flex items-center justify-end gap-2 text-xs">
+                    <button @click="linkModalOpen = false" type="button" class="px-3.5 py-2 rounded-modern font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer">Batal</button>
+                    <button @click="applyLink()" type="button" class="px-4 py-2 rounded-modern font-bold text-white bg-brand-primary hover:bg-brand-primary-dark cursor-pointer">Terapkan Link</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1053,7 +1208,8 @@
                 <div class="aspect-[3/2] w-full rounded-modern overflow-hidden bg-brand-dark">
                     <img :src="getImageUrl(selectedArticle?.image)" :alt="selectedArticle?.title" class="w-full h-full object-cover">
                 </div>
-                <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-line text-xs sm:text-sm" x-text="selectedArticle?.content"></div>
+                <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed text-xs sm:text-sm space-y-3" 
+                     x-html="window.KnowledgeArticleParser ? window.KnowledgeArticleParser.renderBlocksToHtml(selectedArticle?.content) : (selectedArticle?.content || '')"></div>
                 <div class="pt-4 border-t border-gray-100 flex justify-end">
                     <button @click="previewModalOpen = false" type="button" class="px-5 py-2 rounded-modern text-xs font-bold text-white bg-brand-dark hover:bg-black cursor-pointer">Tutup Preview</button>
                 </div>
@@ -1136,7 +1292,47 @@
         </div>
     </div>
 
-    <!-- 10. Toast Notification -->
+
+
+    <!-- 11. Unsaved Changes Warning Modal -->
+    <div x-show="unsavedChangesModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-[60] overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="unsavedChangesModalOpen = false"></div>
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
+                
+                <div class="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+
+                <div class="space-y-1">
+                    <h3 class="text-base font-bold text-brand-dark">Perubahan Belum Disimpan</h3>
+                    <p class="text-xs text-gray-500 leading-relaxed">Anda memiliki perubahan pada artikel yang belum disimpan. Yakin ingin keluar?</p>
+                </div>
+
+                <div class="pt-3 flex items-center justify-center gap-3">
+                    <button @click="unsavedChangesModalOpen = false" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
+                        Tetap Edit
+                    </button>
+                    <button @click="forceCloseEditorModal()" 
+                            type="button" 
+                            class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Keluar Tanpa Simpan
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 12. Toast Notification -->
     <div x-show="toastVisible" 
          x-cloak
          x-transition
