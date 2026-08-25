@@ -1,3 +1,8 @@
+@php
+    $site = $site ?? config('site');
+    $cleanOrderWa = preg_replace('/[^0-9]/', '', $site['contact']['order_whatsapp'] ?? '6281234567891');
+@endphp
+
 <!-- Cart State Store & Logic -->
 <script>
     document.addEventListener('alpine:init', () => {
@@ -111,7 +116,7 @@
                 });
                 message += "\nMohon informasi lebih lanjut mengenai ketersediaan produk.\n\nTerima kasih.";
 
-                const phone = "6281234567890";
+                const phone = "{{ $cleanOrderWa }}";
                 const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
                 window.open(url, '_blank');
             }

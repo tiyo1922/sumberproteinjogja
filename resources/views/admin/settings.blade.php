@@ -28,8 +28,8 @@
              this.targetField = field;
              this.mediaTab = 'library';
              let currentPath = '';
-             if (field === 'logo') currentPath = this.settings.website.logo_url;
-             else if (field === 'favicon') currentPath = this.settings.website.favicon_url;
+             if (field === 'logo') currentPath = this.settings.brand.logo_url;
+             else if (field === 'favicon') currentPath = this.settings.brand.favicon_url;
              else if (field === 'avatar') currentPath = this.settings.admin_user.avatar_image;
              
              this.selectedMedia = this.mediaLibrary.find(m => m.path === currentPath) || this.mediaLibrary[0] || null;
@@ -47,10 +47,10 @@
              if (!chosenUrl) return;
              
              if (this.targetField === 'logo') {
-                 this.settings.website.logo_url = chosenUrl;
+                 this.settings.brand.logo_url = chosenUrl;
                  this.showToast('Logo website berhasil diperbarui!');
              } else if (this.targetField === 'favicon') {
-                 this.settings.website.favicon_url = chosenUrl;
+                 this.settings.brand.favicon_url = chosenUrl;
                  this.showToast('Favicon website berhasil diperbarui!');
              } else if (this.targetField === 'avatar') {
                  this.settings.admin_user.avatar_image = chosenUrl;
@@ -71,7 +71,7 @@
          },
          
          saveSettings() {
-             this.showToast('Pengaturan Kontak & Brand berhasil disimpan!');
+             this.showToast('Mode demo: Pengaturan Site & Contact disimpan dalam sesi (In-Memory).');
          },
          
          getImageUrl(path) {
@@ -98,7 +98,7 @@
                     </span>
                 </div>
                 <p class="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-3xl">
-                    Kelola pusat nomor WhatsApp pemesanan dan komunikasi admin, identitas brand, logo, favicon, serta akun administrator dengan <strong>Global Media Picker</strong>.
+                    Kelola pusat nomor WhatsApp pemesanan dan komunikasi admin, identitas brand, logo, favicon, media sosial, serta akun administrator dengan <strong>Global Media Picker</strong>.
                 </p>
             </div>
 
@@ -125,7 +125,7 @@
                 type="button"
                 :class="activeTab === 'website' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
                 class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
-            🌐 Identitas Website & Brand
+            🌐 Identitas Brand & Media Sosial
         </button>
         <button @click="activeTab = 'panel'" 
                 type="button"
@@ -166,7 +166,7 @@
                         </label>
                         <span class="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span>Status: Aktif</span>
+                            <span x-text="'Status: ' + (settings.contact.status || 'Aktif')"></span>
                         </span>
                     </div>
                     <div class="relative">
@@ -202,7 +202,7 @@
                     </p>
                 </div>
 
-                <!-- Nomor CS & Telepon Kantor -->
+                <!-- Nomor CS, Telepon Kantor & Email -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-brand-dark mb-1">
@@ -215,21 +215,42 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-brand-dark mb-1">
-                            Telepon Kantor / Outlet
+                            Hotline / Telepon Utama
                         </label>
                         <input type="text" 
                                x-model="settings.contact.phone" 
+                               placeholder="+62 812-3456-7890"
+                               class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Telepon Kantor / Outlet
+                        </label>
+                        <input type="text" 
+                               x-model="settings.contact.office_phone" 
                                placeholder="(0274) 889977"
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Email Customer Care
+                        </label>
+                        <input type="email" 
+                               x-model="settings.contact.email" 
+                               placeholder="halo@sumberproteinjogja.id"
+                               class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
                     </div>
                 </div>
 
             </div>
 
-            <!-- Tab 2: Website Identity -->
+            <!-- Tab 2: Brand Identity & Social Media -->
             <div x-show="activeTab === 'website'" class="bg-white rounded-modern-xl border border-gray-200/80 p-6 shadow-2xs space-y-5">
                 <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider border-b border-gray-100 pb-2">
-                    Identitas & Logo Website
+                    Identitas Brand, Website & Media Sosial
                 </h3>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -238,7 +259,7 @@
                             Nama Website
                         </label>
                         <input type="text" 
-                               x-model="settings.website.site_name" 
+                               x-model="settings.brand.site_name" 
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
                     </div>
                     <div>
@@ -246,18 +267,37 @@
                             Nama Brand Utama
                         </label>
                         <input type="text" 
-                               x-model="settings.website.brand_name" 
+                               x-model="settings.brand.name" 
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Nama Pendek Brand
+                        </label>
+                        <input type="text" 
+                               x-model="settings.brand.short_name" 
+                               class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">
+                            Tagline / Slogan Brand
+                        </label>
+                        <input type="text" 
+                               x-model="settings.brand.tagline" 
+                               class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white">
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-brand-dark mb-1">
-                        Tagline / Slogan Brand
+                        Deskripsi Profil Singkat Bisnis
                     </label>
-                    <input type="text" 
-                           x-model="settings.website.tagline" 
-                           class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white">
+                    <textarea x-model="settings.brand.description" 
+                              rows="2" 
+                              class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white leading-relaxed"></textarea>
                 </div>
 
                 <div>
@@ -265,8 +305,52 @@
                         Pola Judul Tab Browser (Tab Title Pattern)
                     </label>
                     <input type="text" 
-                           x-model="settings.website.tab_title_pattern" 
+                           x-model="settings.brand.tab_title_pattern" 
                            class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono">
+                </div>
+
+                <!-- Social Media Channels -->
+                <div class="p-4 rounded-modern bg-gray-50 border border-gray-200 space-y-3">
+                    <h4 class="text-xs font-bold text-brand-dark">Akun Resmi Media Sosial</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Instagram URL</label>
+                            <input type="text" 
+                                   x-model="settings.social.instagram" 
+                                   placeholder="https://instagram.com/..." 
+                                   class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-1">TikTok URL</label>
+                            <input type="text" 
+                                   x-model="settings.social.tiktok" 
+                                   placeholder="https://tiktok.com/@..." 
+                                   class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Facebook URL</label>
+                            <input type="text" 
+                                   x-model="settings.social.facebook" 
+                                   placeholder="https://facebook.com/..." 
+                                   class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white font-mono">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Website URL & Copyright -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">URL Domain Website</label>
+                        <input type="text" 
+                               x-model="settings.website.url" 
+                               class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">Teks Hak Cipta / Copyright</label>
+                        <input type="text" 
+                               x-model="settings.website.copyright" 
+                               class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white">
+                    </div>
                 </div>
 
                 <!-- Logo & Favicon via Global Media Picker -->
@@ -279,7 +363,7 @@
                         <div class="p-3 bg-white rounded-modern border border-gray-200 space-y-2">
                             <label class="block text-xs font-bold text-brand-dark">Logo Header Website</label>
                             <div class="h-16 rounded bg-brand-dark flex items-center justify-center p-2 border border-gray-200">
-                                <img :src="getImageUrl(settings.website.logo_url)" alt="Logo" class="max-h-full max-w-full object-contain">
+                                <img :src="getImageUrl(settings.brand.logo_url)" alt="Logo" class="max-h-full max-w-full object-contain">
                             </div>
                             <button @click="openMediaPicker('logo')" type="button" 
                                     class="w-full py-1.5 rounded text-[11px] font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
@@ -292,7 +376,7 @@
                         <div class="p-3 bg-white rounded-modern border border-gray-200 space-y-2">
                             <label class="block text-xs font-bold text-brand-dark">Favicon Browser Tab</label>
                             <div class="h-16 rounded bg-gray-100 flex items-center justify-center p-2 border border-gray-200">
-                                <img :src="getImageUrl(settings.website.favicon_url)" alt="Favicon" class="w-8 h-8 object-cover rounded">
+                                <img :src="getImageUrl(settings.brand.favicon_url)" alt="Favicon" class="w-8 h-8 object-cover rounded">
                             </div>
                             <button @click="openMediaPicker('favicon')" type="button" 
                                     class="w-full py-1.5 rounded text-[11px] font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
@@ -412,17 +496,17 @@
                 <!-- Mock Header Branding -->
                 <div class="p-4 rounded-modern bg-brand-dark text-white flex items-center gap-3">
                     <div class="w-10 h-10 rounded-modern bg-brand-primary flex items-center justify-center font-black text-sm shadow-md overflow-hidden">
-                        <img :src="getImageUrl(settings.website.logo_url)" alt="Logo" class="w-full h-full object-cover">
+                        <img :src="getImageUrl(settings.brand.logo_url)" alt="Logo" class="w-full h-full object-cover">
                     </div>
                     <div>
-                        <h4 class="font-extrabold text-sm text-white" x-text="settings.website.site_name"></h4>
-                        <p class="text-[10px] text-emerald-400 font-semibold" x-text="settings.website.tagline"></p>
+                        <h4 class="font-extrabold text-sm text-white" x-text="settings.brand.site_name"></h4>
+                        <p class="text-[10px] text-emerald-400 font-semibold" x-text="settings.brand.tagline"></p>
                     </div>
                 </div>
 
                 <!-- Contact Destination Overview -->
                 <div class="p-3.5 bg-gray-50 rounded-modern border border-gray-200 space-y-2">
-                    <span class="text-[10px] uppercase font-bold text-gray-400">Pusat Kontak WhatsApp:</span>
+                    <span class="text-[10px] uppercase font-bold text-gray-400">Pusat Kontak WhatsApp & Hotline:</span>
                     <div class="space-y-1.5 text-xs">
                         <div class="flex items-center justify-between p-2 rounded bg-white border border-gray-200">
                             <span class="text-gray-600 font-medium">Order WhatsApp:</span>
@@ -432,6 +516,14 @@
                             <span class="text-gray-600 font-medium">Admin WhatsApp:</span>
                             <span class="font-mono font-bold text-brand-primary" x-text="'+' + settings.contact.admin_whatsapp"></span>
                         </div>
+                        <div class="flex items-center justify-between p-2 rounded bg-white border border-gray-200">
+                            <span class="text-gray-600 font-medium">Hotline Utama:</span>
+                            <span class="font-mono font-semibold text-brand-dark" x-text="settings.contact.phone"></span>
+                        </div>
+                        <div class="flex items-center justify-between p-2 rounded bg-white border border-gray-200">
+                            <span class="text-gray-600 font-medium">Email CS:</span>
+                            <span class="font-medium text-brand-dark" x-text="settings.contact.email"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -439,8 +531,8 @@
                 <div class="p-3 bg-gray-100 rounded-modern border border-gray-200 space-y-1">
                     <span class="text-[10px] uppercase font-bold text-gray-400">Pratinjau Tab Browser:</span>
                     <div class="bg-white px-3 py-1.5 rounded border border-gray-300 flex items-center gap-2 text-xs font-medium text-gray-700 shadow-2xs">
-                        <img :src="getImageUrl(settings.website.favicon_url)" alt="Favicon" class="w-4 h-4 rounded-xs object-cover">
-                        <span class="truncate" x-text="settings.website.tab_title_pattern.replace('{page_title}', 'Beranda')"></span>
+                        <img :src="getImageUrl(settings.brand.favicon_url)" alt="Favicon" class="w-4 h-4 rounded-xs object-cover">
+                        <span class="truncate" x-text="(settings.brand.tab_title_pattern || '{page_title}').replace('{page_title}', 'Beranda')"></span>
                     </div>
                 </div>
 

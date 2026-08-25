@@ -573,16 +573,20 @@ class LandingController
             ],
         ];
 
+        $site = config('site');
+        $seo = config('seo');
+        $location = config('location');
+
         $storeInfo = [
-            'name' => 'Sumber Protein Jogja',
-            'tagline' => 'Bahan Masak Siap Olah, Tinggal Masak.',
-            'address' => 'Jl. Kaliurang Km. 8.5 No. 42, Sinduharjo, Ngaglik, Sleman, D.I. Yogyakarta 55581',
-            'hours' => 'Senin – Minggu: 07.00 – 19.00 WIB',
-            'phone' => '+62 812-3456-7890',
-            'whatsapp' => '6281234567890',
-            'email' => 'halo@sumberproteinjogja.id',
-            'instagram' => '@sumberproteinjogja',
-            'maps_url' => 'https://maps.google.com/?q=Sumber+Protein+Jogja+Jl+Kaliurang+Yogyakarta'
+            'name' => $site['brand']['name'] ?? 'Sumber Protein Jogja',
+            'tagline' => $site['brand']['tagline'] ?? 'Bahan Masak Siap Olah, Tinggal Masak.',
+            'address' => $location['address']['full'] ?? '',
+            'hours' => $location['operational_hours']['display'] ?? '',
+            'phone' => $site['contact']['phone'] ?? '',
+            'whatsapp' => $site['contact']['admin_whatsapp'] ?? '',
+            'email' => $site['contact']['email'] ?? '',
+            'instagram' => $site['social']['instagram'] ?? '',
+            'maps_url' => $location['maps']['link'] ?? '',
         ];
 
         // Dynamic Product Count calculation per category from active products
@@ -596,6 +600,9 @@ class LandingController
         unset($cat);
 
         return view('landing', compact(
+            'site',
+            'seo',
+            'location',
             'hero',
             'categorySection',
             'categories',

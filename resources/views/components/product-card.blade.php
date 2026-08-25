@@ -1,3 +1,8 @@
+@php
+    $site = $site ?? config('site');
+    $cleanAdminWa = preg_replace('/[^0-9]/', '', $site['contact']['admin_whatsapp'] ?? '6281234567890');
+    $brandName = $site['brand']['name'] ?? 'Sumber Protein Jogja';
+@endphp
 <section id="produk" 
          class="py-14 sm:py-20 lg:py-24 bg-white relative"
          x-data="{
@@ -32,7 +37,7 @@
             <div class="hidden sm:flex items-center gap-2 text-xs text-gray-500 bg-brand-cream px-3.5 py-2 rounded-modern border border-gray-200/60 shrink-0">
                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                 <span>Butuh potongan khusus / partai besar? </span>
-                <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20mau%20konsultasi%20pesanan%20khusus" 
+                <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20mau%20konsultasi%20pesanan%20khusus" 
                    target="_blank" 
                    class="font-semibold text-brand-primary hover:underline">
                     Chat Admin

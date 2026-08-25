@@ -1,3 +1,8 @@
+@php
+    $site = $site ?? config('site');
+    $cleanAdminWa = preg_replace('/[^0-9]/', '', $site['contact']['admin_whatsapp'] ?? '6281234567890');
+    $brandName = $site['brand']['name'] ?? 'Sumber Protein Jogja';
+@endphp
 <section id="knowledge" 
          class="py-16 sm:py-24 bg-white relative scroll-mt-20 [overflow-anchor:none]"
          style="overflow-anchor: none;"
@@ -211,7 +216,7 @@
                                         class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-modern text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                                     <span>Tutup Artikel</span>
                                 </button>
-                                <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20mau%20tanya%20seputar%20tips%20bahan%20makanan" 
+                                <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20mau%20tanya%20seputar%20tips%20bahan%20makanan" 
                                    target="_blank" 
                                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors">
                                     <span>Tanya Tim Kami</span>
@@ -265,10 +270,10 @@
                                             class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs sm:text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                                         <span>Tutup Artikel</span>
                                     </button>
-                                    <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20mau%20tanya%20seputar%20tips%20bahan%20makanan" 
+                                    <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20mau%20tanya%20seputar%20tips%20bahan%20makanan" 
                                        target="_blank" 
                                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs sm:text-sm font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors shadow-sm">
-                                        <span>Konsultasi Produk via WhatsApp</span>
+                                       <span>Konsultasi Produk via WhatsApp</span>
                                     </a>
                                 </div>
                             </div>
@@ -326,7 +331,7 @@
                                     </button>
                                     <div class="flex items-center gap-3 text-xs sm:text-sm text-gray-500">
                                         <span>Butuh rekomendasi bahan untuk resep di atas?</span>
-                                        <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20mau%20konsultasi%20bahan%20masak" 
+                                        <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20mau%20konsultasi%20bahan%20masak" 
                                            target="_blank" 
                                            class="inline-flex items-center gap-2 px-4 py-2 rounded-modern font-bold text-white bg-[#25D366] hover:bg-[#1EBE5D] transition-colors shadow-xs">
                                             <span>Chat WhatsApp</span>

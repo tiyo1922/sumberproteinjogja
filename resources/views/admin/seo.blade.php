@@ -64,7 +64,7 @@
          },
          
          saveSeo() {
-             this.showToast('Pengaturan SEO & Meta berhasil disimpan!');
+             this.showToast('Mode demo: Pengaturan SEO siap diterapkan (In-Memory).');
          },
          
          getImageUrl(path) {

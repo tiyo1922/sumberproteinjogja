@@ -1,9 +1,14 @@
+@php
+    $site = $site ?? config('site');
+    $cleanAdminWa = preg_replace('/[^0-9]/', '', $site['contact']['admin_whatsapp'] ?? '6281234567890');
+    $brandName = $site['brand']['name'] ?? 'Sumber Protein Jogja';
+@endphp
 <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
-    <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20mau%20tanya%20produk%20dan%20order" 
+    <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20mau%20tanya%20produk%20dan%20order" 
        target="_blank" 
        rel="noopener noreferrer"
        class="group relative inline-flex items-center gap-2.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white p-3 sm:px-5 sm:py-3.5 rounded-full shadow-floating hover:shadow-2xl active:scale-95 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-[#25D366]/40"
-       aria-label="Hubungi Admin WhatsApp Sumber Protein Jogja">
+       aria-label="Hubungi Admin WhatsApp {{ $brandName }}">
        
         <!-- Pulse Glow Effect -->
         <span class="absolute -inset-1 rounded-full bg-[#25D366] opacity-40 group-hover:opacity-75 blur-sm animate-pulse-slow"></span>

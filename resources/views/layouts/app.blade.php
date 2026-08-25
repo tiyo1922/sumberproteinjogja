@@ -1,3 +1,65 @@
+@php
+    $seo = $seo ?? config('seo');
+    $location = $location ?? config('location');
+    $site = $site ?? config('site');
+    $ogImageUrl = (!empty($seo['og_image']) && (str_starts_with($seo['og_image'], 'http') || str_starts_with($seo['og_image'], 'blob:'))) 
+        ? $seo['og_image'] 
+        : asset($seo['og_image'] ?? 'images/hero-1.jpg');
+
+    // Build structured Schema.org opening hours array from location config days
+    $schemaOpeningHours = [];
+    $dayNameMap = [
+        'monday' => 'Monday',
+        'tuesday' => 'Tuesday',
+        'wednesday' => 'Wednesday',
+        'thursday' => 'Thursday',
+        'friday' => 'Friday',
+        'saturday' => 'Saturday',
+        'sunday' => 'Sunday'
+    ];
+    if (!empty($location['operational_hours']['days'])) {
+        foreach ($location['operational_hours']['days'] as $dayKey => $hours) {
+            $schemaOpeningHours[] = [
+                '@type' => 'OpeningHoursSpecification',
+                'dayOfWeek' => $dayNameMap[strtolower($dayKey)] ?? ucfirst($dayKey),
+                'opens' => $hours['open'] ?? '07:00',
+                'closes' => $hours['close'] ?? '19:00',
+            ];
+        }
+    }
+
+    $schemaSameAs = array_values(array_filter([
+        $site['social']['instagram'] ?? null,
+        $site['social']['tiktok'] ?? null,
+        $site['social']['facebook'] ?? null,
+    ]));
+
+    $schemaLocalBusiness = [
+        '@context' => 'https://schema.org',
+        '@type' => 'LocalBusiness',
+        'name' => $location['outlet']['name'] ?? ($site['brand']['name'] ?? 'Sumber Protein Jogja'),
+        'image' => $ogImageUrl,
+        'telephone' => $site['contact']['phone'] ?? '+62 812-3456-7890',
+        'email' => $site['contact']['email'] ?? 'halo@sumberproteinjogja.id',
+        'url' => $site['website']['url'] ?? 'https://sumberproteinjogja.com',
+        'address' => [
+            '@type' => 'PostalAddress',
+            'streetAddress' => $location['address']['street'] ?? 'Jl. Kaliurang Km. 8.5 No. 42',
+            'addressLocality' => $location['address']['district'] ?? 'Ngaglik',
+            'addressRegion' => $location['address']['province'] ?? 'D.I. Yogyakarta',
+            'postalCode' => $location['address']['postal_code'] ?? '55581',
+            'addressCountry' => $location['address']['country_code'] ?? 'ID',
+        ],
+        'geo' => [
+            '@type' => 'GeoCoordinates',
+            'latitude' => (float) ($location['coordinates']['latitude'] ?? -7.748906392269989),
+            'longitude' => (float) ($location['coordinates']['longitude'] ?? 110.38623737593888),
+        ],
+        'openingHoursSpecification' => $schemaOpeningHours,
+        'sameAs' => $schemaSameAs,
+        'priceRange' => 'Rp 14.000 - Rp 495.000',
+    ];
+@endphp
 <!DOCTYPE html>
 <html lang="id" class="scroll-smooth">
 <head>
@@ -5,19 +67,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     
-    <!-- SEO Meta Tags -->
-    <title>Sumber Protein Jogja - Bahan Masak Siap Olah, Frozen & Segar Yogyakarta</title>
-    <meta name="description" content="Penyedia daging sapi, ayam, ikan, dan sayuran pilihan dalam bentuk frozen, ready to cook, plain, dan berbumbu di Yogyakarta. Melayani kebutuhan rumah tangga & pembelian curah.">
-    <meta name="keywords" content="sumber protein jogja, frozen food jogja, daging sapi slice jogja, ayam ungkep jogja, salmon jogja, supplier horeka jogja, ready to cook jogja">
-    <meta name="author" content="Sumber Protein Jogja">
-    <meta name="robots" content="index, follow">
+    <!-- Primary SEO Meta Tags (Single Source of Truth) -->
+    <title>{{ $seo['meta_title'] ?? 'Sumber Protein Jogja - Bahan Masak Siap Olah, Frozen & Segar Yogyakarta' }}</title>
+    <meta name="description" content="{{ $seo['meta_description'] ?? '' }}">
+    <meta name="keywords" content="{{ $seo['meta_keywords'] ?? '' }}">
+    <meta name="author" content="{{ $seo['author'] ?? ($site['brand']['name'] ?? 'Sumber Protein Jogja') }}">
+    <meta name="robots" content="{{ $seo['robots'] ?? 'index, follow' }}">
+    <link rel="canonical" href="{{ $seo['canonical_url'] ?? url()->current() }}">
     
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph / Facebook / WhatsApp -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Sumber Protein Jogja - Bahan Masak Siap Olah, Tinggal Masak.">
-    <meta property="og:description" content="Daging, ayam, ikan, dan sayuran pilihan dalam bentuk frozen dan ready to cook untuk kebutuhan rumah tangga maupun pembelian curah di Yogyakarta.">
-    <meta property="og:image" content="{{ asset('images/hero-1.jpg') }}">
+    <meta property="og:title" content="{{ $seo['og_title'] ?? $seo['meta_title'] }}">
+    <meta property="og:description" content="{{ $seo['og_description'] ?? $seo['meta_description'] }}">
+    <meta property="og:url" content="{{ $seo['canonical_url'] ?? url()->current() }}">
+    <meta property="og:image" content="{{ $ogImageUrl }}">
     <meta property="og:locale" content="id_ID">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="{{ $seo['twitter_card'] ?? 'summary_large_image' }}">
+    <meta name="twitter:title" content="{{ $seo['og_title'] ?? $seo['meta_title'] }}">
+    <meta name="twitter:description" content="{{ $seo['og_description'] ?? $seo['meta_description'] }}">
+    <meta name="twitter:image" content="{{ $ogImageUrl }}">
     
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥩</text></svg>">
@@ -34,31 +104,9 @@
         [x-cloak] { display: none !important; }
     </style>
 
-    <!-- Schema.org JSON-LD -->
+    <!-- Schema.org JSON-LD (Single Source of Truth) -->
     <script type="application/ld+json">
-    {
-      "@@context": "https://schema.org",
-      "@type": "LocalBusiness",
-      "name": "Sumber Protein Jogja",
-      "image": "images/hero-1.jpg",
-      "telephone": "+6281234567890",
-      "email": "halo@sumberproteinjogja.id",
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "Jl. Kaliurang Km. 8.5 No. 42, Sinduharjo, Ngaglik",
-        "addressLocality": "Sleman",
-        "addressRegion": "D.I. Yogyakarta",
-        "postalCode": "55581",
-        "addressCountry": "ID"
-      },
-      "openingHoursSpecification": {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-        "opens": "07:00",
-        "closes": "19:00"
-      },
-      "priceRange": "Rp 14.000 - Rp 495.000"
-    }
+    {!! json_encode($schemaLocalBusiness, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) !!}
     </script>
 </head>
 <body class="bg-white text-brand-dark antialiased overflow-x-hidden selection:bg-brand-soft-green selection:text-brand-primary" x-data="{ mobileMenuOpen: false, scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)">

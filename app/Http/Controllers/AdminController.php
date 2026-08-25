@@ -136,140 +136,21 @@ class AdminController extends Controller
     }
 
     /**
-     * Contact settings mock data.
+     * Contact settings helper from canonical config.
      */
     private function getContactSettings(): array
     {
-        return [
-            'order_whatsapp' => '6281234567891',
-            'admin_whatsapp' => '6281234567890',
-            'cs_whatsapp' => '6281234567892',
-            'phone' => '(0274) 889977',
-            'status' => 'Aktif',
-        ];
+        return config('site.contact');
     }
 
     /**
-     * Display the Admin CMS Dashboard.
+     * Display the Admin Sales & Traffic Analytics Dashboard.
      */
-    public function dashboard()
+    public function dashboard(\App\Services\AnalyticsService $analyticsService)
     {
-        $stats = [
-            'hero_active_count' => 1,
-            'hero_drafts_count' => 2,
-            'categories_count' => 6,
-            'products_active_count' => 24,
-            'knowledge_count' => 18,
-            'knowledge_published_count' => 15,
-            'knowledge_draft_count' => 3,
-        ];
+        $analytics = $analyticsService->getDashboardPayload();
 
-        $heroOverview = [
-            'name' => 'Hero Draft 01',
-            'status' => 'Aktif',
-            'headline' => 'Bahan Masak Siap Olah, Tinggal Masak.',
-            'images_count' => 4,
-            'updated_at' => '17 Agustus 2026, 01:15 WIB',
-        ];
-
-        $landingStatus = [
-            [
-                'section' => 'Hero Slider',
-                'detail' => 'Hero Draft 01 aktif (4 slideshow background, 3 trust checklist)',
-                'status' => 'Aktif',
-                'route' => 'admin.hero',
-                'badge' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            ],
-            [
-                'section' => 'Kategori Produk',
-                'detail' => '6 Kategori (1 Sistem + 5 Kategori Aktif)',
-                'status' => 'Aktif',
-                'route' => 'admin.kategori',
-                'badge' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            ],
-            [
-                'section' => 'Katalog Produk',
-                'detail' => '24 Produk aktif (10 featured di homepage customer)',
-                'status' => 'Aktif',
-                'route' => 'admin.produk',
-                'badge' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            ],
-            [
-                'section' => 'Keunggulan & Mutu',
-                'detail' => '4 Poin Keunggulan + 4 Standar Mutu Produk',
-                'status' => 'Aktif',
-                'route' => 'admin.keunggulan',
-                'badge' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            ],
-            [
-                'section' => 'Knowledge & Tips',
-                'detail' => '18 Artikel (15 Published, 3 Draft, Inline expand aktif)',
-                'status' => 'Aktif',
-                'route' => 'admin.knowledge',
-                'badge' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            ],
-            [
-                'section' => 'Footer (Reviews & Lokasi)',
-                'detail' => 'Google 4.9★ (180+ Review) + Outlet Sleman Maps',
-                'status' => 'Aktif',
-                'route' => 'admin.footer',
-                'badge' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            ],
-            [
-                'section' => 'SEO & Meta',
-                'detail' => 'Meta Title & OpenGraph terkonfigurasi',
-                'status' => 'Aktif',
-                'route' => 'admin.seo',
-                'badge' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            ],
-            [
-                'section' => 'Site & Contact',
-                'detail' => 'Brand & WhatsApp Settings terhubung',
-                'status' => 'Aktif',
-                'route' => 'admin.settings',
-                'badge' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            ],
-        ];
-
-        $recentUpdates = [
-            [
-                'title' => 'Hero Draft 01 (Bahan Masak Siap Olah)',
-                'type' => 'Hero diperbarui',
-                'badge_type' => 'bg-amber-50 text-amber-700 border-amber-200',
-                'time' => '17 Agustus 2026, 01:15 WIB',
-                'author' => 'Admin'
-            ],
-            [
-                'title' => 'Dada Ayam Fillet Boneless Clean',
-                'type' => 'Produk diperbarui',
-                'badge_type' => 'bg-blue-50 text-blue-700 border-blue-200',
-                'time' => '17 Agustus 2026, 00:42 WIB',
-                'author' => 'Admin'
-            ],
-            [
-                'title' => '5 Tips Menyimpan Daging Beku Agar Tetap Segar & Higienis',
-                'type' => 'Knowledge diperbarui',
-                'badge_type' => 'bg-purple-50 text-purple-700 border-purple-200',
-                'time' => '16 Agustus 2026, 21:15 WIB',
-                'author' => 'Admin'
-            ],
-            [
-                'title' => 'Daging Sapi Shortplate Slice Premium 500g',
-                'type' => 'Produk diperbarui',
-                'badge_type' => 'bg-blue-50 text-blue-700 border-blue-200',
-                'time' => '16 Agustus 2026, 17:00 WIB',
-                'author' => 'Admin'
-            ],
-            [
-                'title' => 'Footer — Outlet Sleman & Jam Operasional',
-                'type' => 'Footer diperbarui',
-                'badge_type' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                'time' => '16 Agustus 2026, 14:10 WIB',
-                'author' => 'Admin'
-            ],
-        ];
-
-        return view('admin.dashboard', compact('stats', 'heroOverview', 'landingStatus', 'recentUpdates'));
+        return view('admin.dashboard', compact('analytics'));
     }
 
     /**
@@ -1189,93 +1070,105 @@ class AdminController extends Controller
     {
         $footerData = [
             'reviews' => [
+                'status' => 'Dummy Data',
+                'source_name' => 'Google Maps',
+                'last_updated' => '25 Agustus 2026',
+                'place_name' => 'Sumber Protein Jogja',
                 'section_badge' => 'Ulasan Pelanggan',
                 'section_title' => 'Apa Kata Mereka?',
                 'section_subtitle' => 'Pengalaman nyata dari ibu rumah tangga, chef rumahan, hingga pemilik kedai kuliner di Yogyakarta.',
                 'rating' => 4.9,
                 'total_reviews' => '180+',
-                'displayed_count' => 6,
+                'displayed_count' => 3,
                 'google_place_url' => 'https://maps.google.com/?cid=1234567890123456',
-                'source_name' => 'Google Maps Verified Customer Reviews',
                 'items' => [
                     [
                         'id' => 1,
-                        'name' => 'Rian Hidayat',
-                        'role' => 'Pelanggan Rumah Tangga (Sleman)',
+                        'name' => 'Ratna Dewi Kusuma',
                         'rating' => 5,
-                        'date' => '2 minggu lalu',
-                        'comment' => 'Daging slice-nya segar banget dan potongannya rapi. Sangat cocok buat shabu-shabu di rumah bareng keluarga. Pengiriman sameday cepat dan tetap beku!',
+                        'comment' => 'Sebagai ibu pekerja, belanja di Sumber Protein Jogja sangat menghemat waktu. Ayam bumbu kuningnya tinggal goreng, daging slicenya fresh banget dan nggak banyak lemak. Anak-anak suka sekali!',
+                        'role' => 'Ibu Rumah Tangga',
+                        'location' => 'Sleman',
+                        'time' => '3 hari yang lalu',
+                        'source' => 'Google Review',
                         'is_active' => true,
                     ],
                     [
                         'id' => 2,
-                        'name' => 'Dini Anggraini',
-                        'role' => 'Ibu Rumah Tangga (Yogyakarta)',
+                        'name' => 'Bambang Haryanto',
                         'rating' => 5,
-                        'date' => '1 bulan lalu',
-                        'comment' => 'Ayam ungkep bumbu kuningnya juara! Tinggal sreng goreng sebentar, bumbunya meresap sampai ke dalam. Praktis banget buat bekal sekolah anak.',
+                        'comment' => 'Sudah 4 bulan suplai fillet dada ayam curah untuk resto saya dari sini. Kualitasnya sangat stabil, potongan rapi, dan pengiriman tepat waktu. Harga partai besarnya sangat kompetitif di Jogja.',
+                        'role' => 'Owner Kedai',
+                        'location' => 'Kotagede',
+                        'time' => '1 minggu yang lalu',
+                        'source' => 'Google Review',
                         'is_active' => true,
                     ],
                     [
                         'id' => 3,
-                        'name' => 'Budi Santoso',
-                        'role' => 'Owner Cafe & Resto (Bantul)',
+                        'name' => 'dr. Nadia Paramita',
                         'rating' => 5,
-                        'date' => '1 bulan lalu',
-                        'comment' => 'Langganan beli fillet dori dan ayam karkas untuk kebutuhan resto. Kualitas konsisten, higienis, dan harga bersahabat untuk pembelian partai.',
+                        'comment' => 'Salmon steak dan fillet guramenya benar-benar fresh, tidak amis sama sekali. Senang sekali ada toko protein selengkap ini dengan standar packaging vacuum yang higienis.',
+                        'role' => 'Dokter & Home Chef',
+                        'location' => 'Bantul',
+                        'time' => '2 minggu yang lalu',
+                        'source' => 'Google Review',
                         'is_active' => true,
                     ],
                     [
                         'id' => 4,
-                        'name' => 'Siti Nurhaliza',
-                        'role' => 'Pelanggan Setia (Sleman)',
+                        'name' => 'Rian Hidayat',
                         'rating' => 5,
-                        'date' => '2 bulan lalu',
-                        'comment' => 'Sayuran siap masaknya bener-bener ngebantu waktu masak pagi. Sayur sop komplit dan bersih, ga perlu repot potong-potong lagi.',
+                        'comment' => 'Daging slice-nya segar banget dan potongannya rapi. Sangat cocok buat shabu-shabu di rumah bareng keluarga. Pengiriman sameday cepat dan tetap beku!',
+                        'role' => 'Pelanggan Rumah Tangga',
+                        'location' => 'Sleman',
+                        'time' => '2 minggu yang lalu',
+                        'source' => 'Google Review',
                         'is_active' => true,
                     ],
                     [
                         'id' => 5,
-                        'name' => 'Hendro Wijaya',
-                        'role' => 'Pengusaha Catering (Jogja Kota)',
+                        'name' => 'Dini Anggraini',
                         'rating' => 5,
-                        'date' => '3 bulan lalu',
-                        'comment' => 'Pelayanan admin via WhatsApp sangat ramah dan responsif. Daging rendang potongan seragam, mempermudah kalkulasi porsi catering.',
+                        'comment' => 'Ayam ungkep bumbu kuningnya juara! Tinggal sreng goreng sebentar, bumbunya meresap sampai ke dalam. Praktis banget buat bekal sekolah anak.',
+                        'role' => 'Ibu Rumah Tangga',
+                        'location' => 'Yogyakarta',
+                        'time' => '1 bulan yang lalu',
+                        'source' => 'Google Review',
                         'is_active' => true,
                     ],
                     [
                         'id' => 6,
-                        'name' => 'Mega Puspita',
-                        'role' => 'Pecinta BBQ Rumahan',
+                        'name' => 'Hendro Wijaya',
                         'rating' => 5,
-                        'date' => '3 bulan lalu',
-                        'comment' => 'Shortplate slice-nya juicy parah! Marbling lemaknya pas ga bikin eneg. Pasti repeat order terus di Sumber Protein Jogja.',
-                        'is_active' => true,
+                        'comment' => 'Pelayanan admin via WhatsApp sangat ramah dan responsif. Daging rendang potongan seragam, mempermudah kalkulasi porsi catering.',
+                        'role' => 'Pengusaha Catering',
+                        'location' => 'Jogja Kota',
+                        'time' => '3 bulan yang lalu',
+                        'source' => 'Google Review',
+                        'is_active' => false,
                     ],
                 ]
             ],
-            'location' => [
-                'section_badge' => 'Kunjungi Outlet',
-                'section_title' => 'Lokasi & Jam Operasional',
-                'section_subtitle' => 'Bisa datang langsung memilih daging segar atau pesan online untuk pengiriman instan ke seluruh area D.I. Yogyakarta.',
-                'store_name' => 'Sumber Protein Jogja — Outlet Utama Sleman',
-                'address' => 'Jl. Magelang KM 7.5, Mlati, Sleman, D.I. Yogyakarta 55285',
-                'google_maps_embed' => 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3953.2843516345946!2d110.36017527588145!3d-7.759654176950294!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e7a58498f399f91%3A0x6b876112d76f0b4!2sYogyakarta!5e0!3m2!1sid!2sid!4v1700000000000!5m2!1sid!2sid',
-                'google_maps_link' => 'https://maps.google.com/?q=Sumber+Protein+Jogja',
-                'operational_hours' => 'Senin – Minggu: 07.00 – 19.00 WIB',
-                'whatsapp_contact' => '0812-3456-7890',
-                'phone_contact' => '(0274) 889977',
-                'delivery_coverage' => 'Kota Yogyakarta, Sleman, Bantul, dan sekitarnya',
-            ],
+            'location' => config('location'),
             'actual_footer' => [
                 'brand_title' => 'Sumber Protein Jogja',
                 'brand_desc' => 'Penyedia bahan makanan mentah, frozen food, dan olahan ready-to-cook berkualitas di Yogyakarta. Melayani kebutuhan konsumsi harian keluarga dan suplai horeka/curah.',
-                'copyright' => 'Sumber Protein Jogja. Hak Cipta Dilindungi.',
                 'social_links' => [
-                    'instagram' => 'https://instagram.com/sumberproteinjogja',
-                    'tiktok' => 'https://tiktok.com/@sumberproteinjogja',
-                    'whatsapp' => 'https://wa.me/6281234567890',
+                    [
+                        'id' => 1,
+                        'url' => 'https://instagram.com/sumberproteinjogja',
+                    ],
+                    [
+                        'id' => 2,
+                        'url' => 'https://tiktok.com/@sumberproteinjogja',
+                    ],
+                    [
+                        'id' => 3,
+                        'url' => 'https://wa.me/6281234567890',
+                    ],
                 ],
+                'nav_title' => 'Navigasi Cepat',
                 'nav_links' => [
                     ['title' => 'Beranda', 'url' => '#hero'],
                     ['title' => 'Kategori Produk', 'url' => '#kategori'],
@@ -1283,7 +1176,28 @@ class AdminController extends Controller
                     ['title' => 'Keunggulan Kami', 'url' => '#keunggulan'],
                     ['title' => 'Dapur & Knowledge', 'url' => '#knowledge'],
                     ['title' => 'Ulasan Pelanggan', 'url' => '#testimoni'],
-                ]
+                ],
+                'category_title' => 'Kategori Pangan',
+                'category_links' => [
+                    ['title' => 'Daging Sapi Slice & Sengkel', 'url' => '#produk'],
+                    ['title' => 'Ayam Ungkep Bumbu Kuning', 'url' => '#produk'],
+                    ['title' => 'Dada Ayam Fillet Boneless', 'url' => '#produk'],
+                    ['title' => 'Fillet Gurame & Salmon', 'url' => '#produk'],
+                    ['title' => 'Paket Sayur Siap Masak', 'url' => '#produk'],
+                    ['title' => 'Ayam & Daging Curah (Bulk)', 'url' => '#produk'],
+                ],
+                'outlet_title' => 'Outlet Yogyakarta',
+                'outlet_address' => 'Jl. Kaliurang Km. 8.5 No. 42, Sleman, D.I. Yogyakarta 55581',
+                'outlet_hours_label' => 'Jam Operasional:',
+                'outlet_hours' => 'Senin – Minggu (07.00 – 19.00 WIB)',
+                'outlet_phone_label' => 'Hotline Pemesanan:',
+                'outlet_phone' => '+62 812-3456-7890',
+                'copyright' => 'Sumber Protein Jogja. Hak Cipta Dilindungi.',
+                'legal_links' => [
+                    ['title' => 'Syarat & Ketentuan', 'url' => '#'],
+                    ['title' => 'Kebijakan Privasi', 'url' => '#'],
+                    ['title' => 'Sertifikasi Halal', 'url' => '#'],
+                ],
             ]
         ];
 
@@ -1295,18 +1209,7 @@ class AdminController extends Controller
      */
     public function seo()
     {
-        $seoData = [
-            'meta_title' => 'Sumber Protein Jogja | Bahan Masak Siap Olah, Daging Segar & Frozen Food',
-            'meta_description' => 'Penyedia bahan masakan siap olah, daging sapi slice, ayam segar, seafood, dan sayuran higienis fresh & frozen terpercaya di Jogja. Melayani kebutuhan harian & curah.',
-            'canonical_url' => 'https://sumberproteinjogja.com/',
-            'og_title' => 'Sumber Protein Jogja — Bahan Masak Siap Olah, Tinggal Masak',
-            'og_description' => 'Daging sapi, ayam, ikan, dan sayuran segar & frozen food higienis kualitas terbaik di Jogja. Pesan mudah via WhatsApp.',
-            'og_image' => 'images/hero-1.jpg',
-            'meta_keywords' => 'daging sapi jogja, frozen food sleman, ayam segar jogja, ready to cook jogja, bahan masak siap olah',
-            'robots' => 'index, follow',
-            'author' => 'Sumber Protein Jogja',
-        ];
-
+        $seoData = config('seo');
         $mediaLibrary = $this->getMediaLibrary();
 
         return view('admin.seo', compact('seoData', 'mediaLibrary'));
@@ -1317,31 +1220,7 @@ class AdminController extends Controller
      */
     public function settings()
     {
-        $settingsData = [
-            'website' => [
-                'site_name' => 'Sumber Protein Jogja',
-                'brand_name' => 'Sumber Protein',
-                'tagline' => 'Penyedia Bahan Segar & Frozen Food Terpercaya di Jogja',
-                'tab_title_pattern' => '{page_title} — Sumber Protein Jogja',
-                'logo_url' => 'images/hero-1.jpg',
-                'favicon_url' => 'images/hero-1.jpg',
-            ],
-            'contact' => $this->getContactSettings(),
-            'admin_panel' => [
-                'panel_name' => 'Sumber Protein CMS',
-                'badge_tag' => 'CMS Panel v1.0',
-                'footer_note' => 'Sumber Protein Jogja © 2026 • Layout Locked • Content Flexible',
-            ],
-            'admin_user' => [
-                'name' => 'Admin Sumber Protein',
-                'role' => 'Super Admin',
-                'email' => 'admin@sumberproteinjogja.com',
-                'phone' => '0812-3456-7890',
-                'avatar_text' => 'SP',
-                'avatar_image' => 'images/hero-1.jpg',
-            ],
-        ];
-
+        $settingsData = config('site');
         $mediaLibrary = $this->getMediaLibrary();
 
         return view('admin.settings', compact('settingsData', 'mediaLibrary'));

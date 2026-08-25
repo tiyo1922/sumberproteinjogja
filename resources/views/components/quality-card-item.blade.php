@@ -1,5 +1,8 @@
 @php
     $isLive = $isLivePreview ?? false;
+    $site = $site ?? config('site');
+    $cleanAdminWa = preg_replace('/[^0-9]/', '', $site['contact']['admin_whatsapp'] ?? '6281234567890');
+    $brandName = $site['brand']['name'] ?? 'Sumber Protein Jogja';
 @endphp
 
 <div class="bg-white p-5 sm:p-8 rounded-modern-lg border border-gray-100 shadow-sm hover:shadow-card transition-all duration-300 flex flex-col justify-between">
@@ -47,7 +50,7 @@
     <!-- CTA Link -->
     <div class="pt-3.5 sm:pt-4 border-t border-gray-100 flex items-center justify-between">
         @if($isLive)
-            <a :href="'https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20ingin%20tanya%20detail%20kategori%20' + encodeURIComponent(pk.name)" 
+            <a :href="'https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20ingin%20tanya%20detail%20kategori%20' + encodeURIComponent(pk.name)" 
                target="_blank" 
                rel="noopener noreferrer"
                class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-brand-primary hover:text-brand-primary-dark transition-colors">
@@ -55,7 +58,7 @@
                 <span>→</span>
             </a>
         @else
-            <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20ingin%20tanya%20detail%20kategori%20{{ urlencode($pk['name'] ?? '') }}" 
+            <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20ingin%20tanya%20detail%20kategori%20{{ urlencode($pk['name'] ?? '') }}" 
                target="_blank" 
                rel="noopener noreferrer"
                class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-brand-primary hover:text-brand-primary-dark transition-colors">

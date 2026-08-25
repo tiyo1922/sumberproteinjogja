@@ -1,3 +1,8 @@
+@php
+    $site = $site ?? config('site');
+    $cleanAdminWa = preg_replace('/[^0-9]/', '', $site['contact']['admin_whatsapp'] ?? '6281234567890');
+    $brandName = $site['brand']['name'] ?? 'Sumber Protein Jogja';
+@endphp
 <header class="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
         :class="scrolled ? 'glass-nav-scrolled py-3' : 'glass-nav py-4 border-b border-gray-100/60'">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -16,7 +21,7 @@
                 </div>
                 <div class="flex flex-col">
                     <span class="text-lg sm:text-xl font-extrabold tracking-tight text-brand-dark leading-none group-hover:text-brand-primary transition-colors">
-                        Sumber Protein <span class="text-brand-primary">Jogja</span>
+                        {{ $site['brand']['short_name'] ?? 'Sumber Protein' }} <span class="text-brand-primary">Jogja</span>
                     </span>
                     <span class="text-[11px] font-medium text-gray-500 tracking-wider uppercase mt-0.5">
                         Fresh & Frozen Food
@@ -48,7 +53,7 @@
 
             <!-- Desktop CTA WhatsApp Button -->
             <div class="hidden md:flex items-center gap-3">
-                <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20ingin%20tanya%20produk%20dan%20pemesanan" 
+                <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20ingin%20tanya%20produk%20dan%20pemesanan" 
                    target="_blank" 
                    rel="noopener noreferrer"
                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-dark transition-all duration-200 shadow-md shadow-brand-primary/20 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-primary/40 active:scale-95">
@@ -61,7 +66,7 @@
 
             <!-- Mobile Hamburger Button -->
             <div class="flex items-center gap-2 md:hidden">
-                <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja" 
+                <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }}" 
                    target="_blank"
                    class="p-2 rounded-modern bg-brand-soft-green text-brand-primary hover:bg-brand-primary hover:text-white transition-colors"
                    aria-label="Pesan via WhatsApp">
@@ -126,7 +131,7 @@
             </a>
         </div>
         <div class="pt-2 border-t border-gray-100">
-            <a href="https://wa.me/6281234567890?text=Halo%20Sumber%20Protein%20Jogja,%20saya%20ingin%20tanya%20produk%20dan%20pemesanan" 
+            <a href="https://wa.me/{{ $cleanAdminWa }}?text=Halo%20{{ urlencode($brandName) }},%20saya%20ingin%20tanya%20produk%20dan%20pemesanan" 
                target="_blank"
                class="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-modern font-semibold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-md">
                 <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
