@@ -11,4 +11,8 @@ return [
     'og_description' => 'Daging sapi, ayam, ikan, dan sayuran segar & frozen food higienis kualitas terbaik di Jogja. Pesan mudah via WhatsApp.',
     'og_image' => 'images/hero-1.jpg',
     'twitter_card' => 'summary_large_image',
+    'google' => [
+        'site_verification' => env('GOOGLE_SITE_VERIFICATION', null),
+        'ga4_measurement_id' => env('GA4_MEASUREMENT_ID', null),
+    ],
 ];

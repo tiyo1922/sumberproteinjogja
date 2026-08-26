@@ -74,6 +74,9 @@
     <meta name="author" content="{{ $seo['author'] ?? ($site['brand']['name'] ?? 'Sumber Protein Jogja') }}">
     <meta name="robots" content="{{ $seo['robots'] ?? 'index, follow' }}">
     <link rel="canonical" href="{{ $seo['canonical_url'] ?? url()->current() }}">
+    @if(!empty($seo['google']['site_verification']))
+    <meta name="google-site-verification" content="{{ $seo['google']['site_verification'] }}">
+    @endif
     
     <!-- Open Graph / Facebook / WhatsApp -->
     <meta property="og:type" content="website">
@@ -108,6 +111,18 @@
     <script type="application/ld+json">
     {!! json_encode($schemaLocalBusiness, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) !!}
     </script>
+
+    <!-- Google Analytics 4 (GA4) -->
+    @if(!empty($seo['google']['ga4_measurement_id']))
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ $seo['google']['ga4_measurement_id'] }}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', '{{ $seo['google']['ga4_measurement_id'] }}');
+    </script>
+    @endif
 </head>
 <body class="bg-white text-brand-dark antialiased overflow-x-hidden selection:bg-brand-soft-green selection:text-brand-primary" x-data="{ mobileMenuOpen: false, scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)">
 
