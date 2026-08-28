@@ -6,6 +6,7 @@
 @section('content')
 <div class="space-y-6"
      x-data="knowledgeManager({
+         csrfToken: '{{ csrf_token() }}',
          articles: {{ json_encode($articles) }},
          categories: {{ json_encode($knowledgeCategories) }},
          mediaLibrary: {{ json_encode($mediaLibrary) }},
@@ -763,7 +764,7 @@
                             <div class="aspect-[3/2] w-full rounded overflow-hidden bg-brand-dark">
                                 <img :src="getImageUrl(form.image)" :alt="form.title" class="w-full h-full object-cover">
                             </div>
-                            <div class="text-xs text-gray-700 leading-relaxed max-h-96 overflow-y-auto space-y-3 bg-white p-3 rounded border border-gray-200" 
+                            <div class="prose prose-sm max-w-none text-xs text-gray-700 leading-relaxed max-h-96 overflow-y-auto space-y-3 bg-white p-3 rounded border border-gray-200" 
                                  x-html="canvasHtml"></div>
                         </div>
 

@@ -178,6 +178,36 @@
                 @endif
             </div>
 
+            <!-- Telah dipercaya oleh (Mitra) -->
+            @php
+                $partnerData = $heroData['partners'] ?? [
+                    'badge' => 'Kepercayaan Mitra',
+                    'title' => 'Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja',
+                    'partners' => []
+                ];
+                $rawPartners = $partnerData['partners'] ?? [];
+                $activePartners = is_array($rawPartners) ? array_filter($rawPartners, function($p) {
+                    return $p['is_active'] ?? ($p['active'] ?? true);
+                }) : [];
+            @endphp
+            @if(!empty($activePartners))
+            <div class="mt-6 sm:mt-8 pt-4 sm:pt-5 border-t border-white/10">
+                <p class="text-[11px] sm:text-xs text-gray-300 font-medium mb-3 flex items-center gap-1.5"
+                   @if($isLive) x-text="(draftForm.partners && draftForm.partners.title) ? draftForm.partners.title : 'Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja'" @endif>
+                    <span>🤝</span>
+                    <span>{{ $partnerData['title'] ?? 'Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja' }}</span>
+                </p>
+                <div class="flex items-center flex-wrap gap-2.5 sm:gap-4">
+                    @foreach($activePartners as $partner)
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern-sm bg-white/10 backdrop-blur-xs border border-white/15 text-white/90 text-[10px] sm:text-xs font-semibold hover:bg-white/20 transition-all">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span>{{ $partner['name'] ?? 'Mitra Pilihan' }}</span>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
         </div>
     </div>
 

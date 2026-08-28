@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
     
-    <!-- Local Vite Assets (Tailwind CSS + Alpine.js) -->
+    <!-- Local Vite Assets (Tailwind CSS + Alpine.js + Chart.js) -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="h-full bg-[#F4F6F4] text-brand-dark font-sans antialiased selection:bg-brand-primary selection:text-white"

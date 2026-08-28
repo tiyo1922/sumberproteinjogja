@@ -2,10 +2,46 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
+use App\Models\KnowledgeArticle;
+use App\Models\KnowledgeCategory;
+use App\Models\Product;
+use App\Models\Review;
+use App\Repositories\Contracts\CategoryRepositoryInterface;
+use App\Repositories\Contracts\KnowledgeRepositoryInterface;
+use App\Repositories\Contracts\ProductRepositoryInterface;
+use App\Repositories\Contracts\ReviewRepositoryInterface;
+use App\Repositories\Contracts\SiteSettingRepositoryInterface;
+use App\Services\AnalyticsService;
+use App\Services\KnowledgeArticleParser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AdminController extends Controller
 {
+    protected CategoryRepositoryInterface $categoryRepo;
+    protected ProductRepositoryInterface $productRepo;
+    protected KnowledgeRepositoryInterface $knowledgeRepo;
+    protected ReviewRepositoryInterface $reviewRepo;
+    protected SiteSettingRepositoryInterface $siteSettingRepo;
+
+    /**
+     * Inject canonical database repositories.
+     */
+    public function __construct(
+        CategoryRepositoryInterface $categoryRepo,
+        ProductRepositoryInterface $productRepo,
+        KnowledgeRepositoryInterface $knowledgeRepo,
+        ReviewRepositoryInterface $reviewRepo,
+        SiteSettingRepositoryInterface $siteSettingRepo
+    ) {
+        $this->categoryRepo = $categoryRepo;
+        $this->productRepo = $productRepo;
+        $this->knowledgeRepo = $knowledgeRepo;
+        $this->reviewRepo = $reviewRepo;
+        $this->siteSettingRepo = $siteSettingRepo;
+    }
+
     /**
      * Centralized Media Library list for Global Media Picker.
      */
@@ -140,13 +176,25 @@ class AdminController extends Controller
      */
     private function getContactSettings(): array
     {
-        return config('site.contact');
+        return config('site.contact', []);
+    }
+
+    /**
+     * Master Category Section Settings (Header).
+     */
+    private function getCategorySectionSettings(): array
+    {
+        return [
+            'label' => 'Kategori Utama',
+            'title' => 'Mau Masak Apa Hari Ini?',
+            'subtitle' => 'Pilih bahan masak sesuai kebutuhanmu. Dari potongan daging segar, ayam bumbu, ikan laut, hingga sayuran siap cemplung.'
+        ];
     }
 
     /**
      * Display the Admin Sales & Traffic Analytics Dashboard.
      */
-    public function dashboard(\App\Services\AnalyticsService $analyticsService)
+    public function dashboard(AnalyticsService $analyticsService)
     {
         $analytics = $analyticsService->getDashboardPayload();
 
@@ -154,42 +202,84 @@ class AdminController extends Controller
     }
 
     /**
-     * Hero Slider Management Screen.
+     * Hero Slider Management Screen (Read & Mutation Integration).
      */
     public function hero()
     {
+        $heroSetting = $this->siteSettingRepo->get('hero', [
+            'badge' => 'Pusat Bahan Segar & Frozen Jogja',
+            'title' => 'Belanja Daging Sapi, Ayam, Seafood & Sayuran Siap Olah Praktis',
+            'headline_prefix' => 'Bahan Masak',
+            'highlight' => 'Siap Olah',
+            'headline_suffix' => ', Tinggal Masak.',
+            'subtitle' => 'Pilihan tepat keluarga & pengusaha kuliner di Yogyakarta. Produk higienis dengan standar cold-chain terjamin, dipotong rapi, dan dikirim aman sampai ke dapur Anda.',
+            'description' => 'Pilihan tepat keluarga & pengusaha kuliner di Yogyakarta. Produk higienis dengan standar cold-chain terjamin, dipotong rapi, dan dikirim aman sampai ke dapur Anda.',
+            'whatsapp_button_text' => 'Konsultasi & Order Cepat via WhatsApp',
+            'primary_cta_text' => 'Belanja Sekarang',
+            'primary_cta_link' => '#produk',
+            'catalog_button_text' => 'Lihat Katalog Lengkap',
+            'secondary_cta_text' => 'Lihat Produk',
+            'secondary_cta_link' => '#kategori',
+            'images' => [
+                'images/hero-1.jpg',
+                'images/hero-2.jpg',
+                'images/hero-3.jpg',
+            ],
+        ]);
+
+        $heroTrustItems = $this->siteSettingRepo->get('hero_trust_items', [
+            ['id' => 1, 'text' => '100% Halal & Higienis', 'is_active' => true, 'sort_order' => 1],
+            ['id' => 2, 'text' => 'Standar Rantai Dingin (Cold Chain)', 'is_active' => true, 'sort_order' => 2],
+            ['id' => 3, 'text' => 'Pengiriman Cepat Se-Jogja', 'is_active' => true, 'sort_order' => 3],
+        ]);
+
+        $heroPartners = $this->siteSettingRepo->get('hero_partners', [
+            'badge' => 'Kepercayaan Mitra',
+            'title' => 'Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja',
+            'partners' => [
+                ['id' => 1, 'name' => 'Restoran & Cafe Jogja', 'logo' => 'images/mitra-placeholder.png', 'is_active' => true, 'sort_order' => 1],
+                ['id' => 2, 'name' => 'Katering & Horeka', 'logo' => 'images/mitra-placeholder.png', 'is_active' => true, 'sort_order' => 2],
+                ['id' => 3, 'name' => 'Rumah Tangga Jogja', 'logo' => 'images/mitra-placeholder.png', 'is_active' => true, 'sort_order' => 3],
+            ]
+        ]);
+
         $drafts = [
             [
                 'id' => 1,
-                'name' => 'Hero Draft 01',
+                'name' => 'Hero Utama (Live DB)',
                 'status' => 'Aktif',
-                'badge' => 'Penyedia Bahan Segar & Frozen Food Terpercaya di Jogja',
-                'headline_prefix' => 'Bahan Masak',
-                'highlight' => 'Siap Olah',
-                'headline_suffix' => ', Tinggal Masak.',
-                'description' => 'Daging, ayam, ikan, dan sayuran pilihan dalam bentuk frozen dan ready to cook untuk kebutuhan rumah tangga maupun pembelian curah.',
-                'primary_cta_text' => 'Belanja Sekarang',
-                'primary_cta_link' => '#produk',
-                'secondary_cta_text' => 'Lihat Produk',
-                'secondary_cta_link' => '#kategori',
-                'images' => [
+                'badge' => $heroSetting['badge'] ?? 'Pusat Bahan Segar & Frozen Jogja',
+                'title' => $heroSetting['title'] ?? 'Belanja Daging Sapi, Ayam, Seafood & Sayuran Siap Olah Praktis',
+                'headline_prefix' => $heroSetting['headline_prefix'] ?? 'Bahan Masak',
+                'highlight' => $heroSetting['highlight'] ?? 'Siap Olah',
+                'headline_suffix' => $heroSetting['headline_suffix'] ?? ', Tinggal Masak.',
+                'description' => $heroSetting['subtitle'] ?? ($heroSetting['description'] ?? 'Pilihan tepat keluarga & pengusaha kuliner di Yogyakarta.'),
+                'primary_cta_text' => $heroSetting['whatsapp_button_text'] ?? ($heroSetting['primary_cta_text'] ?? 'Belanja Sekarang'),
+                'primary_cta_link' => $heroSetting['primary_cta_link'] ?? '#produk',
+                'secondary_cta_text' => $heroSetting['catalog_button_text'] ?? ($heroSetting['secondary_cta_text'] ?? 'Lihat Produk'),
+                'secondary_cta_link' => $heroSetting['secondary_cta_link'] ?? '#kategori',
+                'images' => $heroSetting['images'] ?? [
                     'images/hero-1.jpg',
                     'images/hero-2.jpg',
                     'images/hero-3.jpg',
                     'images/cat-daging.jpg',
                 ],
-                'trust_items' => [
-                    ['id' => 1, 'text' => '100% Halal', 'active' => true],
-                    ['id' => 2, 'text' => 'Cold Chain', 'active' => true],
-                    ['id' => 3, 'text' => 'Kirim Se-Jogja', 'active' => true],
-                ],
-                'updated_at' => '17 Agustus 2026, 01:15 WIB',
+                'trust_items' => is_array($heroTrustItems) ? array_map(function ($item) {
+                    return [
+                        'id' => $item['id'] ?? 1,
+                        'text' => $item['text'] ?? '',
+                        'active' => $item['is_active'] ?? ($item['active'] ?? true),
+                        'sort_order' => $item['sort_order'] ?? 1,
+                    ];
+                }, $heroTrustItems) : [],
+                'updated_at' => 'Tersinkron Database',
             ],
             [
                 'id' => 2,
-                'name' => 'Hero Draft 02',
+                'name' => 'Hero Draft 02 (Preset)',
                 'status' => 'Nonaktif',
                 'badge' => 'Protein Segar & Siap Saji Higienis',
+                'title' => 'Solusi Praktis Tinggal Masak untuk Keluarga',
                 'headline_prefix' => 'Solusi Praktis',
                 'highlight' => 'Tinggal Masak',
                 'headline_suffix' => ' untuk Keluarga.',
@@ -204,17 +294,18 @@ class AdminController extends Controller
                     'images/hero-1.jpg',
                 ],
                 'trust_items' => [
-                    ['id' => 1, 'text' => 'Higienis & Segar', 'active' => true],
-                    ['id' => 2, 'text' => 'Ready to Cook', 'active' => true],
-                    ['id' => 3, 'text' => 'Free Delivery Sleman', 'active' => true],
+                    ['id' => 1, 'text' => 'Higienis & Segar', 'active' => true, 'sort_order' => 1],
+                    ['id' => 2, 'text' => 'Ready to Cook', 'active' => true, 'sort_order' => 2],
+                    ['id' => 3, 'text' => 'Free Delivery Sleman', 'active' => true, 'sort_order' => 3],
                 ],
-                'updated_at' => '16 Agustus 2026, 20:30 WIB',
+                'updated_at' => 'Preset Layout',
             ],
             [
                 'id' => 3,
-                'name' => 'Hero Draft 03',
+                'name' => 'Hero Draft 03 (Preset)',
                 'status' => 'Nonaktif',
                 'badge' => 'Fresh & Frozen Food Kualitas Restoran',
+                'title' => 'Daging Premium Harga Terjangkau Kirim Cepat',
                 'headline_prefix' => 'Daging Premium',
                 'highlight' => 'Harga Terjangkau',
                 'headline_suffix' => ' Kirim Cepat.',
@@ -228,103 +319,81 @@ class AdminController extends Controller
                     'images/hero-1.jpg',
                 ],
                 'trust_items' => [
-                    ['id' => 1, 'text' => 'Harga Grosir & Ecer', 'active' => true],
-                    ['id' => 2, 'text' => 'Garansi Kualitas', 'active' => true],
-                    ['id' => 3, 'text' => 'Sameday Delivery', 'active' => true],
+                    ['id' => 1, 'text' => 'Harga Grosir & Ecer', 'active' => true, 'sort_order' => 1],
+                    ['id' => 2, 'text' => 'Garansi Kualitas', 'active' => true, 'sort_order' => 2],
+                    ['id' => 3, 'text' => 'Sameday Delivery', 'active' => true, 'sort_order' => 3],
                 ],
-                'updated_at' => '15 Agustus 2026, 14:10 WIB',
+                'updated_at' => 'Preset Layout',
             ],
         ];
 
         $mediaLibrary = $this->getMediaLibrary();
 
-        return view('admin.hero', compact('drafts', 'mediaLibrary'));
+        return view('admin.hero', compact('drafts', 'heroSetting', 'heroTrustItems', 'heroPartners', 'mediaLibrary'));
     }
 
     /**
-     * Master Category Section Settings (Header).
+     * Update Hero, Trust Checklist & Partners Configuration (POST /admin/hero).
      */
-    public function getCategorySectionSettings()
+    public function heroUpdate(Request $request)
     {
-        return [
-            'label' => 'Kategori Utama',
-            'title' => 'Mau Masak Apa Hari Ini?',
-            'subtitle' => 'Pilih bahan masak sesuai kebutuhanmu. Dari potongan daging segar, ayam bumbu, ikan laut, hingga sayuran siap cemplung.'
-        ];
-    }
+        $validated = $request->validate([
+            'hero' => 'nullable|array',
+            'hero.badge' => 'nullable|string|max:255',
+            'hero.title' => 'nullable|string|max:255',
+            'hero.headline_prefix' => 'nullable|string|max:255',
+            'hero.highlight' => 'nullable|string|max:255',
+            'hero.headline_suffix' => 'nullable|string|max:255',
+            'hero.subtitle' => 'nullable|string',
+            'hero.description' => 'nullable|string',
+            'hero.whatsapp_button_text' => 'nullable|string|max:255',
+            'hero.primary_cta_text' => 'nullable|string|max:255',
+            'hero.primary_cta_link' => 'nullable|string|max:255',
+            'hero.catalog_button_text' => 'nullable|string|max:255',
+            'hero.secondary_cta_text' => 'nullable|string|max:255',
+            'hero.secondary_cta_link' => 'nullable|string|max:255',
+            'hero.images' => 'nullable|array',
+            'trust_items' => 'nullable|array',
+            'partners' => 'nullable|array',
+            'partners.title' => 'nullable|string|max:255',
+            'partners.badge' => 'nullable|string|max:255',
+            'partners.partners' => 'nullable|array',
+        ]);
 
-    /**
-     * Master Categories List (Source of Truth).
-     */
-    public function getCategories()
-    {
-        return [
-            [
-                'id' => 1,
-                'name' => 'Daging Sapi',
-                'slug' => 'daging-sapi',
-                'subtitle' => 'Slice, Sengkel, Ribeye & Giling',
-                'badge' => 'Sertifikasi Halal',
-                'color' => 'orange',
-                'image' => 'images/cat-daging.jpg',
-                'description' => 'Daging sapi segar & frozen potongan higienis tanpa pengawet.',
-                'order' => 1,
-                'status' => 'active_landing',
-                'is_system' => false,
-            ],
-            [
-                'id' => 2,
-                'name' => 'Ayam Segar & Olahan',
-                'slug' => 'ayam-segar',
-                'subtitle' => 'Fillet, Parting, Utuh & Ungkep',
-                'badge' => 'Potong Segar Tiap Subuh',
-                'color' => 'yellow',
-                'image' => 'images/cat-ayam.jpg',
-                'description' => 'Ayam potong higienis standar cold-chain, plain maupun berbumbu.',
-                'order' => 2,
-                'status' => 'active_landing',
-                'is_system' => false,
-            ],
-            [
-                'id' => 3,
-                'name' => 'Ikan & Seafood',
-                'slug' => 'ikan-seafood',
-                'subtitle' => 'Salmon, Gurame, Dori & Udang',
-                'badge' => 'Segar Beku Kapal',
-                'color' => 'blue',
-                'image' => 'images/cat-ikan.jpg',
-                'description' => 'Fillet tanpa duri dan ikan utuh segar beku kaya nutrisi omega-3.',
-                'order' => 3,
-                'status' => 'active_landing',
-                'is_system' => false,
-            ],
-            [
-                'id' => 4,
-                'name' => 'Sayuran Siap Olah',
-                'slug' => 'sayuran-siap-olah',
-                'subtitle' => 'Sayur Sup, Capcay & Sayur Segar',
-                'badge' => 'Bersih Tinggal Cemplung',
-                'color' => 'green',
-                'image' => 'images/cat-sayur.jpg',
-                'description' => 'Sayuran organik & hidroponik cuci bersih praktis untuk masakan harian.',
-                'order' => 4,
-                'status' => 'active_landing',
-                'is_system' => false,
-            ],
-            [
-                'id' => 5,
-                'name' => 'Frozen Food & Olahan',
-                'slug' => 'frozen-food',
-                'subtitle' => 'Nugget, Sosis, Bakso & Olahan',
-                'badge' => 'Higienis Siap Masak',
-                'color' => 'purple',
-                'image' => 'images/prod-ayam-bumbu.jpg',
-                'description' => 'Olahan daging dan ayam siap saji praktis untuk bekal keluarga.',
-                'order' => 5,
-                'status' => 'active_catalog',
-                'is_system' => false,
-            ],
-        ];
+        if (isset($validated['hero'])) {
+            $currentHero = $this->siteSettingRepo->get('hero', []);
+            $mergedHero = array_merge($currentHero, $validated['hero']);
+            if (isset($validated['hero']['title'])) {
+                $mergedHero['title'] = $validated['hero']['title'];
+            }
+            if (isset($validated['hero']['subtitle'])) {
+                $mergedHero['subtitle'] = $validated['hero']['subtitle'];
+                $mergedHero['description'] = $validated['hero']['subtitle'];
+            }
+            $this->siteSettingRepo->set('hero', $mergedHero);
+        }
+
+        if (isset($validated['trust_items'])) {
+            $this->siteSettingRepo->set('hero_trust_items', $validated['trust_items']);
+        }
+
+        if (isset($validated['partners'])) {
+            $currentPartners = $this->siteSettingRepo->get('hero_partners', []);
+            $mergedPartners = array_merge($currentPartners, $validated['partners']);
+            $this->siteSettingRepo->set('hero_partners', $mergedPartners);
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengaturan Hero, Trust Checklist, dan Mitra berhasil disimpan ke database!',
+                'hero' => $this->siteSettingRepo->get('hero'),
+                'hero_trust_items' => $this->siteSettingRepo->get('hero_trust_items'),
+                'hero_partners' => $this->siteSettingRepo->get('hero_partners'),
+            ]);
+        }
+
+        return redirect()->route('admin.hero')->with('success', 'Pengaturan Hero berhasil disimpan.');
     }
 
     /**
@@ -333,390 +402,218 @@ class AdminController extends Controller
     public function kategori()
     {
         $categorySection = $this->getCategorySectionSettings();
-        $categories = $this->getCategories();
-        $products = $this->getProducts();
-        $mediaLibrary = $this->getMediaLibrary();
+        $dbCategories = $this->categoryRepo->getAll();
+        $dbProducts = $this->productRepo->getAll();
 
-        // Calculate dynamic product count from active products
-        foreach ($categories as &$cat) {
-            $activeCount = count(array_filter($products, function($p) use ($cat) {
-                return ($p['category_id'] ?? null) == $cat['id'] && ($p['status'] ?? 'Aktif') === 'Aktif';
-            }));
-            $cat['products_count'] = $activeCount;
-            $cat['count'] = $activeCount . '+ Variasi';
-        }
-        unset($cat);
+        $categories = $dbCategories->map(function ($cat) use ($dbProducts) {
+            $activeCount = $dbProducts->filter(function ($p) use ($cat) {
+                return $p->category_id == $cat->id && $p->is_active;
+            })->count();
+
+            return [
+                'id' => $cat->id,
+                'name' => $cat->name,
+                'slug' => $cat->slug,
+                'subtitle' => $cat->subtitle ?? '',
+                'badge' => $cat->badge ?? 'Sertifikasi Halal',
+                'color' => $cat->color ?? 'orange',
+                'image' => $cat->image ?? 'images/cat-daging.jpg',
+                'description' => $cat->description ?? '',
+                'order' => (int) $cat->sort_order,
+                'sort_order' => (int) $cat->sort_order,
+                'status' => $cat->is_active ? 'active_landing' : 'inactive',
+                'is_active' => (bool) $cat->is_active,
+                'is_system' => false,
+                'products_count' => $activeCount,
+                'count' => $activeCount . '+ Variasi',
+            ];
+        })->toArray();
+
+        $products = $dbProducts->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'name' => $p->name,
+                'category_id' => $p->category_id,
+                'status' => $p->is_active ? 'Aktif' : 'Nonaktif',
+            ];
+        })->toArray();
+
+        $mediaLibrary = $this->getMediaLibrary();
 
         return view('admin.kategori', compact('categorySection', 'categories', 'products', 'mediaLibrary'));
     }
 
     /**
-     * Master Products List with Relational category_id.
+     * Create a new category (POST /admin/kategori).
      */
-    public function getProducts()
+    public function categoryStore(Request $request)
     {
-        return [
-            [
-                'id' => 1,
-                'name' => 'Daging Sapi Shortplate Slice Premium',
-                'category_id' => 1,
-                'category' => 'Daging Sapi',
-                'types' => ['Frozen', 'Plain', 'Curah'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 58000,
-                'status' => 'Aktif',
-                'image' => 'images/prod-beef-slice.jpg',
-                'description' => 'Irisan tipis 1.5mm daging sapi impor berlemak gurih, sangat cocok untuk sukiyaki, shabu-shabu, dan grill BBQ rumahan.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 2,
-                'name' => 'Dada Ayam Fillet Boneless Clean',
-                'category_id' => 2,
-                'category' => 'Ayam Segar & Olahan',
-                'types' => ['Fresh', 'Plain'],
-                'weight' => '1000g',
-                'weight_value' => 1000,
-                'unit' => 'gram',
-                'price' => 46000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-ayam.jpg',
-                'description' => 'Dada ayam tanpa tulang dan tanpa kulit, tinggi protein dan rendah lemak. Cocok untuk program diet, steak ayam, atau olahan tumis.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 3,
-                'name' => 'Ayam Ungkep Bumbu Kuning Lengkuas',
-                'category_id' => 2,
-                'category' => 'Ayam Segar & Olahan',
-                'types' => ['Ready to Cook', 'Berbumbu'],
-                'weight' => '800g',
-                'weight_value' => 800,
-                'unit' => 'gram',
-                'price' => 42000,
-                'status' => 'Aktif',
-                'image' => 'images/prod-ayam-bumbu.jpg',
-                'description' => 'Ayam pejantan utuh potong 4 yang telah diungkep dengan rempah tradisional lengkap. Tinggal goreng atau bakar praktis.',
-                'whatsapp_destination' => 'order',
-            ],
-            [
-                'id' => 4,
-                'name' => 'Fillet Ikan Gurame Segar Bersih',
-                'category_id' => 3,
-                'category' => 'Ikan & Seafood',
-                'types' => ['Fresh', 'Plain'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 38000,
-                'status' => 'Aktif',
-                'image' => 'images/prod-ikan-gurame.jpg',
-                'description' => 'Daging gurame fillet tanpa duri, higienis dan tidak berbau tanah. Siap ditepungi, dibuat sup asam manis, atau asam pedas.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 5,
-                'name' => 'Paket Sayur Sop Komplit Higienis',
-                'category_id' => 4,
-                'category' => 'Sayuran Siap Olah',
-                'types' => ['Ready to Cook', 'Fresh'],
-                'weight' => '350g',
-                'weight_value' => 350,
-                'unit' => 'gram',
-                'price' => 12000,
-                'status' => 'Aktif',
-                'image' => 'images/prod-sayur-mix.jpg',
-                'description' => 'Kombinasi wortel impor, buncis, kentang, kol, dan seledri yang sudah dicuci bersih dan dipotong rapi. Termasuk bumbu racik.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 6,
-                'name' => 'Daging Sengkel Sapi Potong Rawon / Semur',
-                'category_id' => 1,
-                'category' => 'Daging Sapi',
-                'types' => ['Fresh', 'Curah'],
-                'weight' => '1000g',
-                'weight_value' => 1000,
-                'unit' => 'gram',
-                'price' => 125000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-daging.jpg',
-                'description' => 'Daging bagian betis sapi dengan urat kenyal lembut, sangat gurih saat direbus lama untuk masakan rawon, soto, atau semur.',
-                'whatsapp_destination' => 'order',
-            ],
-            [
-                'id' => 7,
-                'name' => 'Ikan Dori Fillet Premium Glazing Rendah',
-                'category_id' => 3,
-                'category' => 'Ikan & Seafood',
-                'types' => ['Frozen', 'Plain', 'Curah'],
-                'weight' => '1000g',
-                'weight_value' => 1000,
-                'unit' => 'gram',
-                'price' => 48000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-ikan.jpg',
-                'description' => 'Daging ikan pangasius putih bersih dengan kadar glazing minimal, tekstur lembut tanpa aroma amis menyengat.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 8,
-                'name' => 'Paket Sayur Lodeh Racik Bumbu',
-                'category_id' => 4,
-                'category' => 'Sayuran Siap Olah',
-                'types' => ['Ready to Cook'],
-                'weight' => '400g',
-                'weight_value' => 400,
-                'unit' => 'gram',
-                'price' => 14000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-sayur.jpg',
-                'description' => 'Paket komplit labu siam, terong ungu, kacang panjang, melinjo, daun melinjo, dan jagung manis siap masak bersama santan.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 9,
-                'name' => 'Daging Giling Sapi Spesial Low Fat',
-                'category_id' => 1,
-                'category' => 'Daging Sapi',
-                'types' => ['Frozen', 'Plain'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 62000,
-                'status' => 'Aktif',
-                'image' => 'images/prod-beef-slice.jpg',
-                'description' => 'Daging sapi murni giling dengan rasio lemak kurang dari 10%, cocok untuk pasta bolognese, patty burger, dan bakso rumahan.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 10,
-                'name' => 'Paha Ayam Utuh Marinasi BBQ Smokey',
-                'category_id' => 2,
-                'category' => 'Ayam Segar & Olahan',
-                'types' => ['Ready to Cook', 'Berbumbu'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 36000,
-                'status' => 'Aktif',
-                'image' => 'images/prod-ayam-bumbu.jpg',
-                'description' => 'Paha ayam bagian atas dan bawah yang dimarinasi saus barbeque gurih manis dengan aroma asap khas restoran panggang.',
-                'whatsapp_destination' => 'order',
-            ],
-            [
-                'id' => 11,
-                'name' => 'Udang Vaname Kupas Bersih Ekor (PDTO)',
-                'category_id' => 3,
-                'category' => 'Ikan & Seafood',
-                'types' => ['Frozen', 'Plain', 'Fresh'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 55000,
-                'status' => 'Aktif',
-                'image' => 'images/hero-2.jpg',
-                'description' => 'Udang laut vaname segar ukuran sedang yang sudah dibuang kepala, kulit, dan ususnya, menyisakan ekor rapi.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 12,
-                'name' => 'Bakso Sapi Urat Premium 25 Butir',
-                'category_id' => 5,
-                'category' => 'Frozen Food & Olahan',
-                'types' => ['Frozen', 'Curah'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 45000,
-                'status' => 'Aktif',
-                'image' => 'images/hero-1.jpg',
-                'description' => 'Bakso sapi dengan tekstur urat renyah kenyal dan aroma daging sapi asli tanpa bahan pengawet berbahaya.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 13,
-                'name' => 'Daging Sirloin Steak Cut 200g',
-                'category_id' => 1,
-                'category' => 'Daging Sapi',
-                'types' => ['Frozen', 'Plain'],
-                'weight' => '200g',
-                'weight_value' => 200,
-                'unit' => 'gram',
-                'price' => 45000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-daging.jpg',
-                'description' => 'Potongan steak sirloin dengan strip lemak samping yang juicy, cocok untuk pan-seared steak ala cafe.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 14,
-                'name' => 'Sayap Ayam Broiler Segar (Chicken Wings)',
-                'category_id' => 2,
-                'category' => 'Ayam Segar & Olahan',
-                'types' => ['Fresh', 'Plain', 'Curah'],
-                'weight' => '1000g',
-                'weight_value' => 1000,
-                'unit' => 'gram',
-                'price' => 38000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-ayam.jpg',
-                'description' => 'Sayap ayam utuh isi 10-12 pcs, bersih tanpa bulu, favorit untuk olahan spicy wings atau kaldu sup gurih.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 15,
-                'name' => 'Cumi Tubuh Ring Calamari Cut',
-                'category_id' => 3,
-                'category' => 'Ikan & Seafood',
-                'types' => ['Frozen', 'Plain'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 49000,
-                'status' => 'Aktif',
-                'image' => 'images/hero-2.jpg',
-                'description' => 'Cumi potong cincin tanpa kulit dan tanpa tinta, siap dimasak tepung goreng krispi atau saus tiram.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 16,
-                'name' => 'Paket Sayur Asem Komplit Tradisional',
-                'category_id' => 4,
-                'category' => 'Sayuran Siap Olah',
-                'types' => ['Ready to Cook'],
-                'weight' => '400g',
-                'weight_value' => 400,
-                'unit' => 'gram',
-                'price' => 12000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-sayur.jpg',
-                'description' => 'Paket racik sayur asem siap masak lengkap dengan melinjo, jagung, kacang panjang, labu siam, dan asem jawa.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 17,
-                'name' => 'Daging Iga Sapi Potong Sop / Konro',
-                'category_id' => 1,
-                'category' => 'Daging Sapi',
-                'types' => ['Fresh', 'Plain', 'Curah'],
-                'weight' => '1000g',
-                'weight_value' => 1000,
-                'unit' => 'gram',
-                'price' => 110000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-daging.jpg',
-                'description' => 'Potongan iga sapi tebal berdaging gurih, sangat nikmat untuk sop iga bening, iga bakar kecap, atau konro bakar.',
-                'whatsapp_destination' => 'order',
-            ],
-            [
-                'id' => 18,
-                'name' => 'Hati Ampela Ayam Bersih 10 Pasang',
-                'category_id' => 2,
-                'category' => 'Ayam Segar & Olahan',
-                'types' => ['Fresh', 'Plain'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 18000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-ayam.jpg',
-                'description' => 'Jeroan ati ampela ayam segar yang sudah dicuci bersih dari lemak dan kotoran, siap diungkep atau disambal goreng.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 19,
-                'name' => 'Fillet Ikan Kakap Merah Segar Beku',
-                'category_id' => 3,
-                'category' => 'Ikan & Seafood',
-                'types' => ['Frozen', 'Plain'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 56000,
-                'status' => 'Aktif',
-                'image' => 'images/hero-2.jpg',
-                'description' => 'Daging kakap merah laut kualitas ekspor tanpa duri, sangat lezat untuk menu asam manis, gulai kepala kakap, atau bakar kecap.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 20,
-                'name' => 'Paket Sayur Capcay Kuah / Goreng',
-                'category_id' => 4,
-                'category' => 'Sayuran Siap Olah',
-                'types' => ['Ready to Cook'],
-                'weight' => '350g',
-                'weight_value' => 350,
-                'unit' => 'gram',
-                'price' => 15000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-sayur.jpg',
-                'description' => 'Wortel, kembang kol, brokoli, sawi putih, sawi hijau, dan jamur kuping bersih siap tumis.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 21,
-                'name' => 'Sosis Sapi Frankfurter Premium 10 Pcs',
-                'category_id' => 5,
-                'category' => 'Frozen Food & Olahan',
-                'types' => ['Ready to Cook', 'Frozen'],
-                'weight' => '500g',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 48000,
-                'status' => 'Aktif',
-                'image' => 'images/hero-1.jpg',
-                'description' => 'Sosis daging sapi dengan selongsong alami collagen yang renyah saat digigit, aroma smoked beef nikmat.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 22,
-                'name' => 'Daging Sukiyaki Beef Roll 250g',
-                'category_id' => 1,
-                'category' => 'Daging Sapi',
-                'types' => ['Frozen', 'Plain'],
-                'weight' => '250g',
-                'weight_value' => 250,
-                'unit' => 'gram',
-                'price' => 34000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-daging.jpg',
-                'description' => 'Gulungan daging sapi slice super tipis untuk menu enoki beef roll, sukiyaki, atau hotpot keluarga.',
-                'whatsapp_destination' => 'admin',
-            ],
-            [
-                'id' => 23,
-                'name' => 'Ayam Katsu Fillet Breaded Siap Goreng',
-                'category_id' => 2,
-                'category' => 'Ayam Segar & Olahan',
-                'types' => ['Ready to Cook', 'Frozen'],
-                'weight' => '500g (4 Pcs)',
-                'weight_value' => 500,
-                'unit' => 'gram',
-                'price' => 39000,
-                'status' => 'Aktif',
-                'image' => 'images/prod-ayam-bumbu.jpg',
-                'description' => 'Dada ayam fillet berbalut tepung roti panko renyah, tinggal digoreng 5 menit untuk bekal anak sekolah.',
-                'whatsapp_destination' => 'order',
-            ],
-            [
-                'id' => 24,
-                'name' => 'Baby Buncis Super Organik Petik Segar',
-                'category_id' => 4,
-                'category' => 'Sayuran Siap Olah',
-                'types' => ['Fresh', 'Plain'],
-                'weight' => '250g',
-                'weight_value' => 250,
-                'unit' => 'gram',
-                'price' => 8000,
-                'status' => 'Aktif',
-                'image' => 'images/cat-sayur.jpg',
-                'description' => 'Baby buncis muda renyah manis bebas ulat, sudah dipetik ujungnya, siap untuk tumis daging sapi atau telur asin.',
-                'whatsapp_destination' => 'admin',
-            ],
-        ];
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:categories,slug',
+            'color' => 'nullable|string|max:50',
+            'image' => 'nullable|string|max:255',
+            'sort_order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['name']);
+        }
+
+        $validated['color'] = $validated['color'] ?? 'orange';
+        $validated['image'] = $validated['image'] ?? 'images/cat-daging.jpg';
+        $validated['sort_order'] = isset($validated['sort_order']) ? (int) $validated['sort_order'] : ($this->categoryRepo->getAll()->count() + 1);
+        $validated['is_active'] = isset($validated['is_active']) ? (bool) $validated['is_active'] : true;
+
+        $category = $this->categoryRepo->create($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Kategori {$category->name} berhasil ditambahkan.",
+                'category' => $category,
+            ], 201);
+        }
+
+        return redirect()->route('admin.kategori')->with('success', "Kategori {$category->name} berhasil ditambahkan.");
+    }
+
+    /**
+     * Update an existing category (PUT /admin/kategori/{id}).
+     */
+    public function categoryUpdate(Request $request, int $id)
+    {
+        $category = $this->categoryRepo->findById($id);
+        if (!$category) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kategori tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.kategori')->with('error', 'Kategori tidak ditemukan.');
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'required|string|max:255|unique:categories,slug,' . $id,
+            'color' => 'nullable|string|max:50',
+            'image' => 'nullable|string|max:255',
+            'sort_order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        if (isset($validated['is_active'])) {
+            $validated['is_active'] = (bool) $validated['is_active'];
+        }
+
+        $updated = $this->categoryRepo->update($id, $validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => $updated,
+                'message' => "Kategori {$category->name} berhasil diperbarui.",
+                'category' => $this->categoryRepo->findById($id),
+            ]);
+        }
+
+        return redirect()->route('admin.kategori')->with('success', "Kategori {$category->name} berhasil diperbarui.");
+    }
+
+    /**
+     * Delete a category with delete guard (DELETE /admin/kategori/{id}).
+     */
+    public function categoryDestroy(Request $request, int $id)
+    {
+        $category = $this->categoryRepo->findById($id);
+        if (!$category) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kategori tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.kategori')->with('error', 'Kategori tidak ditemukan.');
+        }
+
+        // Critical Delete Guard: Block delete if category still has associated products
+        if ($this->categoryRepo->hasProducts($id)) {
+            $productCount = $this->categoryRepo->countProducts($id);
+            $errorMsg = "Kategori \"{$category->name}\" tidak dapat dihapus karena masih memiliki {$productCount} produk terkait. Pindahkan atau hapus produk terlebih dahulu.";
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'blocked' => true,
+                    'message' => $errorMsg,
+                ], 422);
+            }
+
+            return redirect()->route('admin.kategori')->with('error', $errorMsg);
+        }
+
+        $this->categoryRepo->delete($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Kategori {$category->name} berhasil dihapus.",
+            ]);
+        }
+
+        return redirect()->route('admin.kategori')->with('success', "Kategori {$category->name} berhasil dihapus.");
+    }
+
+    /**
+     * Toggle active state of a category (PATCH /admin/kategori/{id}/toggle).
+     */
+    public function categoryToggle(Request $request, int $id)
+    {
+        $category = $this->categoryRepo->toggleActive($id);
+        if (!$category) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kategori tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.kategori')->with('error', 'Kategori tidak ditemukan.');
+        }
+
+        $statusLabel = $category->is_active ? 'Aktif' : 'Nonaktif';
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'is_active' => $category->is_active,
+                'message' => "Status kategori {$category->name} diubah menjadi {$statusLabel}.",
+                'category' => $category,
+            ]);
+        }
+
+        return redirect()->route('admin.kategori')->with('success', "Status kategori {$category->name} diubah menjadi {$statusLabel}.");
+    }
+
+    /**
+     * Reorder categories (POST /admin/kategori/reorder).
+     */
+    public function categoryReorder(Request $request)
+    {
+        $validated = $request->validate([
+            'orders' => 'required|array',
+        ]);
+
+        $this->categoryRepo->reorder($validated['orders']);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Urutan kategori berhasil diperbarui.',
+            ]);
+        }
+
+        return redirect()->route('admin.kategori')->with('success', 'Urutan kategori berhasil diperbarui.');
     }
 
     /**
@@ -724,106 +621,524 @@ class AdminController extends Controller
      */
     public function produk()
     {
-        $categories = $this->getCategories();
+        $dbCategories = $this->categoryRepo->getAll();
+        $dbProducts = $this->productRepo->getAll();
         $contactSettings = $this->getContactSettings();
-        $products = $this->getProducts();
         $mediaLibrary = $this->getMediaLibrary();
 
-        return view('admin.produk', compact('categories', 'products', 'contactSettings', 'mediaLibrary'));
+        $categories = $dbCategories->map(function ($c) {
+            return [
+                'id' => $c->id,
+                'name' => $c->name,
+                'slug' => $c->slug,
+                'color' => $c->color ?? 'orange',
+                'status' => $c->is_active ? 'active_landing' : 'inactive',
+            ];
+        })->toArray();
+
+        $products = $dbProducts->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'name' => $p->name,
+                'slug' => $p->slug,
+                'category_id' => $p->category_id,
+                'category' => $p->category ? $p->category->name : 'Daging Sapi',
+                'types' => is_array($p->types) ? $p->types : [],
+                'weight' => $p->weight_value . ($p->unit === 'gram' ? 'g' : ($p->unit === 'kg' ? 'kg' : ' ' . $p->unit)),
+                'weight_value' => (int) $p->weight_value,
+                'unit' => $p->unit ?? 'gram',
+                'price' => (float) $p->normal_price,
+                'normal_price' => (float) $p->normal_price,
+                'discount_type' => $p->discount_type,
+                'discount_value' => $p->discount_value ? (float) $p->discount_value : null,
+                'status' => $p->is_active ? 'Aktif' : 'Nonaktif',
+                'is_active' => (bool) $p->is_active,
+                'image' => $p->image ?? 'images/prod-beef-slice.jpg',
+                'description' => $p->description ?? '',
+                'stock_status' => $p->stock_status ?? 'READY_STOCK',
+                'is_flash_sale' => (bool) $p->is_flash_sale,
+                'flash_sale_discount_type' => $p->flash_sale_discount_type,
+                'flash_sale_discount_value' => $p->flash_sale_discount_value ? (float) $p->flash_sale_discount_value : null,
+                'flash_sale_sort_order' => (int) ($p->flash_sale_sort_order ?? 1),
+                'sort_order' => (int) ($p->sort_order ?? 1),
+                'whatsapp_destination' => $p->whatsapp_destination ?? 'admin',
+            ];
+        })->toArray();
+
+        $flashSaleSetting = $this->siteSettingRepo->get('flash_sale', [
+            'enabled' => false,
+            'end_at' => null,
+            'title' => 'Flash Sale Terbatas!',
+            'subtitle' => 'Dapatkan potongan harga spesial untuk produk protein pilihan hari ini. Stok terbatas!',
+        ]);
+
+        return view('admin.produk', compact('categories', 'products', 'flashSaleSetting', 'contactSettings', 'mediaLibrary'));
     }
 
     /**
-     * Keunggulan & Standar Mutu Management Screen.
+     * Create a new product (POST /admin/produk).
+     */
+    public function productStore(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:products,slug',
+            'category_id' => 'required|integer|exists:categories,id',
+            'description' => 'nullable|string',
+            'image' => 'nullable|string|max:255',
+            'types' => 'nullable|array',
+            'types.*' => 'in:Frozen,Ready to Cook,Plain,Berbumbu,Curah,Fresh',
+            'weight' => 'nullable|string|max:100',
+            'weight_value' => 'nullable|numeric|min:0',
+            'unit' => 'nullable|string|max:50',
+            'normal_price' => 'required|numeric|min:0',
+            'discount_type' => 'nullable|in:percentage,fixed',
+            'discount_value' => 'nullable|numeric|min:0',
+            'stock_status' => 'required|in:READY_STOCK,OUT_OF_STOCK,PRE_ORDER',
+            'is_active' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer|min:0',
+            'whatsapp_destination' => 'nullable|string|max:50',
+        ]);
+
+        // Regular Discount Boundary Validations
+        if (!empty($validated['discount_type'])) {
+            if ($validated['discount_type'] === 'percentage' && ($validated['discount_value'] ?? 0) > 100) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Diskon persentase tidak boleh melebihi 100%.',
+                ], 422);
+            }
+            if ($validated['discount_type'] === 'fixed' && ($validated['discount_value'] ?? 0) > $validated['normal_price']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Diskon nominal (fixed) tidak boleh melebihi harga normal produk.',
+                ], 422);
+            }
+        } else {
+            $validated['discount_type'] = null;
+            $validated['discount_value'] = null;
+        }
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['name']);
+        }
+
+        $validated['types'] = $validated['types'] ?? ['Fresh'];
+        $validated['unit'] = $validated['unit'] ?? 'gram';
+        $validated['weight_value'] = isset($validated['weight_value']) ? (float) $validated['weight_value'] : 500;
+        $validated['weight'] = $validated['weight'] ?? ($validated['weight_value'] . ($validated['unit'] === 'gram' ? 'g' : ' ' . $validated['unit']));
+        $validated['image'] = $validated['image'] ?? 'images/prod-beef-slice.jpg';
+        $validated['sort_order'] = isset($validated['sort_order']) ? (int) $validated['sort_order'] : ($this->productRepo->getAll()->count() + 1);
+        $validated['is_active'] = isset($validated['is_active']) ? (bool) $validated['is_active'] : true;
+        $validated['whatsapp_destination'] = $validated['whatsapp_destination'] ?? 'admin';
+
+        // Flash Sale Isolation: New regular products start outside flash sale
+        $validated['is_flash_sale'] = false;
+        $validated['flash_sale_discount_type'] = null;
+        $validated['flash_sale_discount_value'] = null;
+        $validated['flash_sale_sort_order'] = 0;
+
+        $product = $this->productRepo->create($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Produk {$product->name} berhasil ditambahkan.",
+                'product' => $product->load('category'),
+            ], 201);
+        }
+
+        return redirect()->route('admin.produk')->with('success', "Produk {$product->name} berhasil ditambahkan.");
+    }
+
+    /**
+     * Update an existing product (PUT /admin/produk/{id}).
+     */
+    public function productUpdate(Request $request, int $id)
+    {
+        $product = $this->productRepo->findById($id);
+        if (!$product) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produk tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.produk')->with('error', 'Produk tidak ditemukan.');
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'required|string|max:255|unique:products,slug,' . $id,
+            'category_id' => 'required|integer|exists:categories,id',
+            'description' => 'nullable|string',
+            'image' => 'nullable|string|max:255',
+            'types' => 'nullable|array',
+            'types.*' => 'in:Frozen,Ready to Cook,Plain,Berbumbu,Curah,Fresh',
+            'weight' => 'nullable|string|max:100',
+            'weight_value' => 'nullable|numeric|min:0',
+            'unit' => 'nullable|string|max:50',
+            'normal_price' => 'required|numeric|min:0',
+            'discount_type' => 'nullable|in:percentage,fixed',
+            'discount_value' => 'nullable|numeric|min:0',
+            'stock_status' => 'required|in:READY_STOCK,OUT_OF_STOCK,PRE_ORDER',
+            'is_active' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer|min:0',
+            'whatsapp_destination' => 'nullable|string|max:50',
+        ]);
+
+        // Regular Discount Boundary Validations
+        if (!empty($validated['discount_type'])) {
+            if ($validated['discount_type'] === 'percentage' && ($validated['discount_value'] ?? 0) > 100) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Diskon persentase tidak boleh melebihi 100%.',
+                ], 422);
+            }
+            if ($validated['discount_type'] === 'fixed' && ($validated['discount_value'] ?? 0) > $validated['normal_price']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Diskon nominal (fixed) tidak boleh melebihi harga normal produk.',
+                ], 422);
+            }
+        } else {
+            $validated['discount_type'] = null;
+            $validated['discount_value'] = null;
+        }
+
+        if (isset($validated['is_active'])) {
+            $validated['is_active'] = (bool) $validated['is_active'];
+        }
+        if (isset($validated['weight_value'])) {
+            $validated['weight_value'] = (float) $validated['weight_value'];
+            $unit = $validated['unit'] ?? ($product->unit ?? 'gram');
+            $validated['weight'] = $validated['weight'] ?? ($validated['weight_value'] . ($unit === 'gram' ? 'g' : ' ' . $unit));
+        }
+
+        // Strict Flash Sale Isolation: Preserve existing flash sale fields
+        unset($validated['is_flash_sale'], $validated['flash_sale_discount_type'], $validated['flash_sale_discount_value'], $validated['flash_sale_sort_order']);
+
+        $updated = $this->productRepo->update($id, $validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => $updated,
+                'message' => "Produk {$product->name} berhasil diperbarui.",
+                'product' => $this->productRepo->findById($id),
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', "Produk {$product->name} berhasil diperbarui.");
+    }
+
+    /**
+     * Delete a product with Flash Sale guard (DELETE /admin/produk/{id}).
+     */
+    public function productDestroy(Request $request, int $id)
+    {
+        $product = $this->productRepo->findById($id);
+        if (!$product) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produk tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.produk')->with('error', 'Produk tidak ditemukan.');
+        }
+
+        // Flash Sale Delete Guard: Block delete if product is currently participating in Flash Sale
+        if ($product->is_flash_sale) {
+            $errorMsg = "Produk \"{$product->name}\" sedang aktif dalam program Flash Sale. Hapus produk dari daftar Flash Sale terlebih dahulu sebelum menghapus.";
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'blocked' => true,
+                    'message' => $errorMsg,
+                ], 422);
+            }
+
+            return redirect()->route('admin.produk')->with('error', $errorMsg);
+        }
+
+        $this->productRepo->delete($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Produk {$product->name} berhasil dihapus.",
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', "Produk {$product->name} berhasil dihapus.");
+    }
+
+    /**
+     * Toggle active state of a product (PATCH /admin/produk/{id}/toggle).
+     */
+    public function productToggle(Request $request, int $id)
+    {
+        $product = $this->productRepo->toggleActive($id);
+        if (!$product) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produk tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.produk')->with('error', 'Produk tidak ditemukan.');
+        }
+
+        $statusLabel = $product->is_active ? 'Aktif' : 'Nonaktif';
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'is_active' => $product->is_active,
+                'message' => "Status produk {$product->name} diubah menjadi {$statusLabel}.",
+                'product' => $product,
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', "Status produk {$product->name} diubah menjadi {$statusLabel}.");
+    }
+
+    /**
+     * Reorder products (POST /admin/produk/reorder).
+     */
+    public function productReorder(Request $request)
+    {
+        $validated = $request->validate([
+            'orders' => 'required|array',
+        ]);
+
+        $this->productRepo->reorder($validated['orders']);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Urutan produk berhasil diperbarui.',
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', 'Urutan produk berhasil diperbarui.');
+    }
+
+    /**
+     * Toggle Flash Sale ON/OFF with strict Enable Guard (POST /admin/flash-sale/toggle).
+     */
+    public function flashSaleToggle(Request $request)
+    {
+        $validated = $request->validate([
+            'enabled' => 'required|boolean',
+            'end_at' => 'nullable|string',
+        ]);
+
+        $currentSetting = $this->siteSettingRepo->get('flash_sale', [
+            'enabled' => false,
+            'end_at' => null,
+            'title' => 'Flash Sale Terbatas!',
+            'subtitle' => 'Dapatkan potongan harga spesial untuk produk protein pilihan hari ini. Stok terbatas!',
+        ]);
+
+        $enabled = (bool) $validated['enabled'];
+
+        if ($enabled) {
+            // Enable Guard: Validate active assigned Flash Sale products >= 1
+            $activeFsCount = $this->productRepo->getFlashSaleProducts()->count();
+            $endAt = $validated['end_at'] ?? ($currentSetting['end_at'] ?? null);
+
+            $isValidFuture = false;
+            if (!empty($endAt)) {
+                try {
+                    $parsedEndAt = \Carbon\Carbon::parse($endAt);
+                    $isValidFuture = $parsedEndAt->isFuture();
+                } catch (\Exception $e) {
+                    $isValidFuture = false;
+                }
+            }
+
+            if ($activeFsCount < 1 || !$isValidFuture) {
+                return response()->json([
+                    'success' => false,
+                    'blocked' => true,
+                    'message' => 'Tambahkan minimal 1 produk Flash Sale dan tentukan waktu berakhir di masa depan.',
+                ], 422);
+            }
+
+            $currentSetting['enabled'] = true;
+            $currentSetting['end_at'] = $endAt;
+        } else {
+            // Disable Flash Sale: Preserves product assignments and discounts intact
+            $currentSetting['enabled'] = false;
+        }
+
+        $this->siteSettingRepo->set('flash_sale', $currentSetting);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $enabled ? 'Flash Sale berhasil diaktifkan!' : 'Flash Sale berhasil dinonaktifkan.',
+                'flash_sale' => $currentSetting,
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', $enabled ? 'Flash Sale berhasil diaktifkan!' : 'Flash Sale berhasil dinonaktifkan.');
+    }
+
+    /**
+     * Update Flash Sale general settings (POST /admin/flash-sale/settings).
+     */
+    public function flashSaleSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'title' => 'nullable|string|max:255',
+            'subtitle' => 'nullable|string|max:500',
+            'end_at' => 'nullable|string',
+        ]);
+
+        $currentSetting = $this->siteSettingRepo->get('flash_sale', [
+            'enabled' => false,
+            'end_at' => null,
+            'title' => 'Flash Sale Terbatas!',
+            'subtitle' => 'Dapatkan potongan harga spesial untuk produk protein pilihan hari ini. Stok terbatas!',
+        ]);
+
+        if (isset($validated['title'])) $currentSetting['title'] = $validated['title'];
+        if (isset($validated['subtitle'])) $currentSetting['subtitle'] = $validated['subtitle'];
+        if (isset($validated['end_at'])) $currentSetting['end_at'] = $validated['end_at'];
+
+        $this->siteSettingRepo->set('flash_sale', $currentSetting);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengaturan Flash Sale berhasil diperbarui.',
+                'flash_sale' => $currentSetting,
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', 'Pengaturan Flash Sale berhasil diperbarui.');
+    }
+
+    /**
+     * Assign product to Flash Sale (POST /admin/flash-sale/assign).
+     */
+    public function flashSaleAssign(Request $request)
+    {
+        $validated = $request->validate([
+            'product_id' => 'required|integer|exists:products,id',
+            'discount_type' => 'required|in:percentage,fixed',
+            'discount_value' => 'required|numeric|min:0',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
+
+        $product = $this->productRepo->findById($validated['product_id']);
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Produk tidak ditemukan.',
+            ], 404);
+        }
+
+        // Validate discount boundaries
+        if ($validated['discount_type'] === 'percentage' && $validated['discount_value'] > 100) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Diskon Flash Sale persentase tidak boleh melebihi 100%.',
+            ], 422);
+        }
+
+        if ($validated['discount_type'] === 'fixed' && $validated['discount_value'] > (float) $product->normal_price) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Diskon Flash Sale nominal tidak boleh melebihi harga normal produk.',
+            ], 422);
+        }
+
+        $assigned = $this->productRepo->assignFlashSale($validated['product_id'], [
+            'discount_type' => $validated['discount_type'],
+            'discount_value' => $validated['discount_value'],
+            'sort_order' => $validated['sort_order'] ?? 1,
+        ]);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => $assigned,
+                'message' => "Produk \"{$product->name}\" berhasil ditambahkan ke Flash Sale.",
+                'product' => $this->productRepo->findById($validated['product_id']),
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', "Produk \"{$product->name}\" berhasil ditambahkan ke Flash Sale.");
+    }
+
+    /**
+     * Remove product from Flash Sale (DELETE /admin/flash-sale/remove/{id}).
+     */
+    public function flashSaleRemove(Request $request, int $id)
+    {
+        $product = $this->productRepo->findById($id);
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Produk tidak ditemukan.',
+            ], 404);
+        }
+
+        $removed = $this->productRepo->removeFlashSale($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => $removed,
+                'message' => "Produk \"{$product->name}\" berhasil dihapus dari Flash Sale.",
+                'product' => $this->productRepo->findById($id),
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', "Produk \"{$product->name}\" berhasil dihapus dari Flash Sale.");
+    }
+
+    /**
+     * Reorder Flash Sale products (POST /admin/flash-sale/reorder).
+     */
+    public function flashSaleReorder(Request $request)
+    {
+        $validated = $request->validate([
+            'orders' => 'required|array',
+        ]);
+
+        $this->productRepo->reorderFlashSale($validated['orders']);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Urutan Flash Sale berhasil diperbarui.',
+            ]);
+        }
+
+        return redirect()->route('admin.produk')->with('success', 'Urutan Flash Sale berhasil diperbarui.');
+    }
+
+    /**
+     * Keunggulan & Standar Mutu Management Screen (Read-Only DB Integration).
      */
     public function keunggulan()
     {
-        $benefitsData = [
+        $benefitsData = $this->siteSettingRepo->get('benefits', [
             'section_badge' => 'Kenapa Memilih Kami',
             'section_title' => 'Lebih Praktis, Lebih Siap',
-            'section_subtitle' => 'Komitmen kami menghadirkan bahan makanan segar dan frozen bermutu tinggi untuk memudahkan dapur rumah tangga dan operasional usaha Anda di Yogyakarta.',
-            'items' => [
-                [
-                    'id' => 1,
-                    'title' => 'Pilihan Produk Lengkap',
-                    'icon' => 'grid',
-                    'desc' => 'Daging sapi kualitas premium, ayam potong segar, ikan laut/tawar tanpa duri, hingga sayuran harian dalam satu tempat terpadu.',
-                ],
-                [
-                    'id' => 2,
-                    'title' => 'Frozen & Terjaga Higienis',
-                    'icon' => 'shield',
-                    'desc' => 'Dibekukan dengan standar cold-chain ketat serta kemasan kedap udara untuk mengunci kelembapan, rasa, dan nutrisi asli bahan pangan.',
-                ],
-                [
-                    'id' => 3,
-                    'title' => 'Ready to Cook Praktis',
-                    'icon' => 'clock',
-                    'desc' => 'Bahan sudah dipotong presisi, dicuci bersih, dan tersedia opsi bumbu racikan tradisional khas Jogja yang tinggal dimasak tanpa repot.',
-                ],
-                [
-                    'id' => 4,
-                    'title' => 'Rumah Tangga & Curah',
-                    'icon' => 'truck',
-                    'desc' => 'Fleksibilitas belanja: mulai dari pack eceran 200g untuk menu keluarga harian hingga kemasan 10kg-50kg harga grosir bagi pengusaha kuliner.',
-                ],
-            ]
-        ];
+            'section_subtitle' => 'Komitmen kami menghadirkan bahan makanan segar dan frozen bermutu tinggi.',
+            'items' => [],
+        ]);
 
-        $qualityStandardsData = [
+        $qualityStandardsData = $this->siteSettingRepo->get('quality_standards', [
             'section_badge' => 'Standar Mutu',
             'section_title' => 'Mengenal Standar Produk Kami',
-            'section_subtitle' => 'Setiap produk yang keluar dari fasilitas penyimpanan Sumber Protein Jogja melewati proses seleksi ketat untuk menjamin keamanan pangan keluarga Anda.',
-            'items' => [
-                [
-                    'id' => 1,
-                    'name' => 'Daging Sapi',
-                    'tag' => 'Grade Pilihan',
-                    'desc' => 'Daging sapi segar lokal dan impor pilihan. Diproses dengan higienitas tinggi, dipotong presisi menggunakan mesin modern, dan dikemas vacuum untuk menjaga kelembapan alami.',
-                    'features' => [
-                        'Halal Certified',
-                        'Bebas Pengawet',
-                        'Kemasan Vacuum Food-grade',
-                        'Tersedia Potongan Custom'
-                    ]
-                ],
-                [
-                    'id' => 2,
-                    'name' => 'Ayam Pilihan',
-                    'tag' => 'Segar & Bersih',
-                    'desc' => 'Ayam broiler dan kampung hasil pemotongan subuh bersertifikat Halal MUI. Tersedia dalam kondisi fresh maupun frozen dengan teknologi blast freezer untuk mencegah pertumbuhan bakteri.',
-                    'features' => [
-                        '100% Halal MUI',
-                        'Bebas Bau & Lendir',
-                        'Rantai Dingin Terjamin',
-                        'Varian Bumbu Tradisional'
-                    ]
-                ],
-                [
-                    'id' => 3,
-                    'name' => 'Ikan & Seafood',
-                    'tag' => 'Segar Beku Kapal',
-                    'desc' => 'Ikan air laut dan air tawar dibekukan seketika di atas kapal nelayan untuk mengunci kesegaran alami laut. Fillet bersih tanpa duri siap olah untuk anak-anak dan keluarga.',
-                    'features' => [
-                        'Kaya Omega 3 & Protein',
-                        'Tanpa Duri (Boneless)',
-                        'Bebas Formalin/Kimia',
-                        'Higienis Siap Masak'
-                    ]
-                ],
-                [
-                    'id' => 4,
-                    'name' => 'Sayuran Segar',
-                    'tag' => 'Bebas Pestisida Berlebih',
-                    'desc' => 'Sayuran segar dipetik dari petani lokal Yogyakarta dan lereng Merapi. Dicuci menggunakan air ozon steril, dipotong higienis, dan dikemas kedap udara.',
-                    'features' => [
-                        'Petani Lokal Jogja',
-                        'Cuci Bersih Ozon',
-                        'Tahan Lebih Lama',
-                        'Paket Resep Komplit'
-                    ]
-                ]
-            ]
-        ];
+            'section_subtitle' => 'Setiap produk yang keluar melewati proses seleksi ketat.',
+            'items' => [],
+        ]);
 
         $mediaLibrary = $this->getMediaLibrary();
 
@@ -831,232 +1146,47 @@ class AdminController extends Controller
     }
 
     /**
-     * Knowledge Section Settings (Header).
+     * Knowledge & Edukasi Management Screen.
      */
-    public function getKnowledgeSectionSettings(): array
+    public function knowledge()
     {
-        return [
+        $knowledgeSection = [
             'label' => 'Edukasi & Inspirasi Dapur',
             'title' => 'Dapur & Knowledge',
             'subtitle' => 'Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.'
         ];
-    }
 
-    /**
-     * Knowledge & Tips Management Screen.
-     */
-    public function knowledge()
-    {
-        $knowledgeSection = $this->getKnowledgeSectionSettings();
-        $knowledgeCategories = [
-            ['id' => 1, 'name' => 'Tips Penyimpanan', 'color' => 'blue', 'status' => 'Aktif', 'articles_count' => 5],
-            ['id' => 2, 'name' => 'Edukasi Dapur', 'color' => 'green', 'status' => 'Aktif', 'articles_count' => 5],
-            ['id' => 3, 'name' => 'Informasi Produk', 'color' => 'purple', 'status' => 'Aktif', 'articles_count' => 4],
-            ['id' => 4, 'name' => 'Resep Masakan', 'color' => 'orange', 'status' => 'Aktif', 'articles_count' => 4],
-            ['id' => 5, 'name' => 'Tips Belanja', 'color' => 'yellow', 'status' => 'Aktif', 'articles_count' => 0],
-            ['id' => 6, 'name' => 'Edukasi Protein', 'color' => 'red', 'status' => 'Aktif', 'articles_count' => 0],
-        ];
+        $dbCategories = $this->knowledgeRepo->getAllCategories();
+        $dbArticles = $this->knowledgeRepo->getAllArticles();
 
-        $articles = [
-            [
-                'id' => 1,
-                'title' => '5 Tips Menyimpan Daging Beku Agar Tetap Segar & Higienis',
-                'slug' => '5-tips-menyimpan-daging-beku-agar-tetap-segar-higienis',
-                'category' => 'Tips Penyimpanan',
-                'status' => 'Published',
-                'published_at' => '17 Agustus 2026',
-                'image' => 'images/know-thawing.jpg',
-                'excerpt' => 'Menyimpan daging sapi dan ayam beku memerlukan teknik pengemasan kedap udara dan kestabilan suhu freezer di bawah -18°C agar nutrisi dan keempukan serat tetap terjaga sempurna.',
-                'content' => "Daging beku merupakan solusi praktis bagi keluarga modern untuk menjaga ketersediaan bahan pangan berprotein tinggi di rumah. Namun, proses penyimpanan yang keliru dapat merusak kualitas rasa, tekstur, hingga memicu pertumbuhan bakteri berbahaya.\n\nBerikut adalah 5 langkah krusial untuk menjaga daging beku Anda tetap dalam kondisi prima:\n\n1. Gunakan Kemasan Kedap Udara (Vacuum Sealed)\nUdara adalah musuh utama daging beku karena memicu freezer burn—kondisi di mana permukaan daging mengering dan berubah warna keabu-abuan. Bagi daging menjadi porsi sekali masak sebelum dibekukan.\n\n2. Pertahankan Suhu Freezer Stabil di Bawah -18°C\nSuhu yang berfluktuasi akibat sering membuka tutup pintu freezer akan menyebabkan kristal es membesar dan merusak serat otot daging saat dimasak.\n\n3. Jangan Pernah Membekukan Kembali Daging yang Sudah Cair (Thawed)\nDaging yang telah dicairkan memiliki kandungan air bebas yang tinggi. Jika dibekukan ulang, struktur sel daging akan rusak dan bakteri dapat berkembang biak dengan cepat.\n\n4. Beri Label Tanggal Penyimpanan\nSelalu catat tanggal pembelian dan tanggal mulai disimpan di freezer. Terapkan prinsip FIFO (First In, First Out) agar konsumsi selalu optimal.\n\n5. Pisahkan Daging Mentah dari Makanan Siap Santap\nGunakan wadah terpisah untuk mencegah kontaminasi silang cairan daging mentah ke bahan makanan lain di dalam freezer.",
-            ],
-            [
-                'id' => 2,
-                'title' => 'Panduan Thawing Daging yang Benar Tanpa Menghilangkan Nutrisi',
-                'slug' => 'panduan-thawing-daging-yang-benar-tanpa-menghilangkan-nutrisi',
-                'category' => 'Edukasi Dapur',
-                'status' => 'Published',
-                'published_at' => '16 Agustus 2026',
-                'image' => 'images/know-thawing.jpg',
-                'excerpt' => 'Mencairkan daging beku di suhu ruang atau merendamnya dalam air panas berisiko merusak rasa dan membiakkan bakteri. Simak teknik thawing chiller yang higienis.',
-                'content' => "Thawing atau proses pencairan daging beku sering kali dianggap sepele, padahal metode yang salah dapat merusak tekstur daging dan membiarkan bakteri berkembang biak dengan sangat cepat di zona bahaya suhu (5°C - 60°C).\n\nTiga Metode Thawing Terbaik yang Direkomendasikan:\n\n1. Metode Kulkas / Chiller (Metode Paling Aman)\nPindahkan daging dari freezer ke rak kulkas bawah selama 8 hingga 12 jam sebelum diolah. Proses pencairan yang lambat ini menjaga kelembapan alami daging dan mencegah kebocoran sari daging (drip loss).\n\n2. Metode Air Dingin Mengalir (Metode Cepat)\nJika waktu Anda terbatas, masukkan daging dalam plastik klip kedap air, lalu rendam di dalam mangkuk berisi air dingin atau di bawah kucuran air mengalir pelan. Ganti air setiap 30 menit.\n\n3. Metode Microwave Defrost (Metode Instan)\nGunakan fitur defrost dengan daya rendah. Pastikan daging langsung dimasak setelah proses defrost selesai.",
-            ],
-            [
-                'id' => 3,
-                'title' => 'Mengenal Perbedaan Daging Sapi Shortplate dan Ribeye untuk BBQ',
-                'slug' => 'mengenal-perbedaan-daging-sapi-shortplate-dan-ribeye-untuk-bbq',
-                'category' => 'Informasi Produk',
-                'status' => 'Published',
-                'published_at' => '15 Agustus 2026',
-                'image' => 'images/cat-daging.jpg',
-                'excerpt' => 'Bagi penggemar grill dan shabu-shabu, pahami karakteristik marbling, ketebalan lemak, dan tingkat keempukan antara potongan Shortplate slice dan Ribeye steak cut.',
-                'content' => "Memilih potongan daging sapi yang tepat adalah kunci utama keberhasilan sesi memanggang BBQ bersama keluarga.\n\n1. Karakteristik Daging Shortplate Slice:\nShortplate berasal dari bagian perut bawah sapi. Potongan ini memiliki rasio lemak dan daging yang seimbang (sekitar 30-40% lemak), sehingga saat dipanggang di atas grill pan akan mengeluarkan aroma gurih yang intens tanpa perlu tambahan mentega berlebih.\n\n2. Karakteristik Daging Ribeye:\nRibeye berasal dari bagian rusuk sapi. Potongan ini terkenal dengan marbling intrakulit yang lembut dan mata lemak di bagian tengah. Teksturnya sangat empuk dan juicy saat dimasak dengan tingkat kematangan medium-well.",
-            ],
-            [
-                'id' => 4,
-                'title' => 'Cara Memasak Ikan Gurame Agar Gurih dan Tidak Berbau Tanah',
-                'slug' => 'cara-memasak-ikan-gurame-agar-gurih-dan-tidak-berbau-tanah',
-                'category' => 'Resep Masakan',
-                'status' => 'Published',
-                'published_at' => '14 Agustus 2026',
-                'image' => 'images/cat-ikan.jpg',
-                'excerpt' => 'Ikan air tawar seperti gurame membutuhkan perlakuan khusus pada pembersihan insang, baluran jeruk nipis, dan bumbu marinasi rempah agar cita rasanya segar dan gurih.',
-                'content' => "Ikan gurame adalah salah satu lauk favorit keluarga Indonesia, baik digoreng terbang, dibakar bumbu rujak, maupun dimasak asam manis.\n\nLangkah Mengatasi Bau Lumpur pada Ikan Air Tawar:\n1. Bersihkan selaput hitam di dalam rongga perut ikan hingga benar-benar bersih dan buang insangnya.\n2. Lumuri ikan dengan air perasan jeruk nipis dan garam kasar selama 15 menit, lalu bilas air bersih.\n3. Rendam dalam larutan air asam jawa atau parutan jahe dan ketumbar sebelum digoreng dalam minyak panas melimpah.",
-            ],
-            [
-                'id' => 5,
-                'title' => 'Tips Menyimpan Sayuran Hijau di Chiller Supaya Tetap Renyah 7 Hari',
-                'slug' => 'tips-menyimpan-sayuran-hijau-di-chiller-supaya-tetap-renyah-7-hari',
-                'category' => 'Tips Penyimpanan',
-                'status' => 'Published',
-                'published_at' => '13 Agustus 2026',
-                'image' => 'images/cat-sayur.jpg',
-                'excerpt' => 'Sayuran daun seperti bayam, kangkung, dan sawi rentan layu dan membusuk jika terkena kelembapan berlebih. Terapkan metode bungkus kertas tisu dan kontainer kedap.',
-                'content' => "Sayuran daun hijau membutuhkan sirkulasi udara yang terkontrol dan perlindungan dari tetesan embun kondensasi kulkas.\n\nLangkah-langkah Penyimpanan:\n1. Jangan mencuci sayuran jika belum akan dimasak hari itu.\n2. Potong bagian akar yang kotor dan buang daun yang sudah menguning.\n3. Bungkus sayuran dengan kertas koran polos atau kitchen towel kering.\n4. Masukkan ke dalam food container atau kantong plastik berlubang dan letakkan di laci khusus sayuran (crisper drawer).",
-            ],
-            [
-                'id' => 6,
-                'title' => 'Rahasia Marinasi Ayam Ungkep Bumbu Kuning Meresap Sampai ke Tulang',
-                'slug' => 'rahasia-marinasi-ayam-ungkep-bumbu-kuning-meresap-sampai-ke-tulang',
-                'category' => 'Resep Masakan',
-                'status' => 'Published',
-                'published_at' => '12 Agustus 2026',
-                'image' => 'images/prod-ayam-bumbu.jpg',
-                'excerpt' => 'Kombinasi takaran lengkuas, kunyit bakar, ketumbar sangrai, dan daun salam yang tepat saat proses slow cooking menghasilkan ayam ungkep dengan aroma memikat.',
-                'content' => "Ayam ungkep bumbu kuning adalah stok lauk wajib di setiap freezer rumah tangga. Kuncinya terletak pada proses perebusan api kecil (simmering) yang memungkinkan bumbu meresap perlahan ke dalam pori-pori daging tanpa membuat tekstur kulit ayam hancur.",
-            ],
-            [
-                'id' => 7,
-                'title' => 'Manfaat Mengonsumsi Protein Berkualitas untuk Imunitas Keluarga',
-                'slug' => 'manfaat-mengonsumsi-protein-berkualitas-untuk-imunitas-keluarga',
-                'category' => 'Edukasi Dapur',
-                'status' => 'Published',
-                'published_at' => '10 Agustus 2026',
-                'image' => 'images/hero-1.jpg',
-                'excerpt' => 'Asam amino esensial dari protein hewani dan nabati berperan penting dalam pembentukan sel antibodi dan regenerasi jaringan tubuh sehari-hari.',
-                'content' => "Protein adalah zat pembangun utama dalam tubuh manusia. Mengonsumsi variasi protein hewani seperti daging merah, unggas, telur, dan ikan secara berimbang akan memenuhi kebutuhan zat besi dan vitamin B12 harian.",
-            ],
-            [
-                'id' => 8,
-                'title' => 'Perbedaan Ayam Broiler, Ayam Pejantan, dan Ayam Kampung',
-                'slug' => 'perbedaan-ayam-broiler-ayam-pejantan-dan-ayam-kampung',
-                'category' => 'Informasi Produk',
-                'status' => 'Published',
-                'published_at' => '08 Agustus 2026',
-                'image' => 'images/cat-ayam.jpg',
-                'excerpt' => 'Karakteristik serat daging, kadar lemak, dan kecocokan jenis masakan antara ayam pedaging broiler, ayam pejantan gurih, dan ayam kampung asli.',
-                'content' => "Setiap jenis ayam memiliki karakteristik unik. Ayam broiler bertekstur empuk dan cepat matang, ayam pejantan memiliki kekenyalan mirip ayam kampung dengan harga lebih terjangkau, sedangkan ayam kampung kaya akan kaldu gurih untuk sajian sup obat tradisional.",
-            ],
-            [
-                'id' => 9,
-                'title' => 'Panduan Memilih Ikan Laut Segar: Ciri Mata, Insang, dan Sisik',
-                'slug' => 'panduan-memilih-ikan-laut-segar-ciri-mata-insang-sisik',
-                'category' => 'Edukasi Dapur',
-                'status' => 'Published',
-                'published_at' => '05 Agustus 2026',
-                'image' => 'images/cat-ikan.jpg',
-                'excerpt' => 'Kenali tanda kesegaran ikan laut dengan memeriksa mata yang bening cembung, insang merah segar, dan elastisitas daging saat ditekan.',
-                'content' => "Membeli ikan laut yang segar memastikan sajian masakan Anda tidak amis dan aman bagi kesehatan pencernaan seluruh anggota keluarga.",
-            ],
-            [
-                'id' => 10,
-                'title' => 'Cara Membuat Kaldu Sapi Bening & Bebas Lemak Menggumpal',
-                'slug' => 'cara-membuat-kaldu-sapi-bening-bebas-lemak-menggumpal',
-                'category' => 'Resep Masakan',
-                'status' => 'Published',
-                'published_at' => '03 Agustus 2026',
-                'image' => 'images/cat-daging.jpg',
-                'excerpt' => 'Teknik blanching tulang dan daging iga sapi sebelum direbus lama dengan mirepoix wortel dan seledri untuk kaldu gurih nan jernih.',
-                'content' => "Kunci kaldu sapi yang jernih adalah merebus tulang dalam air mendidih selama 5 menit pertama lalu membuang air rebusan kotor tersebut sebelum memulai perebusan panjang.",
-            ],
-            [
-                'id' => 11,
-                'title' => 'Mengenal Sistem Cold Chain pada Distribusi Frozen Food',
-                'slug' => 'mengenal-sistem-cold-chain-pada-distribusi-frozen-food',
-                'category' => 'Informasi Produk',
-                'status' => 'Published',
-                'published_at' => '01 Agustus 2026',
-                'image' => 'images/hero-2.jpg',
-                'excerpt' => 'Bagaimana rantai dingin menjaga temperatur produk di bawah suhu beku mulai dari pemotongan, penyimpanan gudang, hingga pengantaran ke pintu rumah Anda.',
-                'content' => "Cold Chain memastikan pertumbuhan bakteri terhenti dan menjaga kesegaran daging seolah-olah baru saja dipotong dari peternakan.",
-            ],
-            [
-                'id' => 12,
-                'title' => 'Tips Memotong Daging Sapi Melawan Serat Agar Empuk Tanpa Pengempuk',
-                'slug' => 'tips-memotong-daging-sapi-melawan-serat-agar-empuk-tanpa-pengempuk',
-                'category' => 'Edukasi Dapur',
-                'status' => 'Published',
-                'published_at' => '28 Juli 2026',
-                'image' => 'images/prod-beef-slice.jpg',
-                'excerpt' => 'Arah potongan pisau terhadap serat otot daging menentukan keempukan gigitan saat dinikmati setelah matang.',
-                'content' => "Memotong tegak lurus melintasi arah alur serat (across the grain) akan memperpendek serat otot sehingga daging tidak terasa liat saat dikunyah.",
-            ],
-            [
-                'id' => 13,
-                'title' => 'Ide Bekal Sekolah Anak Sehat dengan Olahan Daging & Sayuran',
-                'slug' => 'ide-bekal-sekolah-anak-sehat-dengan-olahan-daging-sayuran',
-                'category' => 'Resep Masakan',
-                'status' => 'Published',
-                'published_at' => '25 Juli 2026',
-                'image' => 'images/prod-sayur-mix.jpg',
-                'excerpt' => 'Inspirasi menu bento bergizi seimbang yang cepat disiapkan di pagi hari menggunakan bahan siap olah Sumber Protein Jogja.',
-                'content' => "Kombinasi stik nugget ayam homemade, brokoli kukus mentega, dan telur puyuh kecap menjadi favorit bekal praktis dan bergizi.",
-            ],
-            [
-                'id' => 14,
-                'title' => 'Mengenal Sertifikasi Halal pada Produk Daging Potong',
-                'slug' => 'mengenal-sertifikasi-halal-pada-produk-daging-potong',
-                'category' => 'Informasi Produk',
-                'status' => 'Published',
-                'published_at' => '20 Juli 2026',
-                'image' => 'images/hero-1.jpg',
-                'excerpt' => 'Jaminan kepatuhan syariat dalam proses penyembelihan, penanganan higienis, dan sanitasi tempat pemotongan hewan terakreditasi.',
-                'content' => "Sumber Protein Jogja menjamin 100% daging sapi dan unggas berasal dari Rumah Potong Hewan resmi bersertifikasi halal MUI & BPJPH.",
-            ],
-            [
-                'id' => 15,
-                'title' => 'Cara Mengatur Porsi Masak Mingguan (Meal Prep) untuk Ibu Bekerja',
-                'slug' => 'cara-mengatur-porsi-masak-mingguan-meal-prep-ibu-bekerja',
-                'category' => 'Tips Penyimpanan',
-                'status' => 'Published',
-                'published_at' => '15 Juli 2026',
-                'image' => 'images/know-thawing.jpg',
-                'excerpt' => 'Strategi hemat waktu di dapur dengan mencuci, memotong, dan memarinasi bahan makanan untuk stok 7 hari ke depan.',
-                'content' => "Meal prep di akhir pekan menghemat hingga 45 menit waktu memasak harian dan memastikan keluarga tetap makan masakan sehat di rumah.",
-            ],
-            [
-                'id' => 16,
-                'title' => 'Tips Memilih Minyak Goreng yang Sehat untuk Memasak Lauk Harian',
-                'slug' => 'tips-memilih-minyak-goreng-yang-sehat-untuk-memasak-lauk-harian',
-                'category' => 'Edukasi Dapur',
-                'status' => 'Draft',
-                'published_at' => 'Draft',
-                'image' => 'images/hero-3.jpg',
-                'excerpt' => 'Memahami smoke point minyak kelapa, minyak jagung, dan canola oil untuk menggoreng renyah tanpa merusak kualitas makanan.',
-                'content' => "Draft artikel mengenai pemilihan minyak goreng yang stabil pada suhu tinggi untuk menggoreng ayam ungkep dan aneka seafood.",
-            ],
-            [
-                'id' => 17,
-                'title' => 'Perbandingan Nutrisi Daging Ikan Tawar vs Ikan Laut',
-                'slug' => 'perbandingan-nutrisi-daging-ikan-tawar-vs-ikan-laut',
-                'category' => 'Informasi Produk',
-                'status' => 'Draft',
-                'published_at' => 'Draft',
-                'image' => 'images/cat-ikan.jpg',
-                'excerpt' => 'Eksplorasi kandungan asam lemak esensial EPA, DHA, kalsium, dan fosfor pada ikan tawar lokal dibandingkan ikan laut dalam.',
-                'content' => "Draft perbandingan nutrisi ikan gurame dan nila dibandingkan dori dan salmon untuk variasi menu mingguan keluarga.",
-            ],
-            [
-                'id' => 18,
-                'title' => 'Resep Sup Ikan Gurame Asam Pedas Segar Khas Restoran Sunda',
-                'slug' => 'resep-sup-ikan-gurame-asam-pedas-segar-khas-restoran-sunda',
-                'category' => 'Resep Masakan',
-                'status' => 'Draft',
-                'published_at' => 'Draft',
-                'image' => 'images/prod-ikan-gurame.jpg',
-                'excerpt' => 'Kuah bening segar dengan rempah daun kemangi, tomat hijau, serai, dan cabai rawit utuh berpadu fillet gurame lembut.',
-                'content' => "Draft resep lengkap sup gurame kuah asam pedas bening anti amis menggunakan fillet gurame potong segar Sumber Protein Jogja.",
-            ],
-        ];
+        $knowledgeCategories = $dbCategories->map(function ($kc) {
+            return [
+                'id' => $kc->id,
+                'name' => $kc->name,
+                'slug' => $kc->slug,
+                'sort_order' => (int) $kc->sort_order,
+                'is_active' => (bool) $kc->is_active,
+                'articles_count' => (int) ($kc->articles_count ?? 0),
+            ];
+        })->toArray();
+
+        $articles = $dbArticles->map(function ($a) {
+            $htmlContent = KnowledgeArticleParser::renderBlocksToHtml($a->content ?? []);
+
+            return [
+                'id' => $a->id,
+                'title' => $a->title,
+                'slug' => $a->slug,
+                'category_id' => $a->category_id,
+                'category' => $a->category ? $a->category->name : 'Tips Penyimpanan',
+                'status' => ucfirst($a->status),
+                'published_at' => $a->created_at ? $a->created_at->translatedFormat('d F Y') : 'Draft',
+                'image' => $a->image ?? 'images/know-thawing.jpg',
+                'excerpt' => $a->excerpt ?? '',
+                'content' => $htmlContent ?: ($a->excerpt ?? ''),
+                'sort_order' => (int) ($a->sort_order ?? 1),
+            ];
+        })->toArray();
 
         $mediaLibrary = $this->getMediaLibrary();
 
@@ -1064,144 +1194,731 @@ class AdminController extends Controller
     }
 
     /**
-     * Footer (Ulasan Pelanggan, Kunjungi Outlet, Actual Footer) Management Screen.
+     * Store a new knowledge category (POST /admin/knowledge-categories).
+     */
+    public function knowledgeCategoryStore(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:knowledge_categories,slug',
+            'sort_order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['name']);
+        }
+
+        // Ensure slug uniqueness
+        $baseSlug = $validated['slug'];
+        $count = 1;
+        while (KnowledgeCategory::where('slug', $validated['slug'])->exists()) {
+            $validated['slug'] = "{$baseSlug}-{$count}";
+            $count++;
+        }
+
+        $category = $this->knowledgeRepo->createCategory([
+            'name' => $validated['name'],
+            'slug' => $validated['slug'],
+            'sort_order' => $validated['sort_order'] ?? (KnowledgeCategory::count() + 1),
+            'is_active' => $request->has('is_active') ? (bool) $validated['is_active'] : true,
+        ]);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Kategori pengetahuan {$category->name} berhasil dibuat.",
+                'category' => $category,
+            ], 201);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', "Kategori pengetahuan {$category->name} berhasil dibuat.");
+    }
+
+    /**
+     * Update a knowledge category (PUT /admin/knowledge-categories/{id}).
+     */
+    public function knowledgeCategoryUpdate(Request $request, int $id)
+    {
+        $category = $this->knowledgeRepo->findCategoryById($id);
+        if (!$category) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Kategori tidak ditemukan.'], 404);
+            }
+            return redirect()->route('admin.knowledge')->with('error', 'Kategori tidak ditemukan.');
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:knowledge_categories,slug,' . $id,
+            'sort_order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['name']);
+        }
+
+        $this->knowledgeRepo->updateCategory($id, [
+            'name' => $validated['name'],
+            'slug' => $validated['slug'],
+            'sort_order' => $validated['sort_order'] ?? $category->sort_order,
+            'is_active' => $request->has('is_active') ? (bool) $validated['is_active'] : $category->is_active,
+        ]);
+
+        $updated = $this->knowledgeRepo->findCategoryById($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Kategori {$updated->name} berhasil diperbarui.",
+                'category' => $updated,
+            ]);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', "Kategori {$updated->name} berhasil diperbarui.");
+    }
+
+    /**
+     * Delete a knowledge category with Delete Guard (DELETE /admin/knowledge-categories/{id}).
+     */
+    public function knowledgeCategoryDestroy(Request $request, int $id)
+    {
+        $category = $this->knowledgeRepo->findCategoryById($id);
+        if (!$category) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Kategori tidak ditemukan.'], 404);
+            }
+            return redirect()->route('admin.knowledge')->with('error', 'Kategori tidak ditemukan.');
+        }
+
+        // Critical Delete Guard: Block delete if category has associated articles
+        $articleCount = $this->knowledgeRepo->countCategoryArticles($id);
+        if ($articleCount > 0) {
+            $errorMsg = "Kategori \"{$category->name}\" tidak dapat dihapus karena masih memiliki {$articleCount} artikel terkait. Pindahkan atau hapus artikel terlebih dahulu.";
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'blocked' => true,
+                    'message' => $errorMsg,
+                ], 422);
+            }
+            return redirect()->route('admin.knowledge')->with('error', $errorMsg);
+        }
+
+        $this->knowledgeRepo->deleteCategory($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Kategori {$category->name} berhasil dihapus.",
+            ]);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', "Kategori {$category->name} berhasil dihapus.");
+    }
+
+    /**
+     * Toggle active status of a knowledge category (PATCH /admin/knowledge-categories/{id}/toggle).
+     */
+    public function knowledgeCategoryToggle(Request $request, int $id)
+    {
+        $category = $this->knowledgeRepo->toggleCategoryActive($id);
+        if (!$category) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Kategori tidak ditemukan.'], 404);
+            }
+            return redirect()->route('admin.knowledge')->with('error', 'Kategori tidak ditemukan.');
+        }
+
+        $statusLabel = $category->is_active ? 'Aktif' : 'Nonaktif';
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'is_active' => $category->is_active,
+                'message' => "Status kategori {$category->name} diubah menjadi {$statusLabel}.",
+                'category' => $category,
+            ]);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', "Status kategori {$category->name} diubah menjadi {$statusLabel}.");
+    }
+
+    /**
+     * Reorder knowledge categories (POST /admin/knowledge-categories/reorder).
+     */
+    public function knowledgeCategoryReorder(Request $request)
+    {
+        $validated = $request->validate([
+            'orders' => 'required|array',
+        ]);
+
+        $this->knowledgeRepo->reorderCategories($validated['orders']);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Urutan kategori pengetahuan berhasil diperbarui.',
+            ]);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', 'Urutan kategori pengetahuan berhasil diperbarui.');
+    }
+
+    /**
+     * Store a new knowledge article (POST /admin/knowledge-articles).
+     */
+    public function knowledgeArticleStore(Request $request)
+    {
+        $validated = $request->validate([
+            'category_id' => 'required|exists:knowledge_categories,id',
+            'title' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:knowledge_articles,slug',
+            'excerpt' => 'nullable|string',
+            'content' => 'required',
+            'image' => 'nullable|string|max:255',
+            'status' => 'required|in:published,draft',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['title']);
+        }
+
+        // Ensure slug uniqueness
+        $baseSlug = $validated['slug'];
+        $count = 1;
+        while (KnowledgeArticle::where('slug', $validated['slug'])->exists()) {
+            $validated['slug'] = "{$baseSlug}-{$count}";
+            $count++;
+        }
+
+        $parsedContent = KnowledgeArticleParser::parse($validated['content']);
+
+        $article = $this->knowledgeRepo->createArticle([
+            'category_id' => (int) $validated['category_id'],
+            'title' => $validated['title'],
+            'slug' => $validated['slug'],
+            'excerpt' => $validated['excerpt'] ?? '',
+            'content' => $parsedContent,
+            'image' => $validated['image'] ?? 'images/know-thawing.jpg',
+            'status' => strtolower($validated['status']),
+            'sort_order' => $validated['sort_order'] ?? (KnowledgeArticle::count() + 1),
+        ]);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Artikel \"{$article->title}\" berhasil dibuat.",
+                'article' => $this->knowledgeRepo->findArticleById($article->id),
+            ], 201);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', "Artikel \"{$article->title}\" berhasil dibuat.");
+    }
+
+    /**
+     * Update a knowledge article (PUT /admin/knowledge-articles/{id}).
+     */
+    public function knowledgeArticleUpdate(Request $request, int $id)
+    {
+        $article = $this->knowledgeRepo->findArticleById($id);
+        if (!$article) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Artikel tidak ditemukan.'], 404);
+            }
+            return redirect()->route('admin.knowledge')->with('error', 'Artikel tidak ditemukan.');
+        }
+
+        $validated = $request->validate([
+            'category_id' => 'required|exists:knowledge_categories,id',
+            'title' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:knowledge_articles,slug,' . $id,
+            'excerpt' => 'nullable|string',
+            'content' => 'required',
+            'image' => 'nullable|string|max:255',
+            'status' => 'required|in:published,draft',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['title']);
+        }
+
+        $parsedContent = KnowledgeArticleParser::parse($validated['content']);
+
+        $this->knowledgeRepo->updateArticle($id, [
+            'category_id' => (int) $validated['category_id'],
+            'title' => $validated['title'],
+            'slug' => $validated['slug'],
+            'excerpt' => $validated['excerpt'] ?? '',
+            'content' => $parsedContent,
+            'image' => $validated['image'] ?? $article->image,
+            'status' => strtolower($validated['status']),
+            'sort_order' => $validated['sort_order'] ?? $article->sort_order,
+        ]);
+
+        $updated = $this->knowledgeRepo->findArticleById($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Artikel \"{$updated->title}\" berhasil diperbarui.",
+                'article' => $updated,
+            ]);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', "Artikel \"{$updated->title}\" berhasil diperbarui.");
+    }
+
+    /**
+     * Delete a knowledge article (DELETE /admin/knowledge-articles/{id}).
+     */
+    public function knowledgeArticleDestroy(Request $request, int $id)
+    {
+        $article = $this->knowledgeRepo->findArticleById($id);
+        if (!$article) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Artikel tidak ditemukan.'], 404);
+            }
+            return redirect()->route('admin.knowledge')->with('error', 'Artikel tidak ditemukan.');
+        }
+
+        $this->knowledgeRepo->deleteArticle($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Artikel \"{$article->title}\" berhasil dihapus.",
+            ]);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', "Artikel \"{$article->title}\" berhasil dihapus.");
+    }
+
+    /**
+     * Toggle status of a knowledge article (PATCH /admin/knowledge-articles/{id}/toggle).
+     */
+    public function knowledgeArticleToggle(Request $request, int $id)
+    {
+        $article = $this->knowledgeRepo->findArticleById($id);
+        if (!$article) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Artikel tidak ditemukan.'], 404);
+            }
+            return redirect()->route('admin.knowledge')->with('error', 'Artikel tidak ditemukan.');
+        }
+
+        $newStatus = ($article->status === 'published') ? 'draft' : 'published';
+        $this->knowledgeRepo->updateArticle($id, ['status' => $newStatus]);
+        $updated = $this->knowledgeRepo->findArticleById($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'status' => $newStatus,
+                'message' => "Status artikel diubah menjadi {$newStatus}.",
+                'article' => $updated,
+            ]);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', "Status artikel diubah menjadi {$newStatus}.");
+    }
+
+    /**
+     * Reorder knowledge articles (POST /admin/knowledge-articles/reorder).
+     */
+    public function knowledgeArticleReorder(Request $request)
+    {
+        $validated = $request->validate([
+            'orders' => 'required|array',
+        ]);
+
+        $this->knowledgeRepo->reorderArticles($validated['orders']);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Urutan artikel pengetahuan berhasil diperbarui.',
+            ]);
+        }
+
+        return redirect()->route('admin.knowledge')->with('success', 'Urutan artikel pengetahuan berhasil diperbarui.');
+    }
+
+    /**
+     * Footer (Ulasan Pelanggan, Lokasi, Footer) Management Screen.
      */
     public function footer()
     {
+        $dbReviews = $this->reviewRepo->getAll();
+        $reviewSettings = $this->siteSettingRepo->get('review_settings', [
+            'review_mode' => 'manual',
+            'google_place_id' => null,
+            'google_rating' => null,
+            'google_total_reviews' => null,
+            'last_synced_at' => null,
+        ]);
+
+        $reviewItems = $dbReviews->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'name' => $r->reviewer_name,
+                'rating' => (int) $r->rating,
+                'comment' => $r->review_text ?? ($r->comment ?? ''),
+                'review_text' => $r->review_text ?? ($r->comment ?? ''),
+                'role' => $r->reviewer_title ?: 'Pelanggan',
+                'location' => $r->reviewer_location ?: 'Yogyakarta',
+                'time' => $r->reviewed_at ? $r->reviewed_at->diffForHumans() : 'Baru saja',
+                'source' => $r->source === 'google' ? 'Google Review' : 'Manual Review',
+                'is_active' => (bool) $r->is_active,
+                'sort_order' => (int) ($r->sort_order ?? 1),
+            ];
+        })->toArray();
+
+        $locationSetting = $this->siteSettingRepo->get('location', config('location', []));
+        $footerSetting = $this->siteSettingRepo->get('footer', [
+            'brand_title' => 'Sumber Protein Jogja',
+            'brand_desc' => 'Penyedia bahan makanan mentah, frozen food, dan olahan ready-to-cook berkualitas di Yogyakarta. Melayani kebutuhan konsumsi harian keluarga dan suplai horeka/curah.',
+            'social_links' => [
+                ['id' => 1, 'url' => 'https://instagram.com/sumberproteinjogja'],
+                ['id' => 2, 'url' => 'https://tiktok.com/@sumberproteinjogja'],
+                ['id' => 3, 'url' => 'https://wa.me/6281234567890'],
+            ],
+            'nav_title' => 'Navigasi Cepat',
+            'nav_links' => [
+                ['title' => 'Beranda', 'url' => '#hero'],
+                ['title' => 'Kategori Produk', 'url' => '#kategori'],
+                ['title' => 'Katalog Pilihan', 'url' => '#produk'],
+                ['title' => 'Keunggulan Kami', 'url' => '#keunggulan'],
+                ['title' => 'Dapur & Knowledge', 'url' => '#knowledge'],
+                ['title' => 'Ulasan Pelanggan', 'url' => '#testimoni'],
+            ],
+            'category_title' => 'Kategori Pangan',
+            'category_links' => [
+                ['title' => 'Daging Sapi Slice & Sengkel', 'url' => '#produk'],
+                ['title' => 'Ayam Ungkep Bumbu Kuning', 'url' => '#produk'],
+                ['title' => 'Dada Ayam Fillet Boneless', 'url' => '#produk'],
+                ['title' => 'Fillet Gurame & Salmon', 'url' => '#produk'],
+                ['title' => 'Paket Sayur Siap Masak', 'url' => '#produk'],
+                ['title' => 'Ayam & Daging Curah (Bulk)', 'url' => '#produk'],
+            ],
+            'outlet_title' => 'Outlet Yogyakarta',
+            'outlet_address' => 'Jl. Kaliurang Km. 8.5 No. 42, Sleman, D.I. Yogyakarta 55581',
+            'outlet_hours_label' => 'Jam Operasional:',
+            'outlet_hours' => 'Senin – Minggu (07.00 – 19.00 WIB)',
+            'outlet_phone_label' => 'Hotline Pemesanan:',
+            'outlet_phone' => '+62 812-3456-7890',
+            'copyright' => 'Sumber Protein Jogja. Hak Cipta Dilindungi.',
+            'legal_links' => [
+                ['title' => 'Syarat & Ketentuan', 'url' => '#'],
+                ['title' => 'Kebijakan Privasi', 'url' => '#'],
+                ['title' => 'Sertifikasi Halal', 'url' => '#'],
+            ],
+        ]);
+
         $footerData = [
             'reviews' => [
-                'status' => 'Dummy Data',
-                'source_name' => 'Google Maps',
-                'last_updated' => '25 Agustus 2026',
+                'status' => 'Live DB Data',
+                'source_name' => ($reviewSettings['review_mode'] ?? 'manual') === 'google' ? 'Google Maps' : 'Manual Database',
+                'last_updated' => $reviewSettings['last_synced_at'] ?? 'Belum ada sync Google',
                 'place_name' => 'Sumber Protein Jogja',
                 'section_badge' => 'Ulasan Pelanggan',
                 'section_title' => 'Apa Kata Mereka?',
                 'section_subtitle' => 'Pengalaman nyata dari ibu rumah tangga, chef rumahan, hingga pemilik kedai kuliner di Yogyakarta.',
-                'rating' => 4.9,
-                'total_reviews' => '180+',
-                'displayed_count' => 3,
-                'google_place_url' => 'https://maps.google.com/?cid=1234567890123456',
-                'items' => [
-                    [
-                        'id' => 1,
-                        'name' => 'Ratna Dewi Kusuma',
-                        'rating' => 5,
-                        'comment' => 'Sebagai ibu pekerja, belanja di Sumber Protein Jogja sangat menghemat waktu. Ayam bumbu kuningnya tinggal goreng, daging slicenya fresh banget dan nggak banyak lemak. Anak-anak suka sekali!',
-                        'role' => 'Ibu Rumah Tangga',
-                        'location' => 'Sleman',
-                        'time' => '3 hari yang lalu',
-                        'source' => 'Google Review',
-                        'is_active' => true,
-                    ],
-                    [
-                        'id' => 2,
-                        'name' => 'Bambang Haryanto',
-                        'rating' => 5,
-                        'comment' => 'Sudah 4 bulan suplai fillet dada ayam curah untuk resto saya dari sini. Kualitasnya sangat stabil, potongan rapi, dan pengiriman tepat waktu. Harga partai besarnya sangat kompetitif di Jogja.',
-                        'role' => 'Owner Kedai',
-                        'location' => 'Kotagede',
-                        'time' => '1 minggu yang lalu',
-                        'source' => 'Google Review',
-                        'is_active' => true,
-                    ],
-                    [
-                        'id' => 3,
-                        'name' => 'dr. Nadia Paramita',
-                        'rating' => 5,
-                        'comment' => 'Salmon steak dan fillet guramenya benar-benar fresh, tidak amis sama sekali. Senang sekali ada toko protein selengkap ini dengan standar packaging vacuum yang higienis.',
-                        'role' => 'Dokter & Home Chef',
-                        'location' => 'Bantul',
-                        'time' => '2 minggu yang lalu',
-                        'source' => 'Google Review',
-                        'is_active' => true,
-                    ],
-                    [
-                        'id' => 4,
-                        'name' => 'Rian Hidayat',
-                        'rating' => 5,
-                        'comment' => 'Daging slice-nya segar banget dan potongannya rapi. Sangat cocok buat shabu-shabu di rumah bareng keluarga. Pengiriman sameday cepat dan tetap beku!',
-                        'role' => 'Pelanggan Rumah Tangga',
-                        'location' => 'Sleman',
-                        'time' => '2 minggu yang lalu',
-                        'source' => 'Google Review',
-                        'is_active' => true,
-                    ],
-                    [
-                        'id' => 5,
-                        'name' => 'Dini Anggraini',
-                        'rating' => 5,
-                        'comment' => 'Ayam ungkep bumbu kuningnya juara! Tinggal sreng goreng sebentar, bumbunya meresap sampai ke dalam. Praktis banget buat bekal sekolah anak.',
-                        'role' => 'Ibu Rumah Tangga',
-                        'location' => 'Yogyakarta',
-                        'time' => '1 bulan yang lalu',
-                        'source' => 'Google Review',
-                        'is_active' => true,
-                    ],
-                    [
-                        'id' => 6,
-                        'name' => 'Hendro Wijaya',
-                        'rating' => 5,
-                        'comment' => 'Pelayanan admin via WhatsApp sangat ramah dan responsif. Daging rendang potongan seragam, mempermudah kalkulasi porsi catering.',
-                        'role' => 'Pengusaha Catering',
-                        'location' => 'Jogja Kota',
-                        'time' => '3 bulan yang lalu',
-                        'source' => 'Google Review',
-                        'is_active' => false,
-                    ],
-                ]
+                'rating' => (float) ($reviewSettings['google_rating'] ?? 5.0),
+                'total_reviews' => (string) ($reviewSettings['google_total_reviews'] ?? count($reviewItems)),
+                'displayed_count' => count(array_filter($reviewItems, fn($item) => $item['is_active'])),
+                'google_place_url' => $reviewSettings['google_place_id'] ? 'https://maps.google.com/?cid=' . $reviewSettings['google_place_id'] : null,
+                'review_mode' => $reviewSettings['review_mode'] ?? 'manual',
+                'items' => $reviewItems,
             ],
-            'location' => config('location'),
-            'actual_footer' => [
-                'brand_title' => 'Sumber Protein Jogja',
-                'brand_desc' => 'Penyedia bahan makanan mentah, frozen food, dan olahan ready-to-cook berkualitas di Yogyakarta. Melayani kebutuhan konsumsi harian keluarga dan suplai horeka/curah.',
-                'social_links' => [
-                    [
-                        'id' => 1,
-                        'url' => 'https://instagram.com/sumberproteinjogja',
-                    ],
-                    [
-                        'id' => 2,
-                        'url' => 'https://tiktok.com/@sumberproteinjogja',
-                    ],
-                    [
-                        'id' => 3,
-                        'url' => 'https://wa.me/6281234567890',
-                    ],
-                ],
-                'nav_title' => 'Navigasi Cepat',
-                'nav_links' => [
-                    ['title' => 'Beranda', 'url' => '#hero'],
-                    ['title' => 'Kategori Produk', 'url' => '#kategori'],
-                    ['title' => 'Katalog Pilihan', 'url' => '#produk'],
-                    ['title' => 'Keunggulan Kami', 'url' => '#keunggulan'],
-                    ['title' => 'Dapur & Knowledge', 'url' => '#knowledge'],
-                    ['title' => 'Ulasan Pelanggan', 'url' => '#testimoni'],
-                ],
-                'category_title' => 'Kategori Pangan',
-                'category_links' => [
-                    ['title' => 'Daging Sapi Slice & Sengkel', 'url' => '#produk'],
-                    ['title' => 'Ayam Ungkep Bumbu Kuning', 'url' => '#produk'],
-                    ['title' => 'Dada Ayam Fillet Boneless', 'url' => '#produk'],
-                    ['title' => 'Fillet Gurame & Salmon', 'url' => '#produk'],
-                    ['title' => 'Paket Sayur Siap Masak', 'url' => '#produk'],
-                    ['title' => 'Ayam & Daging Curah (Bulk)', 'url' => '#produk'],
-                ],
-                'outlet_title' => 'Outlet Yogyakarta',
-                'outlet_address' => 'Jl. Kaliurang Km. 8.5 No. 42, Sleman, D.I. Yogyakarta 55581',
-                'outlet_hours_label' => 'Jam Operasional:',
-                'outlet_hours' => 'Senin – Minggu (07.00 – 19.00 WIB)',
-                'outlet_phone_label' => 'Hotline Pemesanan:',
-                'outlet_phone' => '+62 812-3456-7890',
-                'copyright' => 'Sumber Protein Jogja. Hak Cipta Dilindungi.',
-                'legal_links' => [
-                    ['title' => 'Syarat & Ketentuan', 'url' => '#'],
-                    ['title' => 'Kebijakan Privasi', 'url' => '#'],
-                    ['title' => 'Sertifikasi Halal', 'url' => '#'],
-                ],
-            ]
+            'location' => $locationSetting,
+            'actual_footer' => $footerSetting,
         ];
 
         return view('admin.footer', compact('footerData'));
+    }
+
+    /**
+     * Update Footer & Location Settings (POST /admin/footer).
+     */
+    public function footerUpdate(Request $request)
+    {
+        $validated = $request->validate([
+            'location' => 'nullable|array',
+            'actual_footer' => 'nullable|array',
+            'footer' => 'nullable|array',
+        ]);
+
+        if (isset($validated['location'])) {
+            $this->siteSettingRepo->set('location', $validated['location']);
+        }
+
+        $footerPayload = $validated['actual_footer'] ?? ($validated['footer'] ?? null);
+        if ($footerPayload !== null) {
+            $this->siteSettingRepo->set('footer', $footerPayload);
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengaturan Lokasi & Footer berhasil disimpan ke database.',
+                'location' => $this->siteSettingRepo->get('location'),
+                'footer' => $this->siteSettingRepo->get('footer'),
+            ]);
+        }
+
+        return redirect()->route('admin.footer')->with('success', 'Pengaturan Lokasi & Footer berhasil disimpan ke database.');
+    }
+
+    /**
+     * Create a new review (POST /admin/reviews).
+     */
+    public function reviewStore(Request $request)
+    {
+        $validated = $request->validate([
+            'reviewer_name' => 'required|string|max:255',
+            'reviewer_title' => 'nullable|string|max:255',
+            'reviewer_location' => 'nullable|string|max:255',
+            'review_text' => 'required|string',
+            'rating' => 'required|integer|min:1|max:5',
+            'reviewed_at' => 'nullable|date',
+            'avatar' => 'nullable|string|max:255',
+            'is_active' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
+
+        $validated['source'] = 'manual';
+        $validated['google_review_id'] = null;
+        $validated['is_active'] = isset($validated['is_active']) ? (bool) $validated['is_active'] : true;
+        $validated['sort_order'] = isset($validated['sort_order']) ? (int) $validated['sort_order'] : ($this->reviewRepo->getAll()->count() + 1);
+        $validated['reviewed_at'] = !empty($validated['reviewed_at']) ? $validated['reviewed_at'] : now();
+
+        $review = $this->reviewRepo->create($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Ulasan dari {$review->reviewer_name} berhasil ditambahkan.",
+                'review' => $review,
+            ], 201);
+        }
+
+        return redirect()->route('admin.footer')->with('success', "Ulasan dari {$review->reviewer_name} berhasil ditambahkan.");
+    }
+
+    /**
+     * Update an existing review (PUT /admin/reviews/{id}).
+     */
+    public function reviewUpdate(Request $request, int $id)
+    {
+        $review = $this->reviewRepo->findById($id);
+        if (!$review) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ulasan tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.footer')->with('error', 'Ulasan tidak ditemukan.');
+        }
+
+        $validated = $request->validate([
+            'reviewer_name' => 'required|string|max:255',
+            'reviewer_title' => 'nullable|string|max:255',
+            'reviewer_location' => 'nullable|string|max:255',
+            'review_text' => 'required|string',
+            'rating' => 'required|integer|min:1|max:5',
+            'reviewed_at' => 'nullable|date',
+            'avatar' => 'nullable|string|max:255',
+            'is_active' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer|min:0',
+        ]);
+
+        if (isset($validated['is_active'])) {
+            $validated['is_active'] = (bool) $validated['is_active'];
+        }
+
+        $updated = $this->reviewRepo->update($id, $validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => $updated,
+                'message' => "Ulasan dari {$review->reviewer_name} berhasil diperbarui.",
+                'review' => $this->reviewRepo->findById($id),
+            ]);
+        }
+
+        return redirect()->route('admin.footer')->with('success', "Ulasan dari {$review->reviewer_name} berhasil diperbarui.");
+    }
+
+    /**
+     * Delete a review (DELETE /admin/reviews/{id}).
+     */
+    public function reviewDestroy(Request $request, int $id)
+    {
+        $review = $this->reviewRepo->findById($id);
+        if (!$review) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ulasan tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.footer')->with('error', 'Ulasan tidak ditemukan.');
+        }
+
+        $this->reviewRepo->delete($id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Ulasan dari {$review->reviewer_name} berhasil dihapus.",
+            ]);
+        }
+
+        return redirect()->route('admin.footer')->with('success', "Ulasan dari {$review->reviewer_name} berhasil dihapus.");
+    }
+
+    /**
+     * Toggle active state of a review (PATCH /admin/reviews/{id}/toggle).
+     */
+    public function reviewToggle(Request $request, int $id)
+    {
+        $review = $this->reviewRepo->toggleActive($id);
+        if (!$review) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ulasan tidak ditemukan.',
+                ], 404);
+            }
+            return redirect()->route('admin.footer')->with('error', 'Ulasan tidak ditemukan.');
+        }
+
+        $statusLabel = $review->is_active ? 'Aktif' : 'Nonaktif';
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'is_active' => $review->is_active,
+                'message' => "Status ulasan {$review->reviewer_name} diubah menjadi {$statusLabel}.",
+                'review' => $review,
+            ]);
+        }
+
+        return redirect()->route('admin.footer')->with('success', "Status ulasan {$review->reviewer_name} diubah menjadi {$statusLabel}.");
+    }
+
+    /**
+     * Reorder reviews (POST /admin/reviews/reorder).
+     */
+    public function reviewReorder(Request $request)
+    {
+        $validated = $request->validate([
+            'orders' => 'required|array',
+        ]);
+
+        $this->reviewRepo->reorder($validated['orders']);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Urutan ulasan berhasil diperbarui.',
+            ]);
+        }
+
+        return redirect()->route('admin.footer')->with('success', 'Urutan ulasan berhasil diperbarui.');
+    }
+
+    /**
+     * Switch Review Source Mode with Google Guard (POST /admin/reviews/mode).
+     */
+    public function reviewMode(Request $request)
+    {
+        $modeInput = $request->input('mode') ?? $request->input('review_mode');
+        if (!in_array($modeInput, ['manual', 'google'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Parameter mode ulasan tidak valid.',
+            ], 422);
+        }
+
+        $settings = $this->siteSettingRepo->get('review_settings', [
+            'review_mode' => 'manual',
+            'google_place_id' => null,
+            'google_rating' => null,
+            'google_total_reviews' => null,
+            'last_synced_at' => null,
+        ]);
+
+        $targetMode = $modeInput;
+
+        // Google Mode Guard: Block switch to google if google_place_id is empty
+        if ($targetMode === 'google' && empty($settings['google_place_id'])) {
+            return response()->json([
+                'success' => false,
+                'blocked' => true,
+                'message' => 'Konfigurasi Google Review belum lengkap. Harap isi Google Place ID terlebih dahulu.',
+            ], 422);
+        }
+
+        $settings['review_mode'] = $targetMode;
+        $this->siteSettingRepo->set('review_settings', $settings);
+
+        $modeLabel = $targetMode === 'google' ? 'Google Review' : 'Manual Review';
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Sumber ulasan berhasil dialihkan ke {$modeLabel}.",
+                'review_settings' => $settings,
+            ]);
+        }
+
+        return redirect()->route('admin.footer')->with('success', "Sumber ulasan berhasil dialihkan ke {$modeLabel}.");
+    }
+
+    /**
+     * Update Google Review Configuration (POST /admin/reviews/google-config).
+     */
+    public function reviewGoogleConfig(Request $request)
+    {
+        $validated = $request->validate([
+            'google_place_id' => 'nullable|string|max:255',
+            'google_rating' => 'nullable|numeric|min:1|max:5',
+            'google_total_reviews' => 'nullable|integer|min:0',
+        ]);
+
+        $settings = $this->siteSettingRepo->get('review_settings', [
+            'review_mode' => 'manual',
+            'google_place_id' => null,
+            'google_rating' => null,
+            'google_total_reviews' => null,
+            'last_synced_at' => null,
+        ]);
+
+        $settings['google_place_id'] = $validated['google_place_id'] ?? null;
+        if (isset($validated['google_rating'])) {
+            $settings['google_rating'] = (float) $validated['google_rating'];
+        }
+        if (isset($validated['google_total_reviews'])) {
+            $settings['google_total_reviews'] = (int) $validated['google_total_reviews'];
+        }
+
+        $this->siteSettingRepo->set('review_settings', $settings);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Konfigurasi Google Review berhasil diperbarui.',
+                'review_settings' => $settings,
+            ]);
+        }
+
+        return redirect()->route('admin.footer')->with('success', 'Konfigurasi Google Review berhasil diperbarui.');
     }
 
     /**
@@ -1209,7 +1926,7 @@ class AdminController extends Controller
      */
     public function seo()
     {
-        $seoData = config('seo');
+        $seoData = config('seo', []);
         $mediaLibrary = $this->getMediaLibrary();
 
         return view('admin.seo', compact('seoData', 'mediaLibrary'));
@@ -1220,7 +1937,7 @@ class AdminController extends Controller
      */
     public function settings()
     {
-        $settingsData = config('site');
+        $settingsData = config('site', []);
         $mediaLibrary = $this->getMediaLibrary();
 
         return view('admin.settings', compact('settingsData', 'mediaLibrary'));

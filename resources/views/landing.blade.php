@@ -8,7 +8,10 @@
     <!-- 2. PRODUCT CATEGORIES ("Mau Masak Apa Hari Ini?") -->
     @include('components.category-card')
 
-    <!-- 3. PRODUCT CATALOG ("Produk Pilihan" with Interactive Tabs) -->
+    <!-- 3. FLASH SALE PROMOTION ("Promo Spesial Terbatas") -->
+    @include('components.flash-sale')
+
+    <!-- 4. PRODUCT CATALOG ("Produk Pilihan" with Interactive Tabs) -->
     @include('components.product-card')
 
     <!-- 4. WHY US ("Lebih Praktis, Lebih Siap") -->

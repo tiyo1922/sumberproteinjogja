@@ -23,6 +23,7 @@
          selectedMedia: null,
          uploadedFile: null,
          uploadedPreviewUrl: null,
+        csrfToken: '{{ csrf_token() }}',
          
          colorOptions: [
              { id: 'orange', name: 'Oranye (Warm)', class: 'bg-orange-100 text-orange-800 border-orange-300' },
@@ -150,7 +151,7 @@
              this.uploadedPreviewUrl = URL.createObjectURL(file);
          },
          
-         saveCategory() {
+         async saveCategory() {
              if (!this.form.name.trim()) {
                  alert('Nama kategori wajib diisi.');
                  return;
@@ -158,40 +159,102 @@
              if (!this.form.slug.trim()) {
                  this.autoSlug();
              }
-             
-             if (this.isEditing) {
-                 const idx = this.categories.findIndex(c => c.id === this.form.id);
-                 if (idx !== -1) {
-                     this.categories[idx] = JSON.parse(JSON.stringify(this.form));
-                 }
-                 // Sync category name in products array
-                 this.products.forEach(p => {
-                     if (p.category_id === this.form.id) {
-                         p.category = this.form.name;
-                     }
+ 
+             const payload = {
+                 name: this.form.name,
+                 slug: this.form.slug,
+                 color: this.form.color || 'orange',
+                 image: this.form.image || 'images/cat-daging.jpg',
+                 sort_order: parseInt(this.form.order || this.form.sort_order || 1),
+                 is_active: this.form.status !== 'inactive',
+             };
+ 
+             try {
+                 const url = this.isEditing ? `/admin/kategori/${this.form.id}` : '/admin/kategori';
+                 const method = this.isEditing ? 'PUT' : 'POST';
+ 
+                 const response = await fetch(url, {
+                     method: method,
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                     body: JSON.stringify(payload),
                  });
-                 this.showToast('Kategori ' + this.form.name + ' berhasil diperbarui!');
-             } else {
-                 this.categories.push(JSON.parse(JSON.stringify(this.form)));
-                 this.showToast('Kategori baru ' + this.form.name + ' berhasil ditambahkan!');
+ 
+                 const result = await response.json();
+ 
+                 if (!response.ok || !result.success) {
+                     alert(result.message || 'Gagal menyimpan kategori.');
+                     return;
+                 }
+ 
+                 if (this.isEditing) {
+                     const idx = this.categories.findIndex(c => c.id === this.form.id);
+                     if (idx !== -1) {
+                         this.categories[idx] = {
+                             ...this.categories[idx],
+                             ...this.form,
+                             sort_order: payload.sort_order,
+                             order: payload.sort_order,
+                             is_active: payload.is_active,
+                         };
+                     }
+                     this.products.forEach(p => {
+                         if (p.category_id === this.form.id) {
+                             p.category = this.form.name;
+                         }
+                     });
+                     this.showToast(result.message || `Kategori ${this.form.name} berhasil diperbarui!`);
+                 } else {
+                     const newCat = {
+                         ...this.form,
+                         id: result.category.id,
+                         sort_order: result.category.sort_order,
+                         order: result.category.sort_order,
+                         is_active: result.category.is_active,
+                         products_count: 0,
+                         count: '0+ Variasi',
+                     };
+                     this.categories.push(newCat);
+                     this.showToast(result.message || `Kategori baru ${this.form.name} berhasil ditambahkan!`);
+                 }
+                 this.editorModalOpen = false;
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan jaringan saat menyimpan kategori.');
              }
-             this.editorModalOpen = false;
          },
          
-         toggleStatus(cat) {
-             if (cat.is_system) return;
-             if (cat.status === 'active_landing' || cat.status === 'Aktif') {
-                 cat.status = 'active_catalog';
-             } else if (cat.status === 'active_catalog') {
-                 cat.status = 'inactive';
-             } else {
-                 cat.status = 'active_landing';
+         async toggleStatus(cat) {
+             try {
+                 const response = await fetch(`/admin/kategori/${cat.id}/toggle`, {
+                     method: 'PATCH',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                 });
+ 
+                 const result = await response.json();
+ 
+                 if (!response.ok || !result.success) {
+                     alert(result.message || 'Gagal mengubah status kategori.');
+                     return;
+                 }
+ 
+                 cat.is_active = result.is_active;
+                 cat.status = result.is_active ? 'active_landing' : 'inactive';
+                 this.showToast(result.message || `Status ${cat.name} diubah menjadi ${this.getStatusLabel(cat.status)}`);
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan saat mengubah status.');
              }
-             this.showToast('Status ' + cat.name + ' diubah menjadi ' + this.getStatusLabel(cat.status));
          },
          
          openDelete(cat) {
-             if (cat.is_system) return;
              this.selectedCategory = cat;
              const usedCount = this.getTotalProductCount(cat.id);
              
@@ -205,12 +268,36 @@
              this.deleteModalOpen = true;
          },
          
-         confirmDelete() {
-             if (this.selectedCategory && !this.deleteBlocked) {
-                 this.categories = this.categories.filter(c => c.id !== this.selectedCategory.id);
+         async confirmDelete() {
+             if (!this.selectedCategory || this.deleteBlocked) return;
+ 
+             try {
+                 const catId = this.selectedCategory.id;
+                 const catName = this.selectedCategory.name;
+ 
+                 const response = await fetch(`/admin/kategori/${catId}`, {
+                     method: 'DELETE',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                 });
+ 
+                 const result = await response.json();
+ 
+                 if (!response.ok || !result.success) {
+                     alert(result.message || 'Gagal menghapus kategori.');
+                     return;
+                 }
+ 
+                 this.categories = this.categories.filter(c => c.id !== catId);
                  this.deleteModalOpen = false;
-                 this.showToast('Kategori ' + this.selectedCategory.name + ' telah dihapus.');
+                 this.showToast(result.message || `Kategori ${catName} telah dihapus.`);
                  this.selectedCategory = null;
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan saat menghapus kategori.');
              }
          },
          

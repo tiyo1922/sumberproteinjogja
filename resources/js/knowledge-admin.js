@@ -5,6 +5,7 @@
 
 export function createKnowledgeManager(config = {}) {
     return {
+        csrfToken: config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
         articles: config.articles || [],
         categories: config.categories || [],
         mediaLibrary: config.mediaLibrary || [],
@@ -677,8 +678,22 @@ export function createKnowledgeManager(config = {}) {
                         return [li];
                     }
                 }
+                return [];
             }
-            return selected;
+
+            // Keep only the "top-level" selected <li>s: drop any <li> that is
+            // itself nested inside another <li> already in the selection, so
+            // Indent/Outdent on a multi-item selection doesn't re-move items
+            // that are already nested one level deeper (which corrupted the
+            // list structure by double-nesting them).
+            return selected.filter(li => {
+                let ancestor = li.parentElement ? li.parentElement.closest('li') : null;
+                while (ancestor) {
+                    if (selected.includes(ancestor)) return false;
+                    ancestor = ancestor.parentElement ? ancestor.parentElement.closest('li') : null;
+                }
+                return true;
+            });
         },
 
         getCurrentListItem() {
@@ -744,95 +759,82 @@ export function createKnowledgeManager(config = {}) {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas || !li) return null;
 
-            // 1. Create clean paragraph with li's non-list inline content
+            // 1. Capture current item's non-list inline content into a new <p>
             const p = document.createElement('p');
             const childList = li.querySelector(':scope > ol, :scope > ul');
-            while (li.firstChild && li.firstChild !== childList) {
-                p.appendChild(li.firstChild);
-            }
-            if (!p.innerHTML.trim()) {
+            
+            const inlineNodes = [];
+            Array.from(li.childNodes).forEach(node => {
+                if (node === childList) return;
+                inlineNodes.push(node);
+            });
+            inlineNodes.forEach(node => p.appendChild(node));
+
+            if (!p.innerHTML.trim() || p.innerHTML === '') {
                 p.innerHTML = '<br>';
             }
 
-            // 2. Find root list inside canvas
-            let rootList = li;
-            while (rootList && rootList.parentElement !== canvas) {
-                rootList = rootList.parentElement;
+            // 2. Find the top-level list block inside #documentCanvas
+            let rootBlock = li;
+            while (rootBlock && rootBlock.parentElement !== canvas) {
+                rootBlock = rootBlock.parentElement;
             }
-            if (!rootList) {
-                rootList = li.closest('ol, ul');
-            }
-
-            // 3. Tree split from li up to rootList
-            let curr = li;
-            let afterNode = null;
-
-            while (curr && curr !== rootList) {
-                const parent = curr.parentElement;
-                if (!parent) break;
-                
-                const nextSiblings = [];
-                let sib = curr.nextSibling;
-                while (sib) {
-                    nextSiblings.push(sib);
-                    sib = sib.nextSibling;
-                }
-
-                if (nextSiblings.length > 0 || afterNode) {
-                    const newParent = document.createElement(parent.tagName.toLowerCase());
-                    if (afterNode) {
-                        newParent.appendChild(afterNode);
-                        afterNode = null;
-                    }
-                    nextSiblings.forEach(s => newParent.appendChild(s));
-                    afterNode = newParent;
-                }
-
-                curr.remove();
-                if (parent.children.length === 0 && parent !== rootList) {
-                    parent.remove();
-                }
-                curr = parent;
+            if (!rootBlock) {
+                rootBlock = li.closest('ol, ul');
             }
 
-            // If li was direct child of rootList
-            if (li.parentElement === rootList) {
-                const afterListItems = [];
-                let s = li.nextSibling;
-                while (s) {
-                    afterListItems.push(s);
-                    s = s.nextSibling;
+            // 3. Handle splitting & extraction:
+            const parentList = li.parentElement;
+
+            if (parentList === rootBlock) {
+                // DIRECT LEVEL 1 EXTRACTION:
+                const afterLis = [];
+                let next = li.nextElementSibling;
+                while (next) {
+                    afterLis.push(next);
+                    next = next.nextElementSibling;
                 }
+
+                // Remove li from parentList
                 li.remove();
-                if (afterListItems.length > 0) {
-                    const afterRoot = document.createElement(rootList.tagName.toLowerCase());
-                    afterListItems.forEach(item => afterRoot.appendChild(item));
-                    afterNode = afterRoot;
+
+                if (parentList.children.length === 0) {
+                    // Case D: Only item in list
+                    canvas.insertBefore(p, parentList);
+                    parentList.remove();
+                } else if (afterLis.length === 0) {
+                    // Case A: Last item in list
+                    canvas.insertBefore(p, parentList.nextSibling);
+                } else {
+                    // Case B & C: Middle or First item with following items
+                    const afterList = document.createElement(parentList.tagName.toLowerCase());
+                    afterLis.forEach(item => afterList.appendChild(item));
+                    
+                    canvas.insertBefore(p, parentList.nextSibling);
+                    canvas.insertBefore(afterList, p.nextSibling);
+                    
+                    if (parentList.children.length === 0) {
+                        parentList.remove();
+                    }
+                }
+            } else {
+                // NESTED EXTRACTION (Level 2, Level 3, etc.):
+                li.remove();
+
+                if (parentList && parentList.children.length === 0) {
+                    parentList.remove();
+                }
+
+                if (rootBlock && rootBlock.parentElement === canvas) {
+                    canvas.insertBefore(p, rootBlock.nextSibling);
+                } else {
+                    canvas.appendChild(p);
                 }
             }
 
-            // Insert p after rootList in canvas
-            if (rootList && rootList.parentNode === canvas) {
-                canvas.insertBefore(p, rootList.nextSibling);
-            } else {
-                canvas.appendChild(p);
-            }
-
-            // If childList was inside li, place it after p
-            let lastInserted = p;
+            // 4. If li had a nested child list, insert it after p
             if (childList && childList.children.length > 0) {
-                canvas.insertBefore(childList, lastInserted.nextSibling);
-                lastInserted = childList;
-            }
-
-            // If afterNode exists and has children, insert after lastInserted
-            if (afterNode && afterNode.children.length > 0) {
-                canvas.insertBefore(afterNode, lastInserted.nextSibling);
-            }
-
-            // Prune empty rootList
-            if (rootList && rootList.children.length === 0) {
-                rootList.remove();
+                canvas.insertBefore(childList, p.nextSibling);
             }
 
             this.setCaretToStart(p);
@@ -843,6 +845,11 @@ export function createKnowledgeManager(config = {}) {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas) return;
             canvas.focus();
+            if (this.savedSelectionRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(this.savedSelectionRange);
+            }
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0) return;
 
@@ -879,6 +886,11 @@ export function createKnowledgeManager(config = {}) {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas) return;
             canvas.focus();
+            if (this.savedSelectionRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(this.savedSelectionRange);
+            }
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0) return;
 
@@ -930,6 +942,11 @@ export function createKnowledgeManager(config = {}) {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas) return;
             canvas.focus();
+            if (this.savedSelectionRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(this.savedSelectionRange);
+            }
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0) return;
 
@@ -981,6 +998,11 @@ export function createKnowledgeManager(config = {}) {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas) return;
             canvas.focus();
+            if (this.savedSelectionRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(this.savedSelectionRange);
+            }
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0) return;
 
@@ -1203,7 +1225,7 @@ export function createKnowledgeManager(config = {}) {
             }
         },
         
-        saveArticle() {
+        async saveArticle() {
             if (!this.form.title.trim()) {
                 alert('Judul artikel wajib diisi.');
                 this.editorTab = 'info';
@@ -1213,30 +1235,107 @@ export function createKnowledgeManager(config = {}) {
             const html = canvas ? canvas.innerHTML : this.canvasHtml;
             
             // Parse Canvas HTML to Canonical Schema for backend and reader
+            let rawContent = html;
             if (window.KnowledgeArticleParser) {
                 const canonical = window.KnowledgeArticleParser.parseHtmlContent(html);
                 this.form.content = JSON.stringify(canonical);
+                rawContent = canonical;
             } else {
                 this.form.content = html;
             }
-            
-            if (this.isEditing) {
-                const idx = this.articles.findIndex(a => a.id === this.form.id);
-                if (idx !== -1) {
-                    this.articles[idx] = JSON.parse(JSON.stringify(this.form));
-                }
-                this.showToast('Artikel berhasil diperbarui!');
-            } else {
-                this.articles.unshift(JSON.parse(JSON.stringify(this.form)));
-                this.showToast('Artikel baru berhasil ditambahkan!');
+
+            // Resolve category_id
+            let catId = this.form.category_id;
+            if (!catId) {
+                const foundCat = this.categories.find(c => c.name === this.form.category || c.id === this.form.category);
+                catId = foundCat ? foundCat.id : (this.categories[0]?.id || 1);
             }
-            this.initialFormJson = JSON.stringify({ form: this.form, html: html });
-            this.editorModalOpen = false;
+
+            const payload = {
+                category_id: catId,
+                title: this.form.title,
+                slug: this.form.slug,
+                excerpt: this.form.excerpt || '',
+                content: rawContent,
+                image: this.form.image || 'images/know-thawing.jpg',
+                status: (this.form.status || 'draft').toLowerCase(),
+                sort_order: this.form.sort_order || 1,
+            };
+
+            try {
+                const url = this.isEditing ? `/admin/knowledge-articles/${this.form.id}` : '/admin/knowledge-articles';
+                const method = this.isEditing ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menyimpan artikel.');
+                    return;
+                }
+
+                const saved = result.article || this.form;
+                const formattedArticle = {
+                    id: saved.id,
+                    title: saved.title,
+                    slug: saved.slug,
+                    category_id: saved.category_id,
+                    category: saved.category ? saved.category.name : (this.categories.find(c => c.id === saved.category_id)?.name || 'Edukasi Dapur'),
+                    status: (saved.status || 'draft').charAt(0).toUpperCase() + (saved.status || 'draft').slice(1),
+                    published_at: saved.created_at ? new Date(saved.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Baru saja',
+                    image: saved.image || 'images/know-thawing.jpg',
+                    excerpt: saved.excerpt || '',
+                    content: html,
+                    sort_order: saved.sort_order || 1,
+                };
+
+                if (this.isEditing) {
+                    const idx = this.articles.findIndex(a => a.id === this.form.id);
+                    if (idx !== -1) {
+                        this.articles[idx] = formattedArticle;
+                    }
+                    this.showToast('Artikel berhasil diperbarui!');
+                } else {
+                    this.articles.unshift(formattedArticle);
+                    this.showToast('Artikel baru berhasil ditambahkan!');
+                }
+
+                this.initialFormJson = JSON.stringify({ form: this.form, html: html });
+                this.editorModalOpen = false;
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menyimpan artikel.');
+            }
         },
         
-        togglePublish(a) {
-            a.status = a.status === 'Published' ? 'Draft' : 'Published';
-            this.showToast('Status artikel diubah menjadi ' + a.status);
+        async togglePublish(a) {
+            try {
+                const response = await fetch(`/admin/knowledge-articles/${a.id}/toggle`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    a.status = result.status === 'published' ? 'Published' : 'Draft';
+                    this.showToast('Status artikel diubah menjadi ' + a.status);
+                } else {
+                    alert(result.message || 'Gagal mengubah status artikel.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat mengubah status.');
+            }
         },
         
         openDelete(a) {
@@ -1244,12 +1343,28 @@ export function createKnowledgeManager(config = {}) {
             this.deleteModalOpen = true;
         },
         
-        confirmDelete() {
-            if (this.selectedArticle) {
-                this.articles = this.articles.filter(a => a.id !== this.selectedArticle.id);
-                this.deleteModalOpen = false;
-                this.showToast('Artikel telah dihapus.');
-                this.selectedArticle = null;
+        async confirmDelete() {
+            if (!this.selectedArticle) return;
+            try {
+                const response = await fetch(`/admin/knowledge-articles/${this.selectedArticle.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    this.articles = this.articles.filter(a => a.id !== this.selectedArticle.id);
+                    this.deleteModalOpen = false;
+                    this.showToast('Artikel telah dihapus.');
+                    this.selectedArticle = null;
+                } else {
+                    alert(result.message || 'Gagal menghapus artikel.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menghapus artikel.');
             }
         },
         
@@ -1313,10 +1428,12 @@ export function createKnowledgeManager(config = {}) {
         openCreateCategoryModal() {
             this.isEditingCategory = false;
             this.categoryForm = {
-                id: Date.now(),
+                id: null,
                 name: '',
+                slug: '',
                 color: 'blue',
                 status: 'Aktif',
+                is_active: true,
                 articles_count: 0
             };
             this.categoryModalOpen = true;
@@ -1328,33 +1445,93 @@ export function createKnowledgeManager(config = {}) {
             this.categoryModalOpen = true;
         },
         
-        saveCategory() {
+        async saveCategory() {
             if (!this.categoryForm.name.trim()) {
                 alert('Nama kategori artikel wajib diisi.');
                 return;
             }
-            if (this.isEditingCategory) {
-                const idx = this.categories.findIndex(c => c.id === this.categoryForm.id);
-                if (idx !== -1) {
-                    const oldName = this.categories[idx].name;
-                    const newName = this.categoryForm.name;
-                    this.categories[idx] = JSON.parse(JSON.stringify(this.categoryForm));
-                    // Update associated articles category name
-                    this.articles.forEach(a => {
-                        if (a.category === oldName) a.category = newName;
-                    });
+
+            const payload = {
+                name: this.categoryForm.name,
+                slug: this.categoryForm.slug || '',
+                is_active: this.categoryForm.is_active !== false && this.categoryForm.status !== 'Nonaktif',
+            };
+
+            try {
+                const url = this.isEditingCategory ? `/admin/knowledge-categories/${this.categoryForm.id}` : '/admin/knowledge-categories';
+                const method = this.isEditingCategory ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menyimpan kategori.');
+                    return;
                 }
-                this.showToast('Kategori ' + this.categoryForm.name + ' berhasil diperbarui!');
-            } else {
-                this.categories.push(JSON.parse(JSON.stringify(this.categoryForm)));
-                this.showToast('Kategori baru ' + this.categoryForm.name + ' berhasil ditambahkan!');
+
+                const savedCat = result.category;
+                const formattedCat = {
+                    id: savedCat.id,
+                    name: savedCat.name,
+                    slug: savedCat.slug,
+                    sort_order: savedCat.sort_order || (this.categories.length + 1),
+                    is_active: savedCat.is_active,
+                    status: savedCat.is_active ? 'Aktif' : 'Nonaktif',
+                    articles_count: savedCat.articles_count || 0,
+                    color: this.categoryForm.color || 'blue',
+                };
+
+                if (this.isEditingCategory) {
+                    const idx = this.categories.findIndex(c => c.id === this.categoryForm.id);
+                    if (idx !== -1) {
+                        const oldName = this.categories[idx].name;
+                        this.categories[idx] = formattedCat;
+                        this.articles.forEach(a => {
+                            if (a.category === oldName) a.category = formattedCat.name;
+                        });
+                    }
+                    this.showToast(`Kategori ${formattedCat.name} berhasil diperbarui!`);
+                } else {
+                    this.categories.push(formattedCat);
+                    this.showToast(`Kategori baru ${formattedCat.name} berhasil ditambahkan!`);
+                }
+
+                this.categoryModalOpen = false;
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menyimpan kategori.');
             }
-            this.categoryModalOpen = false;
         },
         
-        toggleCategoryStatus(cat) {
-            cat.status = cat.status === 'Aktif' ? 'Nonaktif' : 'Aktif';
-            this.showToast('Status kategori ' + cat.name + ' diubah menjadi ' + cat.status);
+        async toggleCategoryStatus(cat) {
+            try {
+                const response = await fetch(`/admin/knowledge-categories/${cat.id}/toggle`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    cat.is_active = result.is_active;
+                    cat.status = result.is_active ? 'Aktif' : 'Nonaktif';
+                    this.showToast(`Status kategori ${cat.name} diubah menjadi ${cat.status}`);
+                } else {
+                    alert(result.message || 'Gagal mengubah status kategori.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat mengubah status kategori.');
+            }
         },
         
         openDeleteCategory(cat) {
@@ -1362,12 +1539,33 @@ export function createKnowledgeManager(config = {}) {
             this.deleteCategoryModalOpen = true;
         },
         
-        confirmDeleteCategory() {
-            if (this.selectedCategoryItem) {
-                this.categories = this.categories.filter(c => c.id !== this.selectedCategoryItem.id);
-                this.deleteCategoryModalOpen = false;
-                this.showToast('Kategori ' + this.selectedCategoryItem.name + ' telah dihapus.');
-                this.selectedCategoryItem = null;
+        async confirmDeleteCategory() {
+            if (!this.selectedCategoryItem) return;
+            try {
+                const response = await fetch(`/admin/knowledge-categories/${this.selectedCategoryItem.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+                const result = await response.json();
+                if (response.status === 422 && result.blocked) {
+                    alert(result.message);
+                    this.deleteCategoryModalOpen = false;
+                    return;
+                }
+                if (response.ok && result.success) {
+                    this.categories = this.categories.filter(c => c.id !== this.selectedCategoryItem.id);
+                    this.deleteCategoryModalOpen = false;
+                    this.showToast(`Kategori ${this.selectedCategoryItem.name} telah dihapus.`);
+                    this.selectedCategoryItem = null;
+                } else {
+                    alert(result.message || 'Gagal menghapus kategori.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menghapus kategori.');
             }
         },
         

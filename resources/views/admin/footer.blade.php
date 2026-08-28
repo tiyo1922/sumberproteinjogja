@@ -134,6 +134,226 @@
              });
          },
          
+         csrfToken: '{{ csrf_token() }}',
+         reviewModalOpen: false,
+         isEditingReview: false,
+         selectedReview: null,
+         reviewDeleteModalOpen: false,
+         reviewFilterSource: 'all',
+         reviewForm: {
+             id: null,
+             reviewer_name: '',
+             reviewer_title: '',
+             reviewer_location: '',
+             review_text: '',
+             rating: 5,
+             reviewed_at: '',
+             is_active: true,
+         },
+
+         openCreateReviewModal() {
+             this.isEditingReview = false;
+             this.reviewForm = {
+                 id: null,
+                 reviewer_name: '',
+                 reviewer_title: '',
+                 reviewer_location: '',
+                 review_text: '',
+                 rating: 5,
+                 reviewed_at: new Date().toISOString().split('T')[0],
+                 is_active: true,
+             };
+             this.reviewModalOpen = true;
+         },
+
+         openEditReviewModal(item) {
+             this.isEditingReview = true;
+             this.reviewForm = {
+                 id: item.id,
+                 reviewer_name: item.name,
+                 reviewer_title: item.role || '',
+                 reviewer_location: item.location || '',
+                 review_text: item.review_text || item.comment || '',
+                 rating: item.rating || 5,
+                 reviewed_at: item.reviewed_at || '',
+                 is_active: item.is_active,
+             };
+             this.reviewModalOpen = true;
+         },
+
+         async saveReview() {
+             if (!this.reviewForm.reviewer_name || !this.reviewForm.review_text) {
+                 alert('Nama reviewer dan isi ulasan wajib diisi.');
+                 return;
+             }
+
+             try {
+                 const url = this.isEditingReview ? `/admin/reviews/${this.reviewForm.id}` : '/admin/reviews';
+                 const method = this.isEditingReview ? 'PUT' : 'POST';
+
+                 const response = await fetch(url, {
+                     method: method,
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                     body: JSON.stringify(this.reviewForm),
+                 });
+
+                 const result = await response.json();
+
+                 if (!response.ok || !result.success) {
+                     alert(result.message || 'Gagal menyimpan ulasan.');
+                     return;
+                 }
+
+                 if (this.isEditingReview) {
+                     const idx = this.footer.reviews.items.findIndex(i => i.id === this.reviewForm.id);
+                     if (idx !== -1) {
+                         this.footer.reviews.items[idx].name = this.reviewForm.reviewer_name;
+                         this.footer.reviews.items[idx].role = this.reviewForm.reviewer_title;
+                         this.footer.reviews.items[idx].location = this.reviewForm.reviewer_location;
+                         this.footer.reviews.items[idx].comment = this.reviewForm.review_text;
+                         this.footer.reviews.items[idx].review_text = this.reviewForm.review_text;
+                         this.footer.reviews.items[idx].rating = this.reviewForm.rating;
+                         this.footer.reviews.items[idx].is_active = this.reviewForm.is_active;
+                     }
+                 } else {
+                     const newRev = {
+                         id: result.review.id,
+                         name: result.review.reviewer_name,
+                         role: result.review.reviewer_title,
+                         location: result.review.reviewer_location,
+                         comment: result.review.review_text,
+                         review_text: result.review.review_text,
+                         rating: result.review.rating,
+                         time: 'Baru saja',
+                         source: 'Manual Review',
+                         is_active: result.review.is_active,
+                     };
+                     this.footer.reviews.items.unshift(newRev);
+                 }
+
+                 this.reviewModalOpen = false;
+                 this.showToast(result.message);
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan jaringan saat menyimpan ulasan.');
+             }
+         },
+
+         async toggleReviewStatus(item) {
+             try {
+                 const response = await fetch(`/admin/reviews/${item.id}/toggle`, {
+                     method: 'PATCH',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                 });
+
+                 const result = await response.json();
+
+                 if (!response.ok || !result.success) {
+                     alert(result.message || 'Gagal mengubah status ulasan.');
+                     return;
+                 }
+
+                 item.is_active = result.is_active;
+                 this.showToast(result.message);
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan saat mengubah status ulasan.');
+             }
+         },
+
+         async deleteReview(item) {
+             if (!confirm(`Hapus ulasan dari "${item.name}"?`)) return;
+
+             try {
+                 const response = await fetch(`/admin/reviews/${item.id}`, {
+                     method: 'DELETE',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                 });
+
+                 const result = await response.json();
+
+                 if (!response.ok || !result.success) {
+                     alert(result.message || 'Gagal menghapus ulasan.');
+                     return;
+                 }
+
+                 this.footer.reviews.items = this.footer.reviews.items.filter(i => i.id !== item.id);
+                 this.showToast(result.message);
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan saat menghapus ulasan.');
+             }
+         },
+
+         async toggleReviewMode(targetMode) {
+             try {
+                 const response = await fetch('/admin/reviews/mode', {
+                     method: 'POST',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                     body: JSON.stringify({ mode: targetMode }),
+                 });
+
+                 const result = await response.json();
+
+                 if (!response.ok || !result.success) {
+                     alert(result.message || 'Gagal mengubah mode ulasan.');
+                     return;
+                 }
+
+                 this.footer.reviews.review_mode = targetMode;
+                 this.showToast(result.message);
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan saat mengubah mode ulasan.');
+             }
+         },
+
+         async saveGoogleConfig() {
+             try {
+                 const response = await fetch('/admin/reviews/google-config', {
+                     method: 'POST',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                     body: JSON.stringify({
+                         google_place_id: this.footer.reviews.google_place_id || (this.footer.reviews.google_place_url ? this.footer.reviews.google_place_url.replace('https://maps.google.com/?cid=', '') : null),
+                         google_rating: this.footer.reviews.rating,
+                         google_total_reviews: parseInt(this.footer.reviews.total_reviews) || 0,
+                     }),
+                 });
+
+                 const result = await response.json();
+
+                 if (!response.ok || !result.success) {
+                     alert(result.message || 'Gagal menyimpan konfigurasi Google.');
+                     return;
+                 }
+
+                 this.showToast(result.message || 'Konfigurasi Google Review berhasil disimpan.');
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan saat menyimpan konfigurasi Google.');
+             }
+         },
+         
          showToast(msg) {
              this.toastMessage = msg;
              this.toastVisible = true;
@@ -148,8 +368,31 @@
              }, 400);
          },
          
-         saveFooter() {
-             this.showToast('Mode demo: Pengaturan Location & Footer disimpan dalam sesi (In-Memory).');
+         async saveFooter() {
+             try {
+                 const response = await fetch('/admin/footer', {
+                     method: 'POST',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-CSRF-TOKEN': this.csrfToken,
+                     },
+                     body: JSON.stringify({
+                         location: this.footer.location,
+                         actual_footer: this.footer.actual_footer,
+                     })
+                 });
+
+                 const result = await response.json();
+                 if (response.ok && result.success) {
+                     this.showToast('Pengaturan Lokasi & Footer berhasil disimpan ke database!');
+                 } else {
+                     alert(result.message || 'Gagal menyimpan pengaturan footer.');
+                 }
+             } catch (err) {
+                 console.error(err);
+                 alert('Terjadi kesalahan jaringan saat menyimpan pengaturan footer.');
+             }
          }
      }"
      x-init="initPreviewObserver()">
@@ -237,187 +480,143 @@
 
     <!-- =============================================================== -->
     <!-- 3. TAB EDITORS AREA                                             -->
-    <!-- =============================================================== -->
-
-    <!-- --------------------------------------------------------------- -->
-    <!-- TAB 1: ULASAN PELANGGAN (GOOGLE REVIEWS MANAGER)                -->
+    <!-- =======================================================    <!-- --------------------------------------------------------------- -->
+    <!-- TAB 1: ULASAN PELANGGAN (MANUAL & GOOGLE REVIEWS MANAGER)       -->
     <!-- --------------------------------------------------------------- -->
     <div x-show="activeTab === 'reviews'" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        <!-- Left Column (6 cols): Konfigurasi Section + Google Reviews Summary -->
-        <div class="lg:col-span-6 space-y-6">
+        <!-- Left Column (5 cols): Mode Switch & Google Config -->
+        <div class="lg:col-span-5 space-y-6">
             
-            <!-- 1. KONFIGURASI SECTION CARD -->
-            <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
+            <!-- 1. DUAL REVIEW SOURCE MODE SWITCH CARD -->
+            <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-6 shadow-2xs space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                     <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-brand-primary"></span>
-                        <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
-                            Konfigurasi Section
+                        <span class="text-base">🔄</span>
+                        <h3 class="text-xs sm:text-sm font-extrabold text-brand-dark uppercase tracking-wider">
+                            Sumber Ulasan (Review Mode)
                         </h3>
                     </div>
-                    <span class="text-[11px] text-gray-400 font-mono">Live Section Controls</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold"
+                          :class="footer.reviews.review_mode === 'google' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'"
+                          x-text="footer.reviews.review_mode === 'google' ? 'MODE: GOOGLE REVIEW' : 'MODE: MANUAL REVIEW'"></span>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div class="md:col-span-4">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Badge Tag</label>
-                        <input type="text" 
-                               x-model="footer.reviews.section_badge" 
-                               class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary font-medium text-brand-dark bg-white"
-                               placeholder="Ulasan Pelanggan">
-                    </div>
+                <p class="text-xs text-gray-500 leading-relaxed">
+                    Tentukan sumber ulasan yang aktif ditampilkan di Landing Page publik. Beralih mode tidak akan menghapus data ulasan yang tersimpan.
+                </p>
 
-                    <div class="md:col-span-8">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Judul Section (H2)</label>
-                        <input type="text" 
-                               x-model="footer.reviews.section_title" 
-                               class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary font-extrabold text-brand-dark bg-white"
-                               placeholder="Apa Kata Mereka?">
-                    </div>
-
-                    <div class="md:col-span-12">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Deskripsi Pengantar</label>
-                        <textarea x-model="footer.reviews.section_subtitle" 
-                                  rows="2"
-                                  class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary text-gray-700 leading-relaxed bg-white"
-                                  placeholder="Pengalaman nyata dari ibu rumah tangga..."></textarea>
-                    </div>
-
-                    <div class="md:col-span-6">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">
-                            Jumlah Review Ditampilkan
-                        </label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" 
-                                   x-model.number="footer.reviews.displayed_count" 
-                                   min="1" 
-                                   max="6" 
-                                   class="w-24 text-xs font-extrabold text-brand-primary rounded-modern border border-gray-300 px-3 py-2 bg-white focus:ring-1 focus:ring-brand-primary">
-                            <span class="text-[11px] text-gray-500">
-                                Maksimal ulasan aktif yang dirender (1 - 6)
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-6">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">
-                            Google Place URL / Link Review
-                        </label>
-                        <input type="text" 
-                               x-model="footer.reviews.google_place_url" 
-                               class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono text-[11px] text-gray-600 focus:ring-1 focus:ring-brand-primary"
-                               placeholder="https://maps.google.com/?cid=...">
-                    </div>
+                <!-- Dual Mode Toggle Selector -->
+                <div class="grid grid-cols-2 gap-2 bg-gray-100/80 p-1.5 rounded-modern-lg">
+                    <button type="button" 
+                            @click="toggleReviewMode('manual')"
+                            class="py-2 px-3 rounded-modern text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            :class="footer.reviews.review_mode === 'manual' ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200' : 'text-gray-600 hover:text-brand-dark'">
+                        <span>⭐ Manual Database</span>
+                    </button>
+                    <button type="button" 
+                            @click="toggleReviewMode('google')"
+                            class="py-2 px-3 rounded-modern text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            :class="footer.reviews.review_mode === 'google' ? 'bg-white text-blue-700 shadow-sm border border-blue-200' : 'text-gray-600 hover:text-brand-dark'">
+                        <span>🗺️ Google Review</span>
+                    </button>
                 </div>
             </div>
 
-            <!-- 2. GOOGLE REVIEWS SUMMARY CARD -->
-            <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
+            <!-- 2. GOOGLE REVIEWS CONFIGURATION CARD -->
+            <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-6 shadow-2xs space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                        <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
-                            Google Reviews
+                        <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                        <h3 class="text-xs sm:text-sm font-extrabold text-brand-dark uppercase tracking-wider">
+                            Konfigurasi Google Place
                         </h3>
                     </div>
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>Dummy Google Business Profile</span>
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                        <span>Belum terhubung API</span>
                     </span>
                 </div>
 
-                <!-- Metrics Grid -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5 pt-1">
-                    <div class="p-3 bg-gray-50 rounded-modern border border-gray-100 space-y-0.5">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Nama Bisnis</p>
-                        <p class="text-xs font-extrabold text-brand-dark truncate" x-text="footer.reviews.place_name || 'Sumber Protein Jogja'"></p>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Google Place ID</label>
+                        <input type="text" 
+                               x-model="footer.reviews.google_place_id" 
+                               class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono text-brand-dark"
+                               placeholder="ChIJN1t_tDeuEmsRUsoyG83frY4">
+                        <p class="text-[10px] text-gray-400 mt-1">Wajib diisi sebelum mengaktifkan Mode Google Review.</p>
                     </div>
-                    <div class="p-3 bg-gray-50 rounded-modern border border-gray-100 space-y-0.5">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Rating Agregat</p>
-                        <div class="flex items-center gap-1">
-                            <span class="text-xs font-black text-brand-primary" x-text="footer.reviews.rating + ' / 5.0'"></span>
-                            <span class="text-amber-400 text-xs">★</span>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Rating Google</label>
+                            <input type="number" 
+                                   step="0.1" 
+                                   min="1" 
+                                   max="5" 
+                                   x-model="footer.reviews.rating" 
+                                   class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-bold text-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Total Ulasan Google</label>
+                            <input type="number" 
+                                   min="0" 
+                                   x-model="footer.reviews.total_reviews" 
+                                   class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono">
                         </div>
                     </div>
-                    <div class="p-3 bg-gray-50 rounded-modern border border-gray-100 space-y-0.5">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total Ulasan</p>
-                        <p class="text-xs font-extrabold text-brand-dark" x-text="footer.reviews.total_reviews + ' Reviews'"></p>
-                    </div>
-                    <div class="p-3 bg-gray-50 rounded-modern border border-gray-100 space-y-0.5">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Sumber Platform</p>
-                        <p class="text-xs font-bold text-gray-700 flex items-center gap-1">
-                            <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                            </svg>
-                            <span>Google Maps</span>
-                        </p>
-                    </div>
-                </div>
 
-                <!-- Sync Bar & Meta -->
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs">
-                    <div class="flex items-center gap-2 text-gray-500 text-[11px]">
-                        <span class="text-gray-400">Terakhir diperbarui:</span>
-                        <strong class="text-brand-dark" x-text="footer.reviews.last_updated || '25 Agustus 2026'"></strong>
-                        <span class="text-gray-300">•</span>
-                        <span class="text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Mode Dummy Data</span>
+                    <div class="pt-2">
+                        <button @click="saveGoogleConfig()" 
+                                type="button"
+                                class="w-full px-4 py-2.5 rounded-modern font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 transition-all cursor-pointer shadow-2xs">
+                            Simpan Konfigurasi Google
+                        </button>
                     </div>
-
-                    <!-- Sync Button -->
-                    <button @click="syncGoogleReviews()" 
-                            type="button"
-                            :disabled="isSyncing"
-                            class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-modern font-bold text-xs text-brand-primary bg-brand-soft-green hover:bg-emerald-100 border border-brand-soft-green-border transition-all cursor-pointer shadow-2xs disabled:opacity-50">
-                        <svg class="w-3.5 h-3.5 shrink-0" :class="isSyncing ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        <span x-text="isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Data'"></span>
-                    </button>
                 </div>
 
                 <!-- Info notice -->
-                <div class="p-3 rounded-modern bg-brand-soft-green/40 border border-brand-soft-green-border text-[11px] text-brand-dark flex items-start gap-2.5">
-                    <span class="text-brand-primary text-sm mt-0.5">ℹ️</span>
+                <div class="p-3 rounded-modern bg-blue-50/60 border border-blue-100 text-[11px] text-blue-900 flex items-start gap-2.5">
+                    <span class="text-blue-600 text-sm mt-0.5">ℹ️</span>
                     <p class="leading-relaxed">
-                        Data ulasan disinkronkan langsung dari profil resmi <strong>Google Business Profile &amp; Google Maps</strong>. Seluruh konten nama, rating bintang, dan komentar reviewer bersifat <strong>READ-ONLY</strong> dan bersumber asli dari platform Google.
+                        Sinkronisasi Google Places API langsung tidak diaktifkan pada langkah ini. Konfigurasi Place ID dan rating agregat dikelola secara struktural.
                     </p>
                 </div>
             </div>
 
         </div>
 
-        <!-- Right Column (6 cols): DAFTAR ULASAN GOOGLE (MANAGER) DI SAMPING GOOGLE REVIEWS -->
-        <div class="lg:col-span-6 space-y-6">
+        <!-- Right Column (7 cols): REVIEW MANAGEMENT (CRUD & LIST) -->
+        <div class="lg:col-span-7 space-y-6">
             
-            <!-- 3. GOOGLE REVIEW LIST (GOOGLE REVIEWS MANAGER) -->
-            <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
+            <!-- REVIEW LIST CARD -->
+            <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-6 shadow-2xs space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                        <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
-                            Daftar Ulasan Google (<span x-text="footer.reviews.items.length"></span> Review Terdata)
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        <h3 class="text-xs sm:text-sm font-extrabold text-brand-dark uppercase tracking-wider">
+                            Daftar Ulasan (<span x-text="footer.reviews.items.length"></span>)
                         </h3>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              x-text="footer.reviews.items.filter(i => i.is_active).length + ' Aktif dari ' + footer.reviews.items.length + ' Total'"></span>
-                    </div>
+                    
+                    <button type="button" 
+                            @click="openCreateReviewModal()"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark transition-all cursor-pointer shadow-2xs">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                        <span>Tambah Ulasan</span>
+                    </button>
                 </div>
 
-                <!-- Scrollable Review Manager Card Items -->
-                <div class="space-y-3 max-h-[570px] overflow-y-auto pr-1">
+                <!-- Scrollable Review List -->
+                <div class="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                     <template x-for="(item, idx) in footer.reviews.items" :key="item.id">
-                        <div class="p-4 rounded-modern-lg border transition-all duration-200 space-y-3 relative"
+                        <div class="p-4 rounded-modern-lg border transition-all duration-200 space-y-3"
                              :class="item.is_active ? 'border-gray-200 bg-gray-50/70 hover:bg-white' : 'border-dashed border-gray-300 bg-gray-100/60 opacity-60'">
                             
-                            <!-- Top Row: Reviewer Meta & Toggle Switch -->
+                            <!-- Top Row: Reviewer Meta, Rating & Actions -->
                             <div class="flex items-center justify-between flex-wrap gap-2">
                                 
-                                <!-- Left: Initial Avatar & Details (READ ONLY) -->
+                                <!-- Left: Avatar & Details -->
                                 <div class="flex items-center gap-3 min-w-0">
                                     <div class="w-9 h-9 rounded-full bg-brand-primary text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs"
                                          x-text="item.name.split(' ').map(n=>n[0]).join('').substring(0,2)">
@@ -425,18 +624,18 @@
                                     <div class="min-w-0">
                                         <div class="flex items-center gap-2">
                                             <h4 class="text-xs font-extrabold text-brand-dark truncate" x-text="item.name"></h4>
-                                            <span class="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[9px] font-bold bg-white text-gray-500 border border-gray-200 shrink-0">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                                <span x-text="item.source || 'Google Review'"></span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0"
+                                                  :class="item.source === 'Google Review' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
+                                                <span x-text="item.source || 'Manual Review'"></span>
                                             </span>
                                         </div>
                                         <p class="text-[10px] text-gray-500 mt-0.5 truncate"
-                                           x-text="(item.role ? item.role + (item.location ? ', ' + item.location : '') : item.location || '') + ' • ' + item.time"></p>
+                                           x-text="(item.role ? item.role + (item.location ? ', ' + item.location : '') : item.location || '') + ' • ' + (item.time || 'Baru saja')"></p>
                                     </div>
                                 </div>
 
-                                <!-- Right: 5 Stars (READ ONLY) & Visibility Toggle -->
-                                <div class="flex items-center gap-3 shrink-0">
+                                <!-- Right: Rating, Toggle & Action Buttons -->
+                                <div class="flex items-center gap-2 shrink-0">
                                     <!-- Stars -->
                                     <div class="flex items-center gap-0.5 text-amber-400" :title="item.rating + ' Bintang'">
                                         <template x-for="i in item.rating" :key="i">
@@ -446,21 +645,35 @@
                                         </template>
                                     </div>
 
-                                    <!-- Visibility Toggle Button / Checkbox -->
-                                    <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-modern text-xs font-bold cursor-pointer transition-all border select-none"
-                                           :class="item.is_active ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' : 'bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-300'">
-                                        <input type="checkbox" 
-                                               x-model="item.is_active" 
-                                               class="sr-only">
-                                        <span class="w-2 h-2 rounded-full" :class="item.is_active ? 'bg-emerald-500' : 'bg-gray-400'"></span>
-                                        <span x-text="item.is_active ? 'Tampil' : 'Sembunyi'"></span>
-                                    </label>
+                                    <!-- Active Toggle Button -->
+                                    <button type="button" 
+                                            @click="toggleReviewStatus(item)"
+                                            class="px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all border"
+                                            :class="item.is_active ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-200 text-gray-600 border-gray-300'"
+                                            x-text="item.is_active ? 'Aktif' : 'Nonaktif'">
+                                    </button>
+
+                                    <!-- Edit Button -->
+                                    <button type="button" 
+                                            @click="openEditReviewModal(item)"
+                                            class="p-1 rounded text-gray-500 hover:text-brand-primary hover:bg-gray-100 cursor-pointer"
+                                            title="Edit ulasan">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+
+                                    <!-- Delete Button -->
+                                    <button type="button" 
+                                            @click="deleteReview(item)"
+                                            class="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                                            title="Hapus ulasan">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
                                 </div>
                             </div>
 
-                            <!-- Review Comment (READ ONLY Quote Box) -->
+                            <!-- Review Comment Box -->
                             <div class="bg-white p-3 rounded-modern border border-gray-200/80 text-xs text-gray-700 leading-relaxed italic">
-                                <span class="text-gray-400 font-serif mr-1">&ldquo;</span><span x-text="item.comment"></span><span class="text-gray-400 font-serif ml-1">&rdquo;</span>
+                                <span class="text-gray-400 font-serif mr-1">&ldquo;</span><span x-text="item.review_text || item.comment"></span><span class="text-gray-400 font-serif ml-1">&rdquo;</span>
                             </div>
                         </div>
                     </template>
@@ -468,6 +681,8 @@
             </div>
 
         </div>
+
+    </div>      </div>
 
     </div>
 
@@ -2032,6 +2247,88 @@
             <span x-show="previewDevice === 'mobile'">📱 Virtual Mobile (393&times;852, 9:16) &bull; Arahkan kursor &amp; scroll di dalam layar mobile (natural height).</span>
         </p>
 
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- REVIEW CREATE / EDIT MODAL                              -->
+    <!-- ======================================================= -->
+    <div x-show="reviewModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="reviewModalOpen = false"></div>
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 space-y-4">
+                
+                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">⭐</span>
+                        <h3 class="text-sm font-extrabold text-brand-dark" x-text="isEditingReview ? 'Edit Ulasan Pelanggan' : 'Tambah Ulasan Pelanggan'"></h3>
+                    </div>
+                    <button @click="reviewModalOpen = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <!-- Reviewer Name -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">Nama Reviewer <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="reviewForm.reviewer_name" placeholder="Contoh: Ibu Ratna Dewi" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-brand-dark">
+                    </div>
+
+                    <!-- Role / Title & Location -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Profesi / Peran</label>
+                            <input type="text" x-model="reviewForm.reviewer_title" placeholder="Ibu Rumah Tangga" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Lokasi</label>
+                            <input type="text" x-model="reviewForm.reviewer_location" placeholder="Sleman, Yogyakarta" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white">
+                        </div>
+                    </div>
+
+                    <!-- Rating & Active -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Rating Bintang (1 - 5)</label>
+                            <select x-model.number="reviewForm.rating" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-amber-500">
+                                <option value="5">⭐⭐⭐⭐⭐ (5 Bintang)</option>
+                                <option value="4">⭐⭐⭐⭐ (4 Bintang)</option>
+                                <option value="3">⭐⭐⭐ (3 Bintang)</option>
+                                <option value="2">⭐⭐ (2 Bintang)</option>
+                                <option value="1">⭐ (1 Bintang)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Status Visibilitas</label>
+                            <select x-model="reviewForm.is_active" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold">
+                                <option :value="true">Aktif (Tampil)</option>
+                                <option :value="false">Nonaktif (Sembunyi)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Review Text -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">Isi Ulasan <span class="text-red-500">*</span></label>
+                        <textarea x-model="reviewForm.review_text" rows="3" placeholder="Tuliskan pengalaman pelanggan..." class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white leading-relaxed"></textarea>
+                    </div>
+                </div>
+
+                <div class="pt-3 flex items-center justify-end gap-3 border-t border-gray-100">
+                    <button @click="reviewModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="saveReview()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer">
+                        Simpan Ulasan
+                    </button>
+                </div>
+
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notification -->

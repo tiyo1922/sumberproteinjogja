@@ -24,6 +24,15 @@
          selectedMedia: null,
          uploadedFile: null,
          uploadedPreviewUrl: null,
+         csrfToken: '{{ csrf_token() }}',
+         flashSale: {{ json_encode($flashSaleSetting ?? ['enabled' => false, 'end_at' => null]) }},
+         flashSaleModalOpen: false,
+         flashSaleForm: {
+             product_id: '',
+             discount_type: 'percentage',
+             discount_value: 20,
+             sort_order: 1,
+         },
          
          // 1. SECTION HEADER KATALOG PRODUK STATE
          productSection: {
@@ -305,61 +314,321 @@
              this.uploadedFile = {
                  name: file.name,
                  size: (file.size / 1024).toFixed(0) + ' KB',
-                 type: file.type,
-             };
              this.uploadedPreviewUrl = URL.createObjectURL(file);
          },
           
-         saveProduct() {
-             if (!this.form.name.trim()) {
-                 alert('Nama produk wajib diisi.');
-                 return;
-             }
-             if (this.form.types.length === 0) {
-                 alert('Pilih minimal satu karakteristik produk.');
-                 return;
-             }
-             this.form.weight = this.form.weight_value + (this.form.unit === 'gram' ? 'g' : (this.form.unit === 'kg' ? 'kg' : ' ' + this.form.unit));
-             
-             if (this.isEditing) {
-                 const idx = this.products.findIndex(p => p.id === this.form.id);
-                 if (idx !== -1) {
-                     this.products[idx] = JSON.parse(JSON.stringify(this.form));
-                 }
-                 this.showToast('Produk ' + this.form.name + ' berhasil diperbarui!');
-             } else {
-                 this.products.unshift(JSON.parse(JSON.stringify(this.form)));
-                 this.showToast('Produk baru berhasil ditambahkan ke katalog!');
-             }
-             this.editorModalOpen = false;
-         },
+         async saveProduct() {
+            if (!this.form.name.trim()) {
+                alert('Nama produk wajib diisi.');
+                return;
+            }
+            if (!this.form.types || this.form.types.length === 0) {
+                alert('Pilih minimal satu karakteristik produk.');
+                return;
+            }
+
+            const payload = {
+                name: this.form.name,
+                slug: this.form.slug || '',
+                category_id: parseInt(this.form.category_id || 1),
+                description: this.form.description || '',
+                image: this.form.image || 'images/prod-beef-slice.jpg',
+                types: this.form.types || ['Fresh'],
+                weight_value: parseFloat(this.form.weight_value || 500),
+                unit: this.form.unit || 'gram',
+                normal_price: parseFloat(this.form.price || this.form.normal_price || 0),
+                discount_type: this.form.discount_type || null,
+                discount_value: this.form.discount_value ? parseFloat(this.form.discount_value) : null,
+                stock_status: this.form.stock_status || 'READY_STOCK',
+                is_active: this.form.status === 'Aktif' || this.form.is_active === true,
+                sort_order: parseInt(this.form.sort_order || 1),
+                whatsapp_destination: this.form.whatsapp_destination || 'admin',
+            };
+
+            try {
+                const url = this.isEditing ? `/admin/produk/${this.form.id}` : '/admin/produk';
+                const method = this.isEditing ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menyimpan produk.');
+                    return;
+                }
+
+                const matchedCat = this.categories.find(c => c.id == payload.category_id);
+                const catName = matchedCat ? matchedCat.name : (result.product?.category?.name || 'Daging Sapi');
+
+                if (this.isEditing) {
+                    const idx = this.products.findIndex(p => p.id === this.form.id);
+                    if (idx !== -1) {
+                        this.products[idx] = {
+                            ...this.products[idx],
+                            ...this.form,
+                            ...payload,
+                            category: catName,
+                            price: payload.normal_price,
+                            normal_price: payload.normal_price,
+                            status: payload.is_active ? 'Aktif' : 'Nonaktif',
+                        };
+                    }
+                    this.showToast(result.message || `Produk ${this.form.name} berhasil diperbarui!`);
+                } else {
+                    const newProd = {
+                        ...this.form,
+                        ...payload,
+                        id: result.product.id,
+                        category: catName,
+                        price: payload.normal_price,
+                        normal_price: payload.normal_price,
+                        status: payload.is_active ? 'Aktif' : 'Nonaktif',
+                    };
+                    this.products.unshift(newProd);
+                    this.showToast(result.message || 'Produk baru berhasil ditambahkan ke katalog!');
+                }
+                this.editorModalOpen = false;
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menyimpan produk.');
+            }
+        },
+         
+        async toggleStatus(p) {
+            try {
+                const response = await fetch(`/admin/produk/${p.id}/toggle`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal mengubah status produk.');
+                    return;
+                }
+
+                p.is_active = result.is_active;
+                p.status = result.is_active ? 'Aktif' : 'Nonaktif';
+                this.showToast(result.message || `Status ${p.name} diubah menjadi ${p.status}`);
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan saat mengubah status produk.');
+            }
+        },
+         
+        openDelete(p) {
+            this.selectedProduct = p;
+            this.deleteModalOpen = true;
+        },
+         
+        async confirmDelete() {
+            if (!this.selectedProduct) return;
+
+            try {
+                const prodId = this.selectedProduct.id;
+                const prodName = this.selectedProduct.name;
+
+                const response = await fetch(`/admin/produk/${prodId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menghapus produk.');
+                    return;
+                }
+
+                this.products = this.products.filter(p => p.id !== prodId);
+                this.deleteModalOpen = false;
+                this.showToast(result.message || `Produk ${prodName} telah dihapus.`);
+                this.selectedProduct = null;
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan saat menghapus produk.');
+            }
+        },
           
-         toggleStatus(p) {
-             p.status = p.status === 'Aktif' ? 'Nonaktif' : 'Aktif';
-             this.showToast('Status ' + p.name + ' diubah menjadi ' + p.status);
-         },
-          
-         openDelete(p) {
-             this.selectedProduct = p;
-             this.deleteModalOpen = true;
-         },
-          
-         confirmDelete() {
-             if (this.selectedProduct) {
-                 this.products = this.products.filter(p => p.id !== this.selectedProduct.id);
-                 this.deleteModalOpen = false;
-                 this.showToast('Produk telah dihapus.');
-                 this.selectedProduct = null;
-             }
-         },
-          
-         formatRupiah(num) {
-             return 'Rp ' + Number(num || 0).toLocaleString('id-ID');
-         },
-          
-         getWaNumber(dest) {
-             return dest === 'order' ? this.contactSettings.order_whatsapp : this.contactSettings.admin_whatsapp;
-         },
+        formatRupiah(num) {
+            return 'Rp ' + Number(num || 0).toLocaleString('id-ID');
+        },
+        getWaNumber(dest) {
+            return dest === 'order' ? this.contactSettings.order_whatsapp : this.contactSettings.admin_whatsapp;
+        },
+
+        get flashSaleProductsList() {
+            return this.products.filter(p => p.is_flash_sale);
+        },
+
+        get activeFlashSaleCount() {
+            return this.products.filter(p => p.is_flash_sale && (p.status === 'Aktif' || p.is_active)).length;
+        },
+
+        async toggleFlashSale(targetState) {
+            try {
+                const response = await fetch('/admin/flash-sale/toggle', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify({
+                        enabled: targetState,
+                        end_at: this.flashSale.end_at,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal mengubah status Flash Sale.');
+                    return;
+                }
+
+                this.flashSale = result.flash_sale;
+                this.showToast(result.message);
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan saat mengubah status Flash Sale.');
+            }
+        },
+
+        async saveFlashSaleSettings() {
+            try {
+                const response = await fetch('/admin/flash-sale/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify({
+                        title: this.flashSale.title,
+                        subtitle: this.flashSale.subtitle,
+                        end_at: this.flashSale.end_at,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menyimpan pengaturan Flash Sale.');
+                    return;
+                }
+
+                this.flashSale = result.flash_sale;
+                this.showToast(result.message || 'Pengaturan Flash Sale berhasil disimpan!');
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan saat menyimpan pengaturan Flash Sale.');
+            }
+        },
+
+        openAssignFlashSaleModal() {
+            const unassigned = this.products.filter(p => !p.is_flash_sale);
+            if (unassigned.length === 0) {
+                alert('Semua produk sudah terdaftar dalam Flash Sale.');
+                return;
+            }
+
+            this.flashSaleForm = {
+                product_id: unassigned[0].id,
+                discount_type: 'percentage',
+                discount_value: 20,
+                sort_order: this.flashSaleProductsList.length + 1,
+            };
+            this.flashSaleModalOpen = true;
+        },
+
+        async assignProductToFlashSale() {
+            if (!this.flashSaleForm.product_id) {
+                alert('Pilih produk yang akan dimasukkan ke Flash Sale.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/admin/flash-sale/assign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify(this.flashSaleForm),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menambahkan produk ke Flash Sale.');
+                    return;
+                }
+
+                const idx = this.products.findIndex(p => p.id == this.flashSaleForm.product_id);
+                if (idx !== -1) {
+                    this.products[idx].is_flash_sale = true;
+                    this.products[idx].flash_sale_discount_type = this.flashSaleForm.discount_type;
+                    this.products[idx].flash_sale_discount_value = parseFloat(this.flashSaleForm.discount_value);
+                    this.products[idx].flash_sale_sort_order = parseInt(this.flashSaleForm.sort_order);
+                }
+
+                this.flashSaleModalOpen = false;
+                this.showToast(result.message || 'Produk berhasil ditambahkan ke Flash Sale!');
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan saat menambahkan produk ke Flash Sale.');
+            }
+        },
+
+        async removeProductFromFlashSale(p) {
+            if (!confirm(`Hapus "${p.name}" dari Flash Sale? (Harga regular produk tidak akan berubah)`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/flash-sale/remove/${p.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menghapus produk dari Flash Sale.');
+                    return;
+                }
+
+                p.is_flash_sale = false;
+                this.showToast(result.message || 'Produk berhasil dihapus dari Flash Sale.');
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan saat menghapus produk dari Flash Sale.');
+            }
+        },
           
          getImageUrl(path) {
              if (!path) return '/images/prod-beef-slice.jpg';
@@ -521,6 +790,107 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- FLASH SALE PROMOTION CAMPAIGN MANAGER                   -->
+    <!-- ======================================================= -->
+    <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-7 shadow-2xs space-y-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+            <div class="space-y-1">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-xl">⚡</span>
+                    <h3 class="text-sm sm:text-base font-extrabold text-brand-dark uppercase tracking-wider">
+                        Program Flash Sale &amp; Countdown
+                    </h3>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-extrabold"
+                          :class="flashSale.enabled ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'"
+                          x-text="flashSale.enabled ? 'STATUS: AKTIF' : 'STATUS: NONAKTIF'"></span>
+                </div>
+                <p class="text-xs text-gray-500 leading-relaxed max-w-2xl">
+                    Tampilkan section promo kilat dengan timer hitung mundur di Landing Page. Flash Sale menggunakan produk katalog dengan diskon promo independen.
+                </p>
+            </div>
+
+            <!-- Global ON/OFF Toggle Button -->
+            <div class="flex items-center gap-3 shrink-0">
+                <button type="button" 
+                        @click="toggleFlashSale(!flashSale.enabled)"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-extrabold text-xs text-white transition-all cursor-pointer shadow-sm"
+                        :class="flashSale.enabled ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'">
+                    <span x-text="flashSale.enabled ? 'Matikan Flash Sale' : 'Aktifkan Flash Sale'"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Settings Row: Title, Subtitle, End At -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 bg-gray-50/70 p-4 rounded-modern-lg border border-gray-200/60">
+            <div class="md:col-span-4">
+                <label class="block text-xs font-bold text-brand-dark mb-1">Judul Flash Sale</label>
+                <input type="text" x-model="flashSale.title" placeholder="Flash Sale Terbatas!" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-brand-dark">
+            </div>
+            <div class="md:col-span-5">
+                <label class="block text-xs font-bold text-brand-dark mb-1">Waktu Berakhir (Countdown End)</label>
+                <input type="datetime-local" x-model="flashSale.end_at" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono font-bold text-red-600">
+            </div>
+            <div class="md:col-span-3 flex items-end">
+                <button type="button" @click="saveFlashSaleSettings()" class="w-full px-4 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark transition-all cursor-pointer">
+                    Simpan Pengaturan
+                </button>
+            </div>
+        </div>
+
+        <!-- Assigned Products Table in Flash Sale -->
+        <div class="space-y-3">
+            <div class="flex items-center justify-between gap-4">
+                <h4 class="text-xs font-extrabold text-brand-dark uppercase tracking-wider">
+                    Daftar Produk Flash Sale (<span x-text="flashSaleProductsList.length"></span>)
+                </h4>
+                <button type="button" @click="openAssignFlashSaleModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern font-bold text-xs text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-all cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    <span>Tambah Produk ke Flash Sale</span>
+                </button>
+            </div>
+
+            <template x-if="flashSaleProductsList.length === 0">
+                <div class="p-6 text-center bg-gray-50 rounded-modern border border-dashed border-gray-300 text-xs text-gray-500">
+                    Belum ada produk yang dimasukkan ke program Flash Sale. Klik tombol di atas untuk memilih produk dari katalog.
+                </div>
+            </template>
+
+            <div x-show="flashSaleProductsList.length > 0" class="overflow-x-auto rounded-modern border border-gray-200">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-gray-100/80 font-bold text-brand-dark border-b border-gray-200">
+                        <tr>
+                            <th class="p-3">Produk</th>
+                            <th class="p-3">Kategori</th>
+                            <th class="p-3">Harga Normal</th>
+                            <th class="p-3">Diskon Flash Sale</th>
+                            <th class="p-3">Harga Flash Sale</th>
+                            <th class="p-3">Urutan</th>
+                            <th class="p-3 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <template x-for="p in flashSaleProductsList" :key="p.id">
+                            <tr class="hover:bg-gray-50/50">
+                                <td class="p-3 font-bold text-brand-dark" x-text="p.name"></td>
+                                <td class="p-3 text-gray-500" x-text="p.category"></td>
+                                <td class="p-3 text-gray-400 line-through" x-text="formatRupiah(p.normal_price)"></td>
+                                <td class="p-3 font-bold text-red-600" x-text="p.flash_sale_discount_type === 'percentage' ? (p.flash_sale_discount_value + '%') : formatRupiah(p.flash_sale_discount_value)"></td>
+                                <td class="p-3 font-extrabold text-red-600" x-text="formatRupiah(p.flash_sale_discount_type === 'percentage' ? (p.normal_price - (p.normal_price * p.flash_sale_discount_value / 100)) : (p.normal_price - p.flash_sale_discount_value))"></td>
+                                <td class="p-3 font-mono" x-text="p.flash_sale_sort_order"></td>
+                                <td class="p-3 text-right">
+                                    <button type="button" @click="removeProductFromFlashSale(p)" class="text-xs font-bold text-red-600 hover:text-red-800 cursor-pointer">
+                                        Hapus dari Promo
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- ======================================================= -->
@@ -1279,6 +1649,74 @@
                             type="button" 
                             class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
                         Hapus Produk
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- FLASH SALE ASSIGN PRODUCT MODAL                         -->
+    <!-- ======================================================= -->
+    <div x-show="flashSaleModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="flashSaleModalOpen = false"></div>
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 space-y-4">
+                
+                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">⚡</span>
+                        <h3 class="text-sm font-extrabold text-brand-dark">Tambah Produk ke Flash Sale</h3>
+                    </div>
+                    <button @click="flashSaleModalOpen = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <!-- Select Product -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">Pilih Produk Katalog</label>
+                        <select x-model="flashSaleForm.product_id" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium text-brand-dark">
+                            <template x-for="p in products.filter(item => !item.is_flash_sale)" :key="p.id">
+                                <option :value="p.id" x-text="p.name + ' (Rp ' + Number(p.normal_price).toLocaleString('id-ID') + ')'"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <!-- Discount Type -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Tipe Diskon</label>
+                            <select x-model="flashSaleForm.discount_type" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium text-brand-dark">
+                                <option value="percentage">Persentase (%)</option>
+                                <option value="fixed">Nominal (Rp)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Nilai Diskon</label>
+                            <input type="number" x-model="flashSaleForm.discount_value" min="0" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-red-600">
+                        </div>
+                    </div>
+
+                    <!-- Sort Order -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">Urutan Flash Sale (Sort Order)</label>
+                        <input type="number" x-model="flashSaleForm.sort_order" min="1" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono">
+                    </div>
+                </div>
+
+                <div class="pt-3 flex items-center justify-end gap-3 border-t border-gray-100">
+                    <button @click="flashSaleModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="assignProductToFlashSale()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer">
+                        Tambahkan ke Promo
                     </button>
                 </div>
 

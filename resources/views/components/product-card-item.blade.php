@@ -72,37 +72,60 @@
                 <span class="text-[9px] sm:text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Harga</span>
                 <span class="text-xs sm:text-base lg:text-lg font-extrabold text-brand-primary leading-tight"
                       @if($isLive) x-text="'Rp ' + Number(form.price || 0).toLocaleString('id-ID')" @endif>
-                    {{ $prod['price_formatted'] ?? 'Rp 0' }}
+                    {{ $prod['price_formatted'] ?? ('Rp ' . number_format($prod['effective_price'] ?? ($prod['price'] ?? 0), 0, ',', '.')) }}
                 </span>
             </div>
 
-            <!-- Add to Cart Action Button -->
-            <button @if(!$isLive) @click="$store.cart.addItem('{{ $prod['id'] }}', '{{ addslashes($prod['name']) }}', {{ $prod['price'] }})" @endif
-                    type="button" 
-                    aria-label="Tambahkan ke pesanan"
-                    title="Tambahkan ke pesanan"
-                    class="relative w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] rounded-modern-sm flex items-center justify-center text-white bg-brand-primary hover:bg-brand-primary-dark active:scale-90 transition-all duration-200 shadow-2xs hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/40 shrink-0 cursor-pointer after:absolute after:-inset-1.5 after:content-['']"
-                    @if(!$isLive) :class="$store.cart.lastAddedId === '{{ $prod['id'] }}' ? 'scale-110 bg-emerald-600 ring-2 ring-emerald-400' : ''" @endif>
-                
-                <!-- Clean Shopping Cart SVG Icon -->
-                <svg @if(!$isLive) x-show="$store.cart.lastAddedId !== '{{ $prod['id'] }}'" @endif 
-                     class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-none stroke-current stroke-2" 
-                     viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="9" cy="21" r="1"></circle>
-                    <circle cx="20" cy="21" r="1"></circle>
-                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                </svg>
+            @php
+                $stockStatus = $prod['stock_status'] ?? 'READY_STOCK';
+            @endphp
 
-                @if(!$isLive)
-                <!-- Brief Check Feedback Icon -->
-                <svg x-show="$store.cart.lastAddedId === '{{ $prod['id'] }}'" x-cloak 
-                     class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-none stroke-current stroke-2 text-white animate-bounce" 
-                     viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                @endif
-            </button>
-        </div>
+            @if($stockStatus === 'OUT_OF_STOCK')
+                <!-- Locked Out of Stock Button -->
+                <button type="button" 
+                        disabled
+                        aria-label="Stok Habis"
+                        title="Stok Habis"
+                        class="px-2.5 py-1 rounded-modern-sm text-[10px] font-bold text-gray-400 bg-gray-100 cursor-not-allowed border border-gray-200 shrink-0">
+                    Stok Habis
+                </button>
+            @elseif($stockStatus === 'PRE_ORDER')
+                <!-- Pre-Order Action Button -->
+                <button @if(!$isLive) @click="$store.cart.addItem('{{ $prod['id'] }}', '{{ addslashes($prod['name']) }}', {{ $prod['effective_price'] ?? ($prod['price'] ?? 0) }}, 'PRE_ORDER')" @endif
+                        type="button" 
+                        aria-label="Pesan Pre-Order"
+                        title="Pesan Pre-Order"
+                        class="px-2.5 py-1 rounded-modern-sm text-[10px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors shrink-0 cursor-pointer shadow-2xs">
+                    Pre-Order
+                </button>
+            @else
+                <!-- Standard Add to Cart Action Button -->
+                <button @if(!$isLive) @click="$store.cart.addItem('{{ $prod['id'] }}', '{{ addslashes($prod['name']) }}', {{ $prod['effective_price'] ?? ($prod['price'] ?? 0) }})" @endif
+                        type="button" 
+                        aria-label="Tambahkan ke pesanan"
+                        title="Tambahkan ke pesanan"
+                        class="relative w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] rounded-modern-sm flex items-center justify-center text-white bg-brand-primary hover:bg-brand-primary-dark active:scale-90 transition-all duration-200 shadow-2xs hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/40 shrink-0 cursor-pointer after:absolute after:-inset-1.5 after:content-['']"
+                        @if(!$isLive) :class="$store.cart.lastAddedId === '{{ $prod['id'] }}' ? 'scale-110 bg-emerald-600 ring-2 ring-emerald-400' : ''" @endif>
+                    
+                    <!-- Clean Shopping Cart SVG Icon -->
+                    <svg @if(!$isLive) x-show="$store.cart.lastAddedId !== '{{ $prod['id'] }}'" @endif 
+                         class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-none stroke-current stroke-2" 
+                         viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="9" cy="21" r="1"></circle>
+                        <circle cx="20" cy="21" r="1"></circle>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg>
+
+                    @if(!$isLive)
+                    <!-- Brief Check Feedback Icon -->
+                    <svg x-show="$store.cart.lastAddedId === '{{ $prod['id'] }}'" x-cloak 
+                         class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-none stroke-current stroke-2 text-white animate-bounce" 
+                         viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    @endif
+                </button>
+            @endif
     </div>
 
 </div>

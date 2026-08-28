@@ -218,201 +218,309 @@
              this.initPreviewObserver();
          },
          
-         saveDraft() {
-             if (this.draftForm.images.length === 0) {
-                 alert('Minimal harus ada 1 gambar latar untuk slideshow.');
-                 return;
-             }
-             if (this.isEditingDraft) {
-                 const idx = this.drafts.findIndex(d => d.id === this.draftForm.id);
-                 if (idx !== -1) {
-                     this.draftForm.updated_at = '17 Agustus 2026, ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
-                     this.drafts[idx] = JSON.parse(JSON.stringify(this.draftForm));
-                 }
-                 this.showToast('Draft Hero berhasil diperbarui!');
-             } else {
-                 this.draftForm.updated_at = '17 Agustus 2026, ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
-                 this.drafts.push(JSON.parse(JSON.stringify(this.draftForm)));
-                 this.showToast('Draft Hero baru berhasil dibuat!');
-             }
-             this.closeEditorModal();
-         },
-         
-         closeEditorModal() {
-             this.stopAutoplay();
-             this.editorModalOpen = false;
-         },
-         
-         // Media Picker Management
-         openMediaPickerForAdd() {
-             if (this.draftForm.images.length >= 4) {
-                 this.showToast('Maksimal 4 gambar per Hero.');
-                 return;
-             }
-             this.mediaPickerTargetIndex = null; // append mode
-             this.selectedMediaItem = this.mediaLibrary[0];
-             this.mediaPickerTab = 'library';
-             this.uploadedMockImage = null;
-             this.mediaPickerOpen = true;
-         },
-         
-         openMediaPickerForReplace(index) {
-             this.mediaPickerTargetIndex = index; // replace mode
-             const currentPath = this.draftForm.images[index];
-             const found = this.mediaLibrary.find(m => m.path === currentPath);
-             this.selectedMediaItem = found || this.mediaLibrary[0];
-             this.mediaPickerTab = 'library';
-             this.uploadedMockImage = null;
-             this.mediaPickerOpen = true;
-         },
-         
-         handleFileSelected(file) {
-             if (!file) return;
-             if (!file.type.match('image.*')) {
-                 alert('Silakan pilih file gambar (JPG, PNG, atau WebP).');
-                 return;
-             }
-             const previewUrl = URL.createObjectURL(file);
-             const sizeKb = Math.round(file.size / 1024);
-             
-             this.uploadedMockImage = {
-                 filename: file.name,
-                 path: previewUrl,
-                 isBlob: true,
-                 title: file.name,
-                 resolution: '1920 × 1080 px',
-                 ratio: '16:9',
-                 size: sizeKb + ' KB',
-                 is_recommended: true
-             };
-             this.showToast('Gambar ' + file.name + ' siap digunakan.');
-         },
-         
-         applySelectedMedia() {
-             let imagePath = null;
-             if (this.mediaPickerTab === 'library') {
-                 if (!this.selectedMediaItem) {
-                     alert('Silakan pilih salah satu gambar dari Media Library.');
-                     return;
-                 }
-                 imagePath = this.selectedMediaItem.path;
-             } else if (this.mediaPickerTab === 'upload') {
-                 if (!this.uploadedMockImage) {
-                     alert('Silakan upload gambar terlebih dahulu.');
-                     return;
-                 }
-                 imagePath = this.uploadedMockImage.path;
-             }
-             
-             if (!imagePath) {
-                 alert('Silakan pilih gambar terlebih dahulu.');
-                 return;
-             }
-             
-             // Duplicate Check: Check if image is already used in this draft (only when adding new or picking different image)
-             if (this.mediaPickerTargetIndex === null && this.draftForm.images.includes(imagePath)) {
-                 alert('Gambar ini sudah digunakan pada slideshow.');
-                 return;
-             }
-             
-             if (this.mediaPickerTargetIndex !== null && this.draftForm.images.includes(imagePath) && this.draftForm.images[this.mediaPickerTargetIndex] !== imagePath) {
-                 alert('Gambar ini sudah digunakan pada slide lain dalam slideshow.');
-                 return;
-             }
-             
-             if (this.mediaPickerTargetIndex !== null) {
-                 // Replace at index
-                 this.draftForm.images[this.mediaPickerTargetIndex] = imagePath;
-                 this.showToast('Gambar slide ' + (this.mediaPickerTargetIndex + 1) + ' berhasil diganti.');
-             } else {
-                 // Append new image
-                 if (this.draftForm.images.length < 4) {
-                     this.draftForm.images.push(imagePath);
-                     this.showToast('Gambar berhasil ditambahkan ke slideshow.');
-                 }
-             }
-             
-             this.currentSlide = 0;
-             this.startAutoplay();
-             this.mediaPickerOpen = false;
-         },
-         
-         removeImageFromDraft(imgIndex) {
-             if (this.draftForm.images.length <= 1) {
-                 alert('Minimal 1 gambar latar diperlukan.');
-                 return;
-             }
-             this.draftForm.images.splice(imgIndex, 1);
-             if (this.currentSlide >= this.draftForm.images.length) {
-                 this.currentSlide = 0;
-             }
-             this.startAutoplay();
-             this.showToast('Gambar dihapus dari slideshow.');
-         },
-         
-         moveImageUp(imgIndex) {
-             if (imgIndex > 0) {
-                 const item = this.draftForm.images.splice(imgIndex, 1)[0];
-                 this.draftForm.images.splice(imgIndex - 1, 0, item);
-             }
-         },
-         
-         moveImageDown(imgIndex) {
-             if (imgIndex < this.draftForm.images.length - 1) {
-                 const item = this.draftForm.images.splice(imgIndex, 1)[0];
-                 this.draftForm.images.splice(imgIndex + 1, 0, item);
-             }
-         },
-         
-         // Activation & Deletion Handlers
-         openActivateModal(draft) {
-             this.selectedDraft = draft;
-             this.activateModalOpen = true;
-         },
-         
-         confirmActivate() {
-             if (this.selectedDraft) {
-                 this.drafts.forEach(d => {
-                     d.status = (d.id === this.selectedDraft.id) ? 'Aktif' : 'Nonaktif';
-                 });
-                 this.showToast('Hero ' + this.selectedDraft.name + ' sekarang AKTIF di website!');
-                 this.activateModalOpen = false;
-                 this.selectedDraft = null;
-             }
-         },
-         
-         duplicateDraft(draft) {
-             if (this.drafts.length >= 3) {
-                 this.showToast('Tidak dapat menduplikat. Maksimal 3 draft Hero.');
-                 return;
-             }
-             const copy = JSON.parse(JSON.stringify(draft));
-             copy.id = Date.now();
-             copy.name = copy.name + ' (Salinan)';
-             copy.status = 'Nonaktif';
-             copy.updated_at = 'Baru saja';
-             this.drafts.push(copy);
-             this.showToast('Draft berhasil diduplikat.');
-         },
-         
-         openDeleteModal(draft) {
-             if (draft.status === 'Aktif' && this.drafts.length > 1) {
-                 alert('Tidak dapat menghapus Hero yang sedang AKTIF. Silakan aktifkan draft lain terlebih dahulu.');
-                 return;
-             }
-             this.selectedDraft = draft;
-             this.deleteModalOpen = true;
-         },
-         
-         confirmDelete() {
-             if (this.selectedDraft) {
-                 this.drafts = this.drafts.filter(d => d.id !== this.selectedDraft.id);
-                 this.deleteModalOpen = false;
-                 this.selectedDraft = null;
-                 this.showToast('Draft Hero berhasil dihapus.');
-             }
-         }
-     }">
+          csrfToken: '{{ csrf_token() }}',
+          heroPartners: {{ json_encode($heroPartners) }},
+          partnerModalOpen: false,
+          isEditingPartner: false,
+          partnerForm: {
+              id: null,
+              name: '',
+              logo: '',
+              is_active: true,
+              sort_order: 1,
+          },
+
+          async saveHeroToDatabase(draftToSave) {
+              try {
+                  const draft = draftToSave || this.draftForm;
+                  const response = await fetch('/admin/hero', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Accept': 'application/json',
+                          'X-CSRF-TOKEN': this.csrfToken,
+                      },
+                      body: JSON.stringify({
+                          hero: {
+                              badge: draft.badge,
+                              headline_prefix: draft.headline_prefix,
+                              highlight: draft.highlight,
+                              headline_suffix: draft.headline_suffix,
+                              title: (draft.headline_prefix || '') + ' ' + (draft.highlight || '') + (draft.headline_suffix || ''),
+                              subtitle: draft.description,
+                              description: draft.description,
+                              primary_cta_text: draft.primary_cta_text,
+                              primary_cta_link: draft.primary_cta_link,
+                              secondary_cta_text: draft.secondary_cta_text,
+                              secondary_cta_link: draft.secondary_cta_link,
+                              images: draft.images,
+                          },
+                          trust_items: (draft.trust_items || []).map((t, idx) => ({
+                              id: t.id || (idx + 1),
+                              text: t.text,
+                              is_active: t.active !== false,
+                              sort_order: idx + 1,
+                          })),
+                          partners: this.heroPartners,
+                      }),
+                  });
+
+                  const result = await response.json();
+                  if (!response.ok || !result.success) {
+                      alert(result.message || 'Gagal menyimpan ke database.');
+                      return;
+                  }
+                  this.showToast(result.message || 'Hero berhasil disimpan ke database!');
+              } catch (err) {
+                  console.error(err);
+                  alert('Terjadi kesalahan jaringan saat menyimpan Hero.');
+              }
+          },
+
+          async savePartnersToDatabase() {
+              try {
+                  const response = await fetch('/admin/hero', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Accept': 'application/json',
+                          'X-CSRF-TOKEN': this.csrfToken,
+                      },
+                      body: JSON.stringify({
+                          partners: this.heroPartners,
+                      }),
+                  });
+
+                  const result = await response.json();
+                  if (!response.ok || !result.success) {
+                      alert(result.message || 'Gagal menyimpan mitra ke database.');
+                      return;
+                  }
+                  this.showToast(result.message || 'Pengaturan Mitra berhasil disimpan!');
+              } catch (err) {
+                  console.error(err);
+                  alert('Terjadi kesalahan jaringan saat menyimpan Mitra.');
+              }
+          },
+
+          openCreatePartnerModal() {
+              this.isEditingPartner = false;
+              this.partnerForm = {
+                  id: Date.now(),
+                  name: '',
+                  logo: 'images/mitra-placeholder.png',
+                  is_active: true,
+                  sort_order: (this.heroPartners.partners || []).length + 1,
+              };
+              this.partnerModalOpen = true;
+          },
+
+          openEditPartnerModal(p) {
+              this.isEditingPartner = true;
+              this.partnerForm = JSON.parse(JSON.stringify(p));
+              this.partnerModalOpen = true;
+          },
+
+          savePartner() {
+              if (!this.partnerForm.name) {
+                  alert('Nama mitra wajib diisi.');
+                  return;
+              }
+              if (!this.heroPartners.partners) {
+                  this.heroPartners.partners = [];
+              }
+              if (this.isEditingPartner) {
+                  const idx = this.heroPartners.partners.findIndex(p => p.id === this.partnerForm.id);
+                  if (idx !== -1) {
+                      this.heroPartners.partners[idx] = JSON.parse(JSON.stringify(this.partnerForm));
+                  }
+              } else {
+                  this.heroPartners.partners.push(JSON.parse(JSON.stringify(this.partnerForm)));
+              }
+              this.partnerModalOpen = false;
+              this.savePartnersToDatabase();
+          },
+
+          deletePartner(p) {
+              if (!confirm(`Hapus mitra "${p.name}"?`)) return;
+              this.heroPartners.partners = this.heroPartners.partners.filter(item => item.id !== p.id);
+              this.savePartnersToDatabase();
+          },
+
+          saveDraft() {
+              if (this.draftForm.images.length === 0) {
+                  alert('Minimal harus ada 1 gambar latar untuk slideshow.');
+                  return;
+              }
+              if (this.isEditingDraft) {
+                  const idx = this.drafts.findIndex(d => d.id === this.draftForm.id);
+                  if (idx !== -1) {
+                      this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                      this.drafts[idx] = JSON.parse(JSON.stringify(this.draftForm));
+                  }
+              } else {
+                  this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                  this.drafts.push(JSON.parse(JSON.stringify(this.draftForm)));
+              }
+              this.saveHeroToDatabase(this.draftForm);
+              this.closeEditorModal();
+          },
+
+          closeEditorModal() {
+              this.stopAutoplay();
+              this.editorModalOpen = false;
+          },
+
+          // Media Picker Management
+          openMediaPickerForAdd() {
+              if (this.draftForm.images.length >= 4) {
+                  this.showToast('Maksimal 4 gambar per Hero.');
+                  return;
+              }
+              this.mediaPickerTargetIndex = null; // append mode
+              this.selectedMediaItem = this.mediaLibrary[0];
+              this.mediaPickerTab = 'library';
+              this.uploadedMockImage = null;
+              this.mediaPickerOpen = true;
+          },
+
+          openMediaPickerForReplace(index) {
+              this.mediaPickerTargetIndex = index; // replace mode
+              const currentPath = this.draftForm.images[index];
+              const found = this.mediaLibrary.find(m => m.path === currentPath);
+              this.selectedMediaItem = found || this.mediaLibrary[0];
+              this.mediaPickerTab = 'library';
+              this.uploadedMockImage = null;
+              this.mediaPickerOpen = true;
+          },
+
+          handleFileSelected(file) {
+              if (!file) return;
+              if (!file.type.match('image.*')) {
+                  alert('Silakan pilih file gambar (JPG, PNG, atau WebP).');
+                  return;
+              }
+              const previewUrl = URL.createObjectURL(file);
+              const sizeKb = Math.round(file.size / 1024);
+              
+              this.uploadedMockImage = {
+                  filename: file.name,
+                  path: previewUrl,
+                  isBlob: true,
+                  title: file.name,
+                  resolution: '1920 × 1080 px',
+                  ratio: '16:9',
+                  size: sizeKb + ' KB',
+                  is_recommended: true
+              };
+              this.showToast('Gambar ' + file.name + ' siap digunakan.');
+          },
+
+          applySelectedMedia() {
+              let imagePath = null;
+              if (this.mediaPickerTab === 'library') {
+                  if (!this.selectedMediaItem) {
+                      alert('Silakan pilih salah satu gambar dari Media Library.');
+                      return;
+                  }
+                  imagePath = this.selectedMediaItem.path;
+              } else if (this.mediaPickerTab === 'upload') {
+                  if (!this.uploadedMockImage) {
+                      alert('Silakan unggah gambar terlebih dahulu.');
+                      return;
+                  }
+                  imagePath = this.uploadedMockImage.path;
+              }
+
+              if (this.mediaPickerTargetIndex === null) {
+                  this.draftForm.images.push(imagePath);
+                  this.showToast('Gambar berhasil ditambahkan ke slideshow.');
+              } else {
+                  this.draftForm.images[this.mediaPickerTargetIndex] = imagePath;
+                  this.showToast('Gambar slide ' + (this.mediaPickerTargetIndex + 1) + ' berhasil diganti.');
+              }
+
+              this.mediaPickerOpen = false;
+              this.startAutoplay();
+          },
+
+          removeImage(imgIndex) {
+              if (this.draftForm.images.length <= 1) {
+                  alert('Minimal harus tersisa 1 gambar latar untuk Hero.');
+                  return;
+              }
+              this.draftForm.images.splice(imgIndex, 1);
+              if (this.currentSlide >= this.draftForm.images.length) {
+                  this.currentSlide = 0;
+              }
+              this.startAutoplay();
+              this.showToast('Gambar dihapus dari slideshow.');
+          },
+
+          moveImageUp(imgIndex) {
+              if (imgIndex > 0) {
+                  const item = this.draftForm.images.splice(imgIndex, 1)[0];
+                  this.draftForm.images.splice(imgIndex - 1, 0, item);
+              }
+          },
+
+          moveImageDown(imgIndex) {
+              if (imgIndex < this.draftForm.images.length - 1) {
+                  const item = this.draftForm.images.splice(imgIndex, 1)[0];
+                  this.draftForm.images.splice(imgIndex + 1, 0, item);
+              }
+          },
+
+          // Activation & Deletion Handlers
+          openActivateModal(draft) {
+              this.selectedDraft = draft;
+              this.activateModalOpen = true;
+          },
+
+          confirmActivate() {
+              if (this.selectedDraft) {
+                  this.drafts.forEach(d => {
+                      d.status = (d.id === this.selectedDraft.id) ? 'Aktif' : 'Nonaktif';
+                  });
+                  this.saveHeroToDatabase(this.selectedDraft);
+                  this.showToast('Hero ' + this.selectedDraft.name + ' sekarang AKTIF di website!');
+                  this.activateModalOpen = false;
+                  this.selectedDraft = null;
+              }
+          },
+
+          duplicateDraft(draft) {
+              if (this.drafts.length >= 3) {
+                  this.showToast('Tidak dapat menduplikat. Maksimal 3 draft Hero.');
+                  return;
+              }
+              const copy = JSON.parse(JSON.stringify(draft));
+              copy.id = Date.now();
+              copy.name = copy.name + ' (Salinan)';
+              copy.status = 'Nonaktif';
+              copy.updated_at = 'Baru saja';
+              this.drafts.push(copy);
+              this.showToast('Draft berhasil diduplikat.');
+          },
+
+          openDeleteModal(draft) {
+              if (draft.status === 'Aktif' && this.drafts.length > 1) {
+                  alert('Tidak dapat menghapus Hero yang sedang AKTIF. Silakan aktifkan draft lain terlebih dahulu.');
+                  return;
+              }
+              this.selectedDraft = draft;
+              this.deleteModalOpen = true;
+          },
+
+          confirmDelete() {
+              if (this.selectedDraft) {
+                  this.drafts = this.drafts.filter(d => d.id !== this.selectedDraft.id);
+                  this.deleteModalOpen = false;
+                  this.selectedDraft = null;
+                  this.showToast('Draft Hero berhasil dihapus.');
+              }
+          }
+      }">
     
     <!-- 1. Module Header & Draft Overview Card -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs">
@@ -592,6 +700,99 @@
 
             </div>
         </template>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- 2B. PENGATURAN MITRA & PARTNER LOGOS                    -->
+    <!-- ======================================================= -->
+    <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-7 shadow-2xs space-y-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+            <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">🤝</span>
+                    <h3 class="text-sm sm:text-base font-extrabold text-brand-dark uppercase tracking-wider">
+                        Kepercayaan Mitra &amp; Partner Logos
+                    </h3>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                        <span>HERO FOOTER</span>
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 leading-relaxed max-w-2xl">
+                    Kelola judul section mitra (contoh: <em>"Telah Dipercaya Restoran, Cafe, Catering &amp; Rumah Tangga di Jogja"</em> atau <em>"Telah dipercaya oleh (Mitra) :"</em>) dan daftar logo mitra di bawah Trust Checklist Hero.
+                </p>
+            </div>
+
+            <!-- Save Action Button -->
+            <div class="flex items-center gap-3 shrink-0">
+                <button type="button" 
+                        @click="savePartnersToDatabase()"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark transition-all cursor-pointer shadow-sm">
+                    <span>Simpan Pengaturan Mitra</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Section Title Input -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 bg-gray-50/70 p-4 rounded-modern-lg border border-gray-200/60">
+            <div class="md:col-span-8">
+                <label class="block text-xs font-bold text-brand-dark mb-1">
+                    Judul Section Mitra (Partner Title)
+                </label>
+                <input type="text" 
+                       x-model="heroPartners.title" 
+                       placeholder="Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja" 
+                       class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
+            </div>
+            <div class="md:col-span-4 flex items-end">
+                <button type="button" 
+                        @click="openCreatePartnerModal()" 
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-modern font-bold text-xs text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30 transition-all cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    <span>Tambah Mitra Baru</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Partners Table / Grid -->
+        <div class="overflow-x-auto rounded-modern border border-gray-200">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-gray-100/80 font-bold text-brand-dark border-b border-gray-200">
+                    <tr>
+                        <th class="p-3">Nama Mitra / Kategori</th>
+                        <th class="p-3">Logo Reference</th>
+                        <th class="p-3">Urutan</th>
+                        <th class="p-3">Status</th>
+                        <th class="p-3 text-right">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="(p, pIdx) in (heroPartners.partners || [])" :key="p.id || pIdx">
+                        <tr class="hover:bg-gray-50/50">
+                            <td class="p-3 font-bold text-brand-dark" x-text="p.name"></td>
+                            <td class="p-3 font-mono text-[11px] text-gray-500" x-text="p.logo || 'images/mitra-placeholder.png'"></td>
+                            <td class="p-3 font-mono" x-text="p.sort_order || (pIdx + 1)"></td>
+                            <td class="p-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
+                                      :class="(p.is_active !== false && p.active !== false) ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'"
+                                      x-text="(p.is_active !== false && p.active !== false) ? 'Aktif' : 'Nonaktif'"></span>
+                            </td>
+                            <td class="p-3 text-right space-x-2">
+                                <button type="button" 
+                                        @click="openEditPartnerModal(p)" 
+                                        class="text-xs font-bold text-brand-primary hover:underline cursor-pointer">
+                                    Edit
+                                </button>
+                                <button type="button" 
+                                        @click="deletePartner(p)" 
+                                        class="text-xs font-bold text-rose-600 hover:underline cursor-pointer">
+                                    Hapus
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- ======================================================= -->
@@ -1545,6 +1746,70 @@
                             type="button" 
                             class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
                         Hapus Draft
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- 6B. PARTNER CREATE / EDIT MODAL                         -->
+    <!-- ======================================================= -->
+    <div x-show="partnerModalOpen" 
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="partnerModalOpen = false"></div>
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 space-y-4">
+                
+                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">🤝</span>
+                        <h3 class="text-sm font-extrabold text-brand-dark" x-text="isEditingPartner ? 'Edit Mitra' : 'Tambah Mitra Baru'"></h3>
+                    </div>
+                    <button @click="partnerModalOpen = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <!-- Partner Name -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">Nama Mitra / Kategori <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="partnerForm.name" placeholder="Contoh: Restoran & Cafe Jogja" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-brand-dark">
+                    </div>
+
+                    <!-- Logo Reference -->
+                    <div>
+                        <label class="block text-xs font-bold text-brand-dark mb-1">Logo / Image Asset</label>
+                        <input type="text" x-model="partnerForm.logo" placeholder="images/mitra-placeholder.png" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono text-[11px]">
+                    </div>
+
+                    <!-- Sort Order & Status -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Urutan (Sort Order)</label>
+                            <input type="number" x-model.number="partnerForm.sort_order" min="1" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Status Visibilitas</label>
+                            <select x-model="partnerForm.is_active" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold">
+                                <option :value="true">Aktif (Tampil)</option>
+                                <option :value="false">Nonaktif (Sembunyi)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-3 flex items-center justify-end gap-3 border-t border-gray-100">
+                    <button @click="partnerModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="savePartner()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer">
+                        Simpan Mitra
                     </button>
                 </div>
 
