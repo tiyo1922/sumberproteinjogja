@@ -4,6 +4,7 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/app/*.json
 /storage/framework/cache/*
 /storage/framework/sessions/*
 /storage/framework/views/*
@@ -14,6 +15,8 @@
 !/storage/framework/views/.gitignore
 !/storage/framework/testing/.gitignore
 !/storage/logs/.gitignore
+/bootstrap/cache/*.php
+!/bootstrap/cache/.gitignore
 /vendor
 .env
 .env.backup
@@ -30,3 +33,4 @@ vite.config.js.timestamp*
 *.log
 .DS_Store
 Thumbs.db
+
