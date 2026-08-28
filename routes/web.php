@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AuthController;
 
 // Customer Landing Page Routes
 Route::get('/', [LandingController::class, 'index'])->name('home');
@@ -54,8 +55,13 @@ Route::get('/sitemap.xml', function () {
     ]);
 })->name('sitemap');
 
+// Authentication Routes (Login & Logout)
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::post('/login', [AuthController::class, 'login'])->name('login.authenticate');
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
 // Admin Panel CMS Routes
-Route::prefix('admin')->name('admin.')->group(function () {
+Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
     Route::get('/hero', [AdminController::class, 'hero'])->name('hero');
     Route::post('/hero', [AdminController::class, 'heroUpdate'])->name('hero.update');
