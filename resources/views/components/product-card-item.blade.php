@@ -2,7 +2,7 @@
     $isLive = $isLivePreview ?? false;
 @endphp
 
-<div class="group bg-white rounded-modern border border-gray-100/90 shadow-sm hover:shadow-card-hover transition-all duration-300 flex flex-col justify-between overflow-hidden text-left">
+<div class="h-full group bg-white rounded-modern border border-gray-100/90 shadow-sm hover:shadow-card-hover transition-all duration-300 flex flex-col justify-between overflow-hidden text-left">
     
     <!-- Card Top: Image & Badges Container (4:3 Aspect Ratio) -->
     <div class="relative">
@@ -16,6 +16,7 @@
             @if($isLive)
                 <template x-for="t in (form.types || [])" :key="t">
                     <span class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-semibold shadow-2xs"
+                          :style="typeof getBadgeStyle === 'function' ? getBadgeStyle(t) : ''"
                           :class="{
                               'badge-frozen': t === 'Frozen',
                               'badge-ready': t === 'Ready to Cook',
@@ -126,6 +127,7 @@
                     @endif
                 </button>
             @endif
+        </div>
     </div>
 
 </div>

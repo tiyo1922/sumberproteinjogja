@@ -2,10 +2,10 @@
     $isLive = $isLivePreview ?? false;
 @endphp
 
-<div class="group relative bg-white rounded-modern-lg overflow-hidden border border-gray-100 shadow-sm hover:shadow-card-hover transition-all duration-300 flex flex-col justify-between">
+<div class="group relative bg-white rounded-modern-lg overflow-hidden border border-gray-100 shadow-sm hover:shadow-card-hover transition-all duration-300 flex flex-col justify-between h-full">
     
     <!-- Category Image Container (4:3 Aspect Ratio) -->
-    <div class="relative aspect-[4/3] w-full overflow-hidden bg-gray-100">
+    <div class="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-gray-100">
         <img @if($isLive) :src="getImageUrl(form.image)" :alt="form.name" @else src="{{ asset($cat['image'] ?? 'images/cat-daging.jpg') }}" alt="{{ ($cat['name'] ?? 'Kategori') }} - Sumber Protein Jogja" loading="lazy" @endif 
              class="w-full h-full object-cover object-center group-hover:scale-108 transition-transform duration-500 ease-out">
         
@@ -31,28 +31,28 @@
 
     <!-- Category Content Body -->
     <div class="p-3.5 sm:p-5 flex-1 flex flex-col justify-between text-left">
-        <div>
-            <!-- Category Title -->
-            <h3 class="text-sm sm:text-base lg:text-lg font-bold text-brand-dark group-hover:text-brand-primary transition-colors mb-1 leading-snug"
+        <div class="flex-1 flex flex-col">
+            <!-- Category Title (Priority #1: Full Name, never truncated, reserved 2-line height) -->
+            <h3 class="text-sm sm:text-base lg:text-lg font-bold text-brand-dark group-hover:text-brand-primary transition-colors mb-1 leading-snug min-h-[2.5rem] sm:min-h-[2.75rem] flex items-start"
                 @if($isLive) x-text="form.name || 'Daging Sapi'" @endif>
                 {{ $cat['name'] ?? 'Daging Sapi' }}
             </h3>
             
-            <!-- Category Subtitle (Brand Green Accent) -->
-            <p class="text-[11px] sm:text-xs md:text-sm font-medium text-brand-primary-light mb-1.5 line-clamp-1"
+            <!-- Category Subtitle (Brand Green Accent, consistent min height) -->
+            <p class="text-[11px] sm:text-xs md:text-sm font-medium text-brand-primary-light mb-1.5 line-clamp-1 min-h-[1.125rem] sm:min-h-[1.25rem]"
                @if($isLive) x-text="form.subtitle || 'Slice, Sengkel, Ribeye & Giling'" @endif>
                 {{ $cat['subtitle'] ?? 'Slice, Sengkel, Ribeye & Giling' }}
             </p>
             
-            <!-- Category Description -->
-            <p class="text-[11px] sm:text-xs text-gray-500 line-clamp-2 leading-relaxed"
+            <!-- Category Description (Secondary, line-clamp allowed) -->
+            <p class="text-[11px] sm:text-xs text-gray-500 line-clamp-2 leading-relaxed mb-3 flex-1"
                @if($isLive) x-text="form.description || 'Daging sapi segar & frozen potongan higienis tanpa pengawet.'" @endif>
                 {{ $cat['description'] ?? 'Daging sapi segar & frozen potongan higienis tanpa pengawet.' }}
             </p>
         </div>
 
-        <!-- Action Link with Divider -->
-        <div class="mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-semibold text-brand-primary group-hover:text-brand-primary-dark">
+        <!-- Action Link with Divider (Always pinned to bottom with mt-auto) -->
+        <div class="mt-auto pt-2.5 sm:pt-3 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-semibold text-brand-primary group-hover:text-brand-primary-dark">
             <span>Lihat Varian</span>
             <span class="group-hover:translate-x-1 transition-transform">→</span>
         </div>

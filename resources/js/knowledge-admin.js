@@ -7,7 +7,16 @@ export function createKnowledgeManager(config = {}) {
     return {
         csrfToken: config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
         articles: config.articles || [],
-        categories: config.categories || [],
+        categories: (config.categories || []).map((c, idx) => {
+            const defaultColors = ['green', 'blue', 'purple', 'orange', 'yellow', 'red', 'teal'];
+            const isActive = c.is_active !== undefined ? Boolean(c.is_active) : (c.status === 'Aktif' || c.status === true);
+            return {
+                ...c,
+                is_active: isActive,
+                status: isActive ? 'Aktif' : 'Nonaktif',
+                color: c.color || defaultColors[idx % defaultColors.length]
+            };
+        }),
         mediaLibrary: config.mediaLibrary || [],
         knowledgeSection: config.knowledgeSection || {
             label: 'Edukasi & Inspirasi Dapur',
@@ -31,11 +40,61 @@ export function createKnowledgeManager(config = {}) {
         selectedCategoryFilter: 'all',
         previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
         mediaTab: 'library', // 'library' | 'upload'
+        mediaSearchQuery: '',
+        mediaDeleteRoute: config.mediaDeleteRoute || '/admin/media/delete',
+        mediaUploadRoute: config.mediaUploadRoute || '/admin/media/upload',
+        isDeletingMedia: false,
+        isUploadingMedia: false,
         mediaTarget: 'thumbnail', // 'thumbnail' | 'inline'
         selectedMedia: null,
         uploadedFile: null,
         uploadedPreviewUrl: null,
         previewIsExpanded: false,
+
+        get filteredMediaLibrary() {
+            if (!this.mediaSearchQuery || !this.mediaSearchQuery.trim()) {
+                return this.mediaLibrary;
+            }
+            const q = this.mediaSearchQuery.toLowerCase().trim();
+            return this.mediaLibrary.filter(m => 
+                (m.filename && m.filename.toLowerCase().includes(q)) || 
+                (m.title && m.title.toLowerCase().includes(q)) || 
+                (m.path && m.path.toLowerCase().includes(q))
+            );
+        },
+
+        async deleteMedia(media) {
+            if (!confirm('Apakah Anda yakin ingin menghapus file "' + media.filename + '" secara permanen dari server?')) {
+                return;
+            }
+            this.isDeletingMedia = true;
+            try {
+                const response = await fetch(this.mediaDeleteRoute || '/admin/media/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ path: media.path })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== media.id && m.path !== media.path);
+                    if (this.selectedMedia && this.selectedMedia.path === media.path) {
+                        this.selectedMedia = null;
+                    }
+                    this.showToast(result.message || 'File media berhasil dihapus!');
+                } else {
+                    alert(result.message || 'Gagal menghapus file media.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan koneksi saat menghapus file media.');
+            } finally {
+                this.isDeletingMedia = false;
+            }
+        },
         
         // B1-R Document Editor Workspace State
         editorTab: 'content', // 'content' | 'info' | 'preview'
@@ -114,10 +173,44 @@ export function createKnowledgeManager(config = {}) {
             }
         },
         
+        isSavingSection: false,
+        
         showToast(msg) {
             this.toastMessage = msg;
             this.toastVisible = true;
             setTimeout(() => { this.toastVisible = false; }, 3000);
+        },
+
+        async saveSectionSettings() {
+            if (this.isSavingSection) return;
+            this.isSavingSection = true;
+
+            try {
+                const token = this.csrfToken || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const response = await fetch('/admin/knowledge/section-settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': token,
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(this.knowledgeSection)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Gagal menyimpan pengaturan header.');
+                }
+
+                this.showToast(data.message || 'Pengaturan Header Section Knowledge & Tips berhasil disimpan!');
+            } catch (err) {
+                console.error(err);
+                this.showToast(err.message || 'Terjadi kesalahan jaringan saat menyimpan header.');
+            } finally {
+                this.isSavingSection = false;
+            }
         },
         
         getColorClass(color) {
@@ -139,7 +232,7 @@ export function createKnowledgeManager(config = {}) {
         },
         
         get activeCategories() {
-            return this.categories.filter(c => c.status === 'Aktif');
+            return this.categories.filter(c => c.is_active === true || c.status === 'Aktif');
         },
         
         get filteredArticles() {
@@ -178,12 +271,13 @@ export function createKnowledgeManager(config = {}) {
             this.isFocusMode = false;
             this.showInsertPanel = true;
             this.showPreviewPanel = true;
-            const defaultCat = this.activeCategories[0]?.name || 'Tips Penyimpanan';
+            const defaultCat = this.activeCategories[0] || this.categories[0] || { id: 1, name: 'Tips Penyimpanan' };
             this.form = {
                 id: Date.now(),
                 title: '',
                 slug: '',
-                category: defaultCat,
+                category_id: defaultCat.id,
+                category: defaultCat.name,
                 status: 'Published',
                 published_at: '17 Agustus 2026',
                 image: 'images/know-thawing.jpg',
@@ -215,6 +309,12 @@ export function createKnowledgeManager(config = {}) {
             this.showInsertPanel = true;
             this.showPreviewPanel = true;
             this.form = JSON.parse(JSON.stringify(a));
+            
+            // Ensure category_id is populated
+            if (!this.form.category_id && this.form.category) {
+                const found = this.categories.find(c => c.name === this.form.category);
+                if (found) this.form.category_id = found.id;
+            }
             
             // Parse legacy or canonical content to HTML for Document Canvas
             if (window.KnowledgeArticleParser) {
@@ -1244,12 +1344,13 @@ export function createKnowledgeManager(config = {}) {
                 this.form.content = html;
             }
 
-            // Resolve category_id
-            let catId = this.form.category_id;
-            if (!catId) {
-                const foundCat = this.categories.find(c => c.name === this.form.category || c.id === this.form.category);
-                catId = foundCat ? foundCat.id : (this.categories[0]?.id || 1);
-            }
+            // Resolve category_id & category name accurately from current category selection
+            const foundCat = this.categories.find(c => c.name === this.form.category || c.id === this.form.category || c.id === this.form.category_id);
+            const catId = foundCat ? foundCat.id : (this.form.category_id || this.categories[0]?.id || 1);
+            const catName = foundCat ? foundCat.name : (this.form.category || this.categories[0]?.name || 'Tips Penyimpanan');
+
+            this.form.category_id = catId;
+            this.form.category = catName;
 
             const payload = {
                 category_id: catId,
@@ -1385,8 +1486,10 @@ export function createKnowledgeManager(config = {}) {
             let chosenUrl = null;
             if (this.mediaTab === 'library' && this.selectedMedia) {
                 chosenUrl = this.selectedMedia.path;
-            } else if (this.mediaTab === 'upload' && this.uploadedPreviewUrl) {
-                chosenUrl = this.uploadedPreviewUrl;
+            } else if (this.mediaTab === 'upload' && this.uploadedFile && this.uploadedFile.path) {
+                chosenUrl = this.uploadedFile.path;
+            } else if (this.selectedMedia) {
+                chosenUrl = this.selectedMedia.path;
             }
             
             if (!chosenUrl) return;
@@ -1410,19 +1513,51 @@ export function createKnowledgeManager(config = {}) {
             }
         },
         
-        handleFileUpload(e) {
+        async handleFileUpload(e) {
             const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
             if (!file) return;
             if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
                 alert('Format file tidak didukung. Gunakan JPG, PNG, atau WebP.');
                 return;
             }
+            this.isUploadingMedia = true;
             this.uploadedFile = {
                 name: file.name,
                 size: (file.size / 1024).toFixed(0) + ' KB',
                 type: file.type,
+                path: ''
             };
             this.uploadedPreviewUrl = URL.createObjectURL(file);
+
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch(this.mediaUploadRoute || '/admin/media/upload', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success && result.media) {
+                    this.mediaLibrary.unshift(result.media);
+                    this.selectedMedia = result.media;
+                    this.uploadedPreviewUrl = result.media.url;
+                    this.uploadedFile.path = result.media.path;
+                    this.showToast('File media berhasil diunggah ke storage server!');
+                } else {
+                    this.showToast(result.message || 'Gagal mengunggah file media.');
+                }
+            } catch (err) {
+                console.error(err);
+                this.showToast('Terjadi kesalahan koneksi saat mengunggah file.');
+            } finally {
+                this.isUploadingMedia = false;
+            }
         },
         
         openCreateCategoryModal() {

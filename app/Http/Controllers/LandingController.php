@@ -43,11 +43,7 @@ class LandingController
         $location = $this->siteSettingRepo->get('location', config('location'));
         $footer = $this->siteSettingRepo->get('footer', []);
 
-        $site = config('site');
-        if (!empty($footer['brand_title'])) {
-            $site['brand']['name'] = $footer['brand_title'];
-            $site['brand']['short_name'] = $footer['brand_title'];
-        }
+        $site = $this->siteSettingRepo->get('site', config('site', []));
         if (!empty($footer['brand_desc'])) {
             $site['brand']['description'] = $footer['brand_desc'];
         }
@@ -63,7 +59,7 @@ class LandingController
                 if (str_contains($u, 'instagram.com')) $site['social']['instagram'] = $u;
                 if (str_contains($u, 'tiktok.com')) $site['social']['tiktok'] = $u;
                 if (str_contains($u, 'facebook.com')) $site['social']['facebook'] = $u;
-                if (str_contains($u, 'wa.me') || str_contains($u, 'whatsapp.com')) {
+                if (empty($site['contact']['admin_whatsapp']) && (str_contains($u, 'wa.me') || str_contains($u, 'whatsapp.com'))) {
                     $cleanWa = preg_replace('/[^0-9]/', '', $u);
                     if ($cleanWa) {
                         $site['contact']['admin_whatsapp'] = $cleanWa;
@@ -73,14 +69,59 @@ class LandingController
             }
         }
 
-        $seo = config('seo');
+        $seo = $this->siteSettingRepo->get('seo', config('seo', []));
+
+        $contacts = $site['contacts'] ?? config('site.contacts', []);
+
+        $resolveContactUrl = function ($ref, $fallback = '#produk') use ($contacts, $site) {
+            if (empty($ref)) return $fallback;
+            if (is_array($contacts)) {
+                foreach ($contacts as $c) {
+                    if (($c['key'] ?? '') === $ref || ($c['id'] ?? '') === $ref) {
+                        if (($c['type'] ?? '') === 'whatsapp') {
+                            $cleanNum = preg_replace('/[^0-9]/', '', $c['value'] ?? '');
+                            return $cleanNum ? "https://wa.me/{$cleanNum}" : $fallback;
+                        } elseif (($c['type'] ?? '') === 'email') {
+                            return "mailto:" . ($c['value'] ?? '');
+                        } elseif (($c['type'] ?? '') === 'phone') {
+                            return "tel:" . preg_replace('/[^0-9+]/', '', $c['value'] ?? '');
+                        }
+                    }
+                }
+            }
+            return $ref;
+        };
+
+        // Resolve location Customer Care contact from Contact Registry
+        $locationContactDisplay = null;
+        if (!empty($location['contact_key']) || !empty($location['contact_id'])) {
+            $refKey = $location['contact_key'] ?? ($location['contact_id'] ?? null);
+            if (is_array($contacts)) {
+                foreach ($contacts as $c) {
+                    if (($c['key'] ?? '') === $refKey || ($c['id'] ?? '') === $refKey) {
+                        $locationContactDisplay = $c['value'] ?? null;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!$locationContactDisplay && !empty($location['phone'])) {
+            $locationContactDisplay = $location['phone'];
+        }
+        if (!$locationContactDisplay && !empty($footer['outlet_phone'])) {
+            $locationContactDisplay = $footer['outlet_phone'];
+        }
+        if (!$locationContactDisplay && !empty($site['contact']['phone'])) {
+            $locationContactDisplay = $site['contact']['phone'];
+        }
+        $location['contact_display'] = $locationContactDisplay ?? '+62 812-3456-7890';
 
         $storeInfo = [
-            'name' => $footer['brand_title'] ?? ($site['brand']['name'] ?? 'Sumber Protein Jogja'),
+            'name' => $site['brand']['name'] ?? ($footer['brand_title'] ?? 'Sumber Protein Jogja'),
             'tagline' => $site['brand']['tagline'] ?? 'Bahan Masak Siap Olah, Tinggal Masak.',
             'address' => $location['address']['full'] ?? ($footer['outlet_address'] ?? ''),
             'hours' => $location['operational_hours']['display'] ?? ($footer['outlet_hours'] ?? ''),
-            'phone' => $footer['outlet_phone'] ?? ($site['contact']['phone'] ?? ''),
+            'phone' => $location['contact_display'] ?? ($footer['outlet_phone'] ?? ($site['contact']['phone'] ?? '')),
             'whatsapp' => $site['contact']['admin_whatsapp'] ?? '',
             'email' => $site['contact']['email'] ?? '',
             'instagram' => $site['social']['instagram'] ?? '',
@@ -91,6 +132,9 @@ class LandingController
         $heroSetting = $this->siteSettingRepo->get('hero', []);
         $heroTrustItems = $this->siteSettingRepo->get('hero_trust_items', []);
         $heroPartners = $this->siteSettingRepo->get('hero_partners', []);
+
+        $rawPrimaryLink = $heroSetting['primary_cta_contact'] ?? ($heroSetting['primary_cta_link'] ?? '#produk');
+        $resolvedPrimaryLink = $resolveContactUrl($rawPrimaryLink, $heroSetting['primary_cta_link'] ?? '#produk');
 
         $hero = [
             'id' => 1,
@@ -103,9 +147,14 @@ class LandingController
             'headline_suffix' => $heroSetting['headline_suffix'] ?? ', Tinggal Masak.',
             'subtitle' => $heroSetting['subtitle'] ?? ($heroSetting['description'] ?? 'Pilihan tepat keluarga & pengusaha kuliner di Yogyakarta. Produk higienis dengan standar cold-chain terjamin, dipotong rapi, dan dikirim aman sampai ke dapur Anda.'),
             'description' => $heroSetting['subtitle'] ?? ($heroSetting['description'] ?? 'Pilihan tepat keluarga & pengusaha kuliner di Yogyakarta. Produk higienis dengan standar cold-chain terjamin, dipotong rapi, dan dikirim aman sampai ke dapur Anda.'),
-            'primary_cta_text' => $heroSetting['whatsapp_button_text'] ?? ($heroSetting['primary_cta_text'] ?? 'Belanja Sekarang'),
-            'primary_cta_link' => $heroSetting['primary_cta_link'] ?? '#produk',
-            'secondary_cta_text' => $heroSetting['catalog_button_text'] ?? ($heroSetting['secondary_cta_text'] ?? 'Lihat Produk'),
+            'primary_cta_text' => (isset($heroSetting['primary_cta_text']) && trim($heroSetting['primary_cta_text']) !== '')
+                ? $heroSetting['primary_cta_text']
+                : ($heroSetting['whatsapp_button_text'] ?? 'Belanja Sekarang'),
+            'primary_cta_link' => $resolvedPrimaryLink,
+            'primary_cta_contact' => $heroSetting['primary_cta_contact'] ?? null,
+            'secondary_cta_text' => (isset($heroSetting['secondary_cta_text']) && trim($heroSetting['secondary_cta_text']) !== '')
+                ? $heroSetting['secondary_cta_text']
+                : ($heroSetting['catalog_button_text'] ?? 'Lihat Produk'),
             'secondary_cta_link' => $heroSetting['secondary_cta_link'] ?? '#kategori',
             'images' => $heroSetting['images'] ?? [
                 'images/hero-1.jpg',
@@ -122,15 +171,21 @@ class LandingController
             'partners' => $heroPartners,
         ];
 
-        // 3. Database-Driven Categories
-        $categorySection = [
+        // 3. Database-Driven Categories (Strict Separation: LP Cards vs Catalog Tabs)
+        $categorySection = $this->siteSettingRepo->get('category_section', [
             'label' => 'Kategori Utama',
             'title' => 'Mau Masak Apa Hari Ini?',
             'subtitle' => 'Pilih bahan masak sesuai kebutuhanmu. Dari potongan daging segar, ayam bumbu, ikan laut, hingga sayuran siap cemplung.'
-        ];
-        $categories = $this->categoryRepo->getActiveWithProductCount();
+        ]);
+        $categories = $this->categoryRepo->getActiveLandingWithProductCount();
+        $catalogCategories = $this->categoryRepo->getActiveCatalogWithProductCount();
 
-        // 4. Database-Driven Products & Flash Sale
+        // 4. Database-Driven Products, Catalog Section Settings & Flash Sale
+        $catalogSection = $this->siteSettingRepo->get('catalog_section', [
+            'label' => 'Katalog Lengkap',
+            'title' => 'Produk Pilihan',
+            'subtitle' => 'Pilih bahan masak sesuai kebutuhanmu. Tersedia skala retail rumah tangga maupun pembelian curah.'
+        ]);
         $products = $this->productRepo->getActiveCatalog();
         $flashSaleSetting = $this->siteSettingRepo->get('flash_sale', [
             'enabled' => false,
@@ -177,13 +232,14 @@ class LandingController
         $productKnowledge = $qualityConfig['items'] ?? [];
 
         // 6. Database-Driven Educational Knowledge Articles (Max 6 for Landing Page)
+        $knowledgeConfig = $this->siteSettingRepo->get('knowledge_section', []);
         $knowledgeSection = [
-            'badge' => 'Dapur & Knowledge',
-            'title' => 'Tips & Panduan Olah Bahan Masak',
-            'subtitle' => 'Pelajari cara menyimpan daging agar tahan lama, teknik marinasi bumbu meresap, dan panduan memilih seafood segar dari ahlinya.'
+            'label' => $knowledgeConfig['label'] ?? 'Edukasi & Inspirasi Dapur',
+            'title' => $knowledgeConfig['title'] ?? 'Dapur & Knowledge',
+            'subtitle' => $knowledgeConfig['subtitle'] ?? 'Panduan praktis seputar penanganan daging, thawing, penyimpanan frozen food, hingga tips memasak harian keluarga di Yogyakarta.',
         ];
 
-        $rawArticles = $this->knowledgeRepo->getPublishedArticles(6);
+        $rawArticles = $this->knowledgeRepo->getPublishedArticles();
         $badgeClassMap = [
             1 => 'badge-frozen',
             2 => 'badge-ready',
@@ -220,10 +276,16 @@ class LandingController
             'google_total_reviews' => null,
             'last_synced_at' => null,
         ]);
+        $reviewSettings['google_place_url'] = !empty($reviewSettings['google_place_id'])
+            ? 'https://search.google.com/local/writereview?placeid=' . $reviewSettings['google_place_id']
+            : null;
 
         $mode = $reviewSettings['review_mode'] ?? 'manual';
         if ($mode === 'google' && !empty($reviewSettings['google_place_id'])) {
             $dbReviews = $this->reviewRepo->getBySource('google', true);
+            if ($dbReviews->isEmpty()) {
+                $dbReviews = $this->reviewRepo->getBySource('manual', true);
+            }
         } else {
             $dbReviews = $this->reviewRepo->getBySource('manual', true);
         }
@@ -253,6 +315,8 @@ class LandingController
             'hero',
             'categorySection',
             'categories',
+            'catalogCategories',
+            'catalogSection',
             'products',
             'flashSaleSetting',
             'flashSaleProducts',
@@ -262,9 +326,11 @@ class LandingController
             'knowledgeArticles',
             'qualitySection',
             'productKnowledge',
+            'reviewSettings',
             'testimonials',
             'storeInfo',
-            'footer'
+            'footer',
+            'contacts'
         ));
     }
 }

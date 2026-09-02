@@ -4,523 +4,801 @@
 ])
 
 @section('content')
+<script>
+window.adminHeroManager = function(initialPayload) {
+    const payload = initialPayload || {};
+    return {
+        drafts: payload.drafts || [],
+        mediaLibrary: payload.mediaLibrary || [],
+        partnerMediaLibrary: payload.partnerMediaLibrary || [],
+        heroPartners: payload.heroPartners || {},
+        contacts: payload.contacts || [],
+        csrfToken: payload.csrfToken || '',
+        updateRoute: payload.updateRoute || '',
+        partnerUploadRoute: payload.partnerUploadRoute || '',
+        partnerDeleteRoute: payload.partnerDeleteRoute || '',
+        
+        getContactByKey(key) {
+            if (!key || !this.contacts) return null;
+            return this.contacts.find(c => c.key === key || c.id === key) || null;
+        },
+        
+        // Modals & Panels State
+        editorModalOpen: false,
+        mediaPickerOpen: false,
+        partnerMediaPickerOpen: false,
+        partnerUploading: false,
+        isDraggingPartner: false,
+        activateModalOpen: false,
+        deleteModalOpen: false,
+        
+        // Media Picker Sub-state
+        mediaPickerTab: 'library', // 'library' | 'upload'
+        mediaSearchQuery: '',
+        mediaDeleteRoute: '{{ route('admin.media.delete') }}',
+        mediaUploadRoute: '{{ route('admin.media.upload') }}',
+        isDeletingMedia: false,
+        isUploadingMedia: false,
+        selectedMediaItem: null,
+        mediaPickerTargetIndex: null, // null = append new image, number = replace at index
+        csrfToken: '{{ csrf_token() }}',
+
+        get filteredMediaLibrary() {
+            if (!this.mediaSearchQuery || !this.mediaSearchQuery.trim()) {
+                return this.mediaLibrary;
+            }
+            const q = this.mediaSearchQuery.toLowerCase().trim();
+            return this.mediaLibrary.filter(m => 
+                (m.filename && m.filename.toLowerCase().includes(q)) || 
+                (m.title && m.title.toLowerCase().includes(q)) || 
+                (m.path && m.path.toLowerCase().includes(q))
+            );
+        },
+
+        async deleteMedia(media) {
+            if (!confirm('Apakah Anda yakin ingin menghapus file "' + media.filename + '" secara permanen dari server?')) {
+                return;
+            }
+            this.isDeletingMedia = true;
+            try {
+                const response = await fetch(this.mediaDeleteRoute || '{{ route('admin.media.delete') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ path: media.path })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== media.id && m.path !== media.path);
+                    if (this.selectedMediaItem && this.selectedMediaItem.path === media.path) {
+                        this.selectedMediaItem = null;
+                    }
+                    this.showToast(result.message || 'File media berhasil dihapus!');
+                } else {
+                    alert(result.message || 'Gagal menghapus file media.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan koneksi saat menghapus file media.');
+            } finally {
+                this.isDeletingMedia = false;
+            }
+        },
+        
+        // Upload Simulation State (HTML5 File API + URL.createObjectURL)
+        uploadedMockImage: null,
+        isDragging: false,
+        
+        // Preview & Notification State
+        previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
+        previewBoxWidth: 640,
+        previewObserver: null,
+        currentSlide: 0,
+        autoplayTimer: null,
+        toastMessage: '',
+        toastVisible: false,
+        isEditingDraft: false,
+        
+        // Reference Viewport Dimensions (Landing Page Standard & iPhone 15)
+        virtualDimensions: {
+            desktop: { width: 1280, height: 720 },
+            tablet:  { width: 1024, height: 768 },
+            mobile:  { width: 393,  height: 852 }
+        },
+        
+        get currentVirtualWidth() {
+            return this.virtualDimensions[this.previewDevice]?.width || (this.previewDevice === 'mobile' ? 393 : 1280);
+        },
+        
+        get currentVirtualHeight() {
+            return this.virtualDimensions[this.previewDevice]?.height || (this.previewDevice === 'mobile' ? 852 : 720);
+        },
+        
+        get currentFrameWidth() {
+            const available = Math.max(300, this.previewBoxWidth || 640);
+            if (this.previewDevice === 'desktop') {
+                return available;
+            } else if (this.previewDevice === 'tablet') {
+                return Math.min(available, 540);
+            } else { // mobile iPhone 15
+                return Math.min(available, 330);
+            }
+        },
+        
+        get currentFrameHeight() {
+            return Math.round(this.currentFrameWidth * (this.currentVirtualHeight / this.currentVirtualWidth));
+        },
+        
+        get currentScale() {
+            return this.currentFrameWidth / this.currentVirtualWidth;
+        },
+        
+        initPreviewObserver() {
+            this.$nextTick(() => {
+                if (this.$refs.previewBoxWrapper) {
+                    const rect = this.$refs.previewBoxWrapper.getBoundingClientRect();
+                    if (rect.width > 50) {
+                        this.previewBoxWidth = rect.width;
+                    }
+                    if (!this.previewObserver && window.ResizeObserver) {
+                        this.previewObserver = new ResizeObserver((entries) => {
+                            for (let entry of entries) {
+                                const width = entry.contentRect.width;
+                                if (width > 50) {
+                                    this.previewBoxWidth = width;
+                                }
+                            }
+                        });
+                        this.previewObserver.observe(this.$refs.previewBoxWrapper);
+                    }
+                }
+            });
+        },
+        
+        startAutoplay() {
+            this.stopAutoplay();
+            if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
+            this.autoplayTimer = setInterval(() => {
+                this.currentSlide = (this.currentSlide + 1) % this.draftForm.images.length;
+            }, 5500);
+        },
+        
+        stopAutoplay() {
+            if (this.autoplayTimer) {
+                clearInterval(this.autoplayTimer);
+                this.autoplayTimer = null;
+            }
+        },
+        
+        goToSlide(index) {
+            this.stopAutoplay();
+            this.currentSlide = index;
+            this.startAutoplay();
+        },
+        
+        nextSlide() {
+            this.stopAutoplay();
+            if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
+            this.currentSlide = (this.currentSlide + 1) % this.draftForm.images.length;
+            this.startAutoplay();
+        },
+        
+        prevSlide() {
+            this.stopAutoplay();
+            if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
+            this.currentSlide = (this.currentSlide - 1 + this.draftForm.images.length) % this.draftForm.images.length;
+            this.startAutoplay();
+        },
+        
+        // Helper for Image URLs (handles relative paths, blob URLs, and external links)
+        getImageUrl(path) {
+            if (!path) return '/images/hero-1.jpg';
+            if (path.startsWith('blob:') || path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+                return path;
+            }
+            return path.startsWith('/') ? path : '/' + path;
+        },
+        
+        // Form Model for 1 Draft Hero
+        draftForm: {
+            id: null,
+            name: '',
+            badge: 'Penyedia Bahan Segar & Frozen Food Terpercaya di Jogja',
+            headline_prefix: 'Bahan Masak',
+            highlight: 'Siap Olah',
+            headline_suffix: ', Tinggal Masak.',
+            description: 'Daging, ayam, ikan, dan sayuran pilihan dalam bentuk frozen dan ready to cook untuk kebutuhan rumah tangga maupun pembelian curah.',
+            primary_cta_text: 'Belanja Sekarang',
+            primary_cta_link: '#produk',
+            primary_cta_contact: 'order_wa',
+            secondary_cta_text: 'Lihat Produk',
+            secondary_cta_link: '#kategori',
+            secondary_cta_contact: '',
+            images: ['images/hero-1.jpg', 'images/hero-2.jpg', 'images/hero-3.jpg', 'images/cat-daging.jpg'],
+            trust_items: [
+                { id: 1, text: '100% Halal', active: true },
+                { id: 2, text: 'Cold Chain', active: true },
+                { id: 3, text: 'Kirim Se-Jogja', active: true }
+            ],
+            status: 'Nonaktif',
+            updated_at: 'Baru saja'
+        },
+        
+        selectedDraft: null,
+        
+        showToast(msg) {
+            this.toastMessage = msg;
+            this.toastVisible = true;
+            setTimeout(() => { this.toastVisible = false; }, 3000);
+        },
+        
+        openCreateDraftModal() {
+            if (this.drafts.length >= 3) {
+                this.showToast('Maksimal 3 draft Hero.');
+                return;
+            }
+            this.isEditingDraft = false;
+            this.previewDevice = 'desktop';
+            this.currentSlide = 0;
+            const nextNum = this.drafts.length + 1;
+            this.draftForm = {
+                id: Date.now(),
+                name: 'Hero Draft 0' + nextNum,
+                badge: 'Protein Segar & Higienis Pilihan Keluarga',
+                headline_prefix: 'Bahan Masak',
+                highlight: 'Kualitas Premium',
+                headline_suffix: ' Siap Olah.',
+                description: 'Pilihan daging sapi slice, ayam segar, fillet ikan, dan sayuran higienis untuk kebutuhan harian.',
+                primary_cta_text: 'Belanja Sekarang',
+                primary_cta_link: '#produk',
+                primary_cta_contact: 'order_wa',
+                secondary_cta_text: 'Lihat Produk',
+                secondary_cta_link: '#kategori',
+                secondary_cta_contact: '',
+                images: ['images/hero-1.jpg', 'images/hero-2.jpg'],
+                trust_items: [
+                    { id: 1, text: '100% Halal', active: true },
+                    { id: 2, text: 'Cold Chain', active: true },
+                    { id: 3, text: 'Kirim Se-Jogja', active: true }
+                ],
+                status: 'Nonaktif',
+                updated_at: 'Baru saja'
+            };
+            this.editorModalOpen = true;
+            this.startAutoplay();
+            this.initPreviewObserver();
+        },
+        
+        openEditDraftModal(draft) {
+            this.isEditingDraft = true;
+            this.previewDevice = 'desktop';
+            this.currentSlide = 0;
+            this.draftForm = JSON.parse(JSON.stringify(draft));
+            if (!this.draftForm.primary_cta_contact) {
+                if (this.draftForm.primary_cta_link && this.contacts.some(c => c.key === this.draftForm.primary_cta_link)) {
+                    this.draftForm.primary_cta_contact = this.draftForm.primary_cta_link;
+                } else if (this.draftForm.primary_cta_link && this.draftForm.primary_cta_link.startsWith('#')) {
+                    this.draftForm.primary_cta_contact = '';
+                } else {
+                    this.draftForm.primary_cta_contact = 'order_wa';
+                }
+            }
+            if (!this.draftForm.secondary_cta_contact) {
+                this.draftForm.secondary_cta_contact = '';
+            }
+            // Ensure trust_items has 3 items
+            if (!this.draftForm.trust_items || this.draftForm.trust_items.length === 0) {
+                this.draftForm.trust_items = [
+                    { id: 1, text: '100% Halal', active: true },
+                    { id: 2, text: 'Cold Chain', active: true },
+                    { id: 3, text: 'Kirim Se-Jogja', active: true }
+                ];
+            }
+            this.editorModalOpen = true;
+            this.startAutoplay();
+            this.initPreviewObserver();
+        },
+        
+        partnerModalOpen: false,
+        isEditingPartner: false,
+        partnerForm: {
+            id: null,
+            name: '',
+            logo: '',
+            is_active: true,
+            sort_order: 1,
+        },
+
+        async saveHeroToDatabase(draftToSave) {
+            try {
+                const draft = draftToSave || this.draftForm;
+                const response = await fetch(this.updateRoute, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify({
+                        hero: {
+                            badge: draft.badge,
+                            headline_prefix: draft.headline_prefix,
+                            highlight: draft.highlight,
+                            headline_suffix: draft.headline_suffix,
+                            title: (draft.headline_prefix || '') + ' ' + (draft.highlight || '') + (draft.headline_suffix || ''),
+                            subtitle: draft.description,
+                            description: draft.description,
+                            primary_cta_text: draft.primary_cta_text,
+                            primary_cta_link: draft.primary_cta_link,
+                            secondary_cta_text: draft.secondary_cta_text,
+                            secondary_cta_link: draft.secondary_cta_link,
+                            images: draft.images,
+                        },
+                        trust_items: (draft.trust_items || []).map((t, idx) => ({
+                            id: t.id || (idx + 1),
+                            text: t.text,
+                            is_active: t.active !== false,
+                            sort_order: idx + 1,
+                        })),
+                        partners: this.heroPartners,
+                    }),
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menyimpan ke database.');
+                    return;
+                }
+                this.showToast(result.message || 'Hero berhasil disimpan ke database!');
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menyimpan Hero.');
+            }
+        },
+
+        async savePartnersToDatabase() {
+            try {
+                const response = await fetch(this.updateRoute, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify({
+                        partners: this.heroPartners,
+                    }),
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menyimpan mitra ke database.');
+                    return;
+                }
+                this.showToast(result.message || 'Pengaturan Mitra berhasil disimpan!');
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menyimpan Mitra.');
+            }
+        },
+
+        openCreatePartnerModal() {
+            this.isEditingPartner = false;
+            this.partnerForm = {
+                id: Date.now(),
+                name: '',
+                logo: '',
+                is_active: true,
+                sort_order: (this.heroPartners.partners || []).length + 1,
+            };
+            this.partnerModalOpen = true;
+        },
+
+        openEditPartnerModal(p) {
+            this.isEditingPartner = true;
+            this.partnerForm = JSON.parse(JSON.stringify(p));
+            this.partnerModalOpen = true;
+        },
+
+        reindexPartners() {
+            if (!this.heroPartners || !Array.isArray(this.heroPartners.partners)) return;
+            this.heroPartners.partners.forEach((p, index) => {
+                p.sort_order = index + 1;
+            });
+        },
+
+        movePartnerUp(index) {
+            if (index <= 0 || !this.heroPartners || !this.heroPartners.partners) return;
+            const item = this.heroPartners.partners.splice(index, 1)[0];
+            this.heroPartners.partners.splice(index - 1, 0, item);
+            this.reindexPartners();
+            this.savePartnersToDatabase();
+            this.showToast(`Urutan mitra "${item.name}" dinaikkan ke #${index}`);
+        },
+
+        movePartnerDown(index) {
+            if (!this.heroPartners || !this.heroPartners.partners || index >= this.heroPartners.partners.length - 1) return;
+            const item = this.heroPartners.partners.splice(index, 1)[0];
+            this.heroPartners.partners.splice(index + 1, 0, item);
+            this.reindexPartners();
+            this.savePartnersToDatabase();
+            this.showToast(`Urutan mitra "${item.name}" diturunkan ke #${index + 2}`);
+        },
+
+        savePartner() {
+            if (!this.partnerForm.name || !this.partnerForm.name.trim()) {
+                alert('Nama mitra wajib diisi.');
+                return;
+            }
+            if (!this.heroPartners.partners) {
+                this.heroPartners.partners = [];
+            }
+            if (this.isEditingPartner) {
+                const idx = this.heroPartners.partners.findIndex(p => p.id === this.partnerForm.id);
+                if (idx !== -1) {
+                    this.heroPartners.partners[idx] = JSON.parse(JSON.stringify(this.partnerForm));
+                }
+            } else {
+                this.heroPartners.partners.push(JSON.parse(JSON.stringify(this.partnerForm)));
+            }
+
+            // Sort array by sort_order then reindex to ensure continuous 1, 2, 3...
+            this.heroPartners.partners.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+            this.reindexPartners();
+
+            this.partnerModalOpen = false;
+            this.savePartnersToDatabase();
+            this.showToast('Data mitra berhasil disimpan.');
+        },
+
+        deletePartner(p) {
+            if (!confirm(`Hapus mitra "${p.name}"?`)) return;
+            this.heroPartners.partners = this.heroPartners.partners.filter(item => item.id !== p.id);
+            this.reindexPartners();
+            this.savePartnersToDatabase();
+            this.showToast(`Mitra "${p.name}" berhasil dihapus dan urutan diperbarui.`);
+        },
+
+        openPartnerMediaPicker() {
+            this.partnerMediaPickerOpen = true;
+        },
+
+        selectPartnerMedia(item) {
+            this.partnerForm.logo = item.path;
+            this.partnerMediaPickerOpen = false;
+            this.showToast('Logo mitra dipilih: ' + (item.title || item.filename));
+        },
+
+        isPartnerLogoUsed(path) {
+            if (!path || !this.heroPartners || !this.heroPartners.partners) return false;
+            return this.heroPartners.partners.some(p => p.logo === path || p.logo === 'storage/' + path || path === 'storage/' + p.logo);
+        },
+
+        usePartnerMedia(item) {
+            this.partnerForm = {
+                id: Date.now(),
+                name: (item.title || item.filename || 'Mitra Baru').replace(/^partner_\d+_[a-zA-Z0-9]+_?|\.[^.]+$/g, '').replace(/[-_]/g, ' ').trim() || 'Mitra Baru',
+                logo: item.path,
+                is_active: true,
+                sort_order: (this.heroPartners.partners || []).length + 1,
+            };
+            this.isEditingPartner = false;
+            this.partnerModalOpen = true;
+        },
+
+        async uploadPartnerLogo(file) {
+            if (!file) return;
+            return this.uploadMultiplePartnerFiles([file]);
+        },
+
+        async uploadMultiplePartnerFiles(files) {
+            if (!files || files.length === 0) return;
+            this.partnerUploading = true;
+            let uploadedCount = 0;
+            try {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (!file.type.match('image.*')) {
+                        alert(`File "${file.name}" bukan file gambar yang valid.`);
+                        continue;
+                    }
+                    if (file.size > 2048 * 1024) {
+                        alert(`File "${file.name}" melebihi ukuran maksimal 2 MB.`);
+                        continue;
+                    }
+                    const formData = new FormData();
+                    formData.append('image', file);
+
+                    const response = await fetch(this.partnerUploadRoute, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'Accept': 'application/json',
+                        },
+                        body: formData,
+                    });
+
+                    const result = await response.json();
+                    if (response.ok && result.success) {
+                        this.partnerMediaLibrary.unshift(result.media);
+                        this.partnerForm.logo = result.media.path;
+                        uploadedCount++;
+                    } else {
+                        alert(result.message || `Gagal mengunggah ${file.name}`);
+                    }
+                }
+                if (uploadedCount > 0) {
+                    this.showToast(`${uploadedCount} logo mitra berhasil diunggah!`);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat mengunggah logo mitra.');
+            } finally {
+                this.partnerUploading = false;
+            }
+        },
+
+        async deletePartnerMedia(item) {
+            if (!item || !item.path) return;
+            if (!confirm(`Apakah Anda yakin ingin menghapus file logo "${item.title || item.filename}" dari storage mitra?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(this.partnerDeleteRoute, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify({
+                        path: item.path,
+                    }),
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menghapus logo.');
+                    return;
+                }
+
+                // Remove from local list
+                this.partnerMediaLibrary = this.partnerMediaLibrary.filter(m => m.path !== item.path && m.filename !== item.filename);
+
+                // If currently selected in partnerForm, reset
+                if (this.partnerForm.logo === item.path) {
+                    this.partnerForm.logo = '';
+                }
+
+                this.showToast(result.message || 'Logo mitra berhasil dihapus.');
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menghapus logo.');
+            }
+        },
+
+        saveDraft() {
+            if (this.draftForm.images.length === 0) {
+                alert('Minimal harus ada 1 gambar latar untuk slideshow.');
+                return;
+            }
+            if (this.isEditingDraft) {
+                const idx = this.drafts.findIndex(d => d.id === this.draftForm.id);
+                if (idx !== -1) {
+                    this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                    this.drafts[idx] = JSON.parse(JSON.stringify(this.draftForm));
+                }
+            } else {
+                this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                this.drafts.push(JSON.parse(JSON.stringify(this.draftForm)));
+            }
+            this.saveHeroToDatabase(this.draftForm);
+            this.closeEditorModal();
+        },
+
+        closeEditorModal() {
+            this.stopAutoplay();
+            this.editorModalOpen = false;
+        },
+
+        // Media Picker Management
+        openMediaPickerForAdd() {
+            if (this.draftForm.images.length >= 4) {
+                this.showToast('Maksimal 4 gambar per Hero.');
+                return;
+            }
+            this.mediaPickerTargetIndex = null; // append mode
+            this.selectedMediaItem = this.mediaLibrary[0];
+            this.mediaPickerTab = 'library';
+            this.uploadedMockImage = null;
+            this.mediaPickerOpen = true;
+        },
+
+        openMediaPickerForReplace(index) {
+            this.mediaPickerTargetIndex = index; // replace mode
+            const currentPath = this.draftForm.images[index];
+            const found = this.mediaLibrary.find(m => m.path === currentPath);
+            this.selectedMediaItem = found || this.mediaLibrary[0];
+            this.mediaPickerTab = 'library';
+            this.uploadedMockImage = null;
+            this.mediaPickerOpen = true;
+        },
+
+        async handleFileSelected(file) {
+            if (!file) return;
+            if (!file.type.match('image.*')) {
+                alert('Silakan pilih file gambar (JPG, PNG, atau WebP).');
+                return;
+            }
+            const previewUrl = URL.createObjectURL(file);
+            const sizeKb = Math.round(file.size / 1024);
+            
+            this.uploadedMockImage = {
+                filename: file.name,
+                path: previewUrl,
+                isBlob: true,
+                title: file.name,
+                resolution: '1920 × 1080 px',
+                ratio: '16:9',
+                size: sizeKb + ' KB',
+                is_recommended: true
+            };
+
+            this.isUploadingMedia = true;
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch(this.mediaUploadRoute || '{{ route('admin.media.upload') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success && result.media) {
+                    this.mediaLibrary.unshift(result.media);
+                    this.selectedMediaItem = result.media;
+                    this.uploadedMockImage.path = result.media.path;
+                    this.showToast('File media berhasil diunggah ke storage server!');
+                } else {
+                    this.showToast(result.message || 'Gagal mengunggah file media.');
+                }
+            } catch (err) {
+                console.error(err);
+                this.showToast('Terjadi kesalahan koneksi saat mengunggah file.');
+            } finally {
+                this.isUploadingMedia = false;
+            }
+        },
+
+        applySelectedMedia() {
+            let imagePath = null;
+            if (this.mediaPickerTab === 'library') {
+                if (!this.selectedMediaItem) {
+                    alert('Silakan pilih salah satu gambar dari Media Library.');
+                    return;
+                }
+                imagePath = this.selectedMediaItem.path;
+            } else if (this.mediaPickerTab === 'upload') {
+                if (!this.uploadedMockImage) {
+                    alert('Silakan unggah gambar terlebih dahulu.');
+                    return;
+                }
+                imagePath = this.uploadedMockImage.path;
+            }
+
+            if (this.mediaPickerTargetIndex === null) {
+                this.draftForm.images.push(imagePath);
+                this.showToast('Gambar berhasil ditambahkan ke slideshow.');
+            } else {
+                this.draftForm.images[this.mediaPickerTargetIndex] = imagePath;
+                this.showToast('Gambar slide ' + (this.mediaPickerTargetIndex + 1) + ' berhasil diganti.');
+            }
+
+            this.mediaPickerOpen = false;
+            this.startAutoplay();
+        },
+
+        removeImage(imgIndex) {
+            if (this.draftForm.images.length <= 1) {
+                alert('Minimal harus tersisa 1 gambar latar untuk Hero.');
+                return;
+            }
+            this.draftForm.images.splice(imgIndex, 1);
+            if (this.currentSlide >= this.draftForm.images.length) {
+                this.currentSlide = 0;
+            }
+            this.startAutoplay();
+            this.showToast('Gambar dihapus dari slideshow.');
+        },
+
+        moveImageUp(imgIndex) {
+            if (imgIndex > 0) {
+                const item = this.draftForm.images.splice(imgIndex, 1)[0];
+                this.draftForm.images.splice(imgIndex - 1, 0, item);
+            }
+        },
+
+        moveImageDown(imgIndex) {
+            if (imgIndex < this.draftForm.images.length - 1) {
+                const item = this.draftForm.images.splice(imgIndex, 1)[0];
+                this.draftForm.images.splice(imgIndex + 1, 0, item);
+            }
+        },
+
+        // Activation & Deletion Handlers
+        openActivateModal(draft) {
+            this.selectedDraft = draft;
+            this.activateModalOpen = true;
+        },
+
+        confirmActivate() {
+            if (this.selectedDraft) {
+                this.drafts.forEach(d => {
+                    d.status = (d.id === this.selectedDraft.id) ? 'Aktif' : 'Nonaktif';
+                });
+                this.saveHeroToDatabase(this.selectedDraft);
+                this.showToast('Hero ' + this.selectedDraft.name + ' sekarang AKTIF di website!');
+                this.activateModalOpen = false;
+                this.selectedDraft = null;
+            }
+        },
+
+        duplicateDraft(draft) {
+            if (this.drafts.length >= 3) {
+                this.showToast('Tidak dapat menduplikat. Maksimal 3 draft Hero.');
+                return;
+            }
+            const copy = JSON.parse(JSON.stringify(draft));
+            copy.id = Date.now();
+            copy.name = copy.name + ' (Salinan)';
+            copy.status = 'Nonaktif';
+            copy.updated_at = 'Baru saja';
+            this.drafts.push(copy);
+            this.showToast('Draft berhasil diduplikat.');
+        },
+
+        openDeleteModal(draft) {
+            if (draft.status === 'Aktif' && this.drafts.length > 1) {
+                alert('Tidak dapat menghapus Hero yang sedang AKTIF. Silakan aktifkan draft lain terlebih dahulu.');
+                return;
+            }
+            this.selectedDraft = draft;
+            this.deleteModalOpen = true;
+        },
+
+        confirmDelete() {
+            if (this.selectedDraft) {
+                this.drafts = this.drafts.filter(d => d.id !== this.selectedDraft.id);
+                this.deleteModalOpen = false;
+                this.selectedDraft = null;
+                this.showToast('Draft Hero berhasil dihapus.');
+            }
+        }
+    };
+};
+</script>
+
 <div class="space-y-6"
-     x-data="{
+     x-data="adminHeroManager({
          drafts: {{ json_encode($drafts) }},
          mediaLibrary: {{ json_encode($mediaLibrary) }},
-         
-         // Modals & Panels State
-         editorModalOpen: false,
-         mediaPickerOpen: false,
-         activateModalOpen: false,
-         deleteModalOpen: false,
-         
-         // Media Picker Sub-state
-         mediaPickerTab: 'library', // 'library' | 'upload'
-         selectedMediaItem: null,
-         mediaPickerTargetIndex: null, // null = append new image, number = replace at index
-         
-         // Upload Simulation State (HTML5 File API + URL.createObjectURL)
-         uploadedMockImage: null,
-         isDragging: false,
-         
-         // Preview & Notification State
-         previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
-         previewBoxWidth: 640,
-         previewObserver: null,
-         currentSlide: 0,
-         autoplayTimer: null,
-         toastMessage: '',
-         toastVisible: false,
-         isEditingDraft: false,
-         
-         // Reference Viewport Dimensions (Landing Page Standard & iPhone 15)
-         virtualDimensions: {
-             desktop: { width: 1280, height: 720 },
-             tablet:  { width: 1024, height: 768 },
-             mobile:  { width: 393,  height: 852 }
-         },
-         
-         get currentVirtualWidth() {
-             return this.virtualDimensions[this.previewDevice]?.width || (this.previewDevice === 'mobile' ? 393 : 1280);
-         },
-         
-         get currentVirtualHeight() {
-             return this.virtualDimensions[this.previewDevice]?.height || (this.previewDevice === 'mobile' ? 852 : 720);
-         },
-         
-         get currentFrameWidth() {
-             const available = Math.max(300, this.previewBoxWidth || 640);
-             if (this.previewDevice === 'desktop') {
-                 return available;
-             } else if (this.previewDevice === 'tablet') {
-                 return Math.min(available, 540);
-             } else { // mobile iPhone 15
-                 return Math.min(available, 330);
-             }
-         },
-         
-         get currentFrameHeight() {
-             return Math.round(this.currentFrameWidth * (this.currentVirtualHeight / this.currentVirtualWidth));
-         },
-         
-         get currentScale() {
-             return this.currentFrameWidth / this.currentVirtualWidth;
-         },
-         
-         initPreviewObserver() {
-             this.$nextTick(() => {
-                 if (this.$refs.previewBoxWrapper) {
-                     const rect = this.$refs.previewBoxWrapper.getBoundingClientRect();
-                     if (rect.width > 50) {
-                         this.previewBoxWidth = rect.width;
-                     }
-                     if (!this.previewObserver && window.ResizeObserver) {
-                         this.previewObserver = new ResizeObserver((entries) => {
-                             for (let entry of entries) {
-                                 const width = entry.contentRect.width;
-                                 if (width > 50) {
-                                     this.previewBoxWidth = width;
-                                 }
-                             }
-                         });
-                         this.previewObserver.observe(this.$refs.previewBoxWrapper);
-                     }
-                 }
-             });
-         },
-         
-         startAutoplay() {
-             this.stopAutoplay();
-             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
-             this.autoplayTimer = setInterval(() => {
-                 this.currentSlide = (this.currentSlide + 1) % this.draftForm.images.length;
-             }, 5500);
-         },
-         
-         stopAutoplay() {
-             if (this.autoplayTimer) {
-                 clearInterval(this.autoplayTimer);
-                 this.autoplayTimer = null;
-             }
-         },
-         
-         goToSlide(index) {
-             this.stopAutoplay();
-             this.currentSlide = index;
-             this.startAutoplay();
-         },
-         
-         nextSlide() {
-             this.stopAutoplay();
-             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
-             this.currentSlide = (this.currentSlide + 1) % this.draftForm.images.length;
-             this.startAutoplay();
-         },
-         
-         prevSlide() {
-             this.stopAutoplay();
-             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
-             this.currentSlide = (this.currentSlide - 1 + this.draftForm.images.length) % this.draftForm.images.length;
-             this.startAutoplay();
-         },
-         
-         // Helper for Image URLs (handles relative paths, blob URLs, and external links)
-         getImageUrl(path) {
-             if (!path) return '/images/hero-1.jpg';
-             if (path.startsWith('blob:') || path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
-                 return path;
-             }
-             return path.startsWith('/') ? path : '/' + path;
-         },
-         
-         // Form Model for 1 Draft Hero
-         draftForm: {
-             id: null,
-             name: '',
-             badge: 'Penyedia Bahan Segar & Frozen Food Terpercaya di Jogja',
-             headline_prefix: 'Bahan Masak',
-             highlight: 'Siap Olah',
-             headline_suffix: ', Tinggal Masak.',
-             description: 'Daging, ayam, ikan, dan sayuran pilihan dalam bentuk frozen dan ready to cook untuk kebutuhan rumah tangga maupun pembelian curah.',
-             primary_cta_text: 'Belanja Sekarang',
-             primary_cta_link: '#produk',
-             secondary_cta_text: 'Lihat Produk',
-             secondary_cta_link: '#kategori',
-             images: ['images/hero-1.jpg', 'images/hero-2.jpg', 'images/hero-3.jpg', 'images/cat-daging.jpg'],
-             trust_items: [
-                 { id: 1, text: '100% Halal', active: true },
-                 { id: 2, text: 'Cold Chain', active: true },
-                 { id: 3, text: 'Kirim Se-Jogja', active: true }
-             ],
-             status: 'Nonaktif',
-             updated_at: 'Baru saja'
-         },
-         
-         selectedDraft: null,
-         
-         showToast(msg) {
-             this.toastMessage = msg;
-             this.toastVisible = true;
-             setTimeout(() => { this.toastVisible = false; }, 3000);
-         },
-         
-         openCreateDraftModal() {
-             if (this.drafts.length >= 3) {
-                 this.showToast('Maksimal 3 draft Hero.');
-                 return;
-             }
-             this.isEditingDraft = false;
-             this.previewDevice = 'desktop';
-             this.currentSlide = 0;
-             const nextNum = this.drafts.length + 1;
-             this.draftForm = {
-                 id: Date.now(),
-                 name: 'Hero Draft 0' + nextNum,
-                 badge: 'Protein Segar & Higienis Pilihan Keluarga',
-                 headline_prefix: 'Bahan Masak',
-                 highlight: 'Kualitas Premium',
-                 headline_suffix: ' Siap Olah.',
-                 description: 'Pilihan daging sapi slice, ayam segar, fillet ikan, dan sayuran higienis untuk kebutuhan harian.',
-                 primary_cta_text: 'Belanja Sekarang',
-                 primary_cta_link: '#produk',
-                 secondary_cta_text: 'Lihat Produk',
-                 secondary_cta_link: '#kategori',
-                 images: ['images/hero-1.jpg', 'images/hero-2.jpg'],
-                 trust_items: [
-                     { id: 1, text: '100% Halal', active: true },
-                     { id: 2, text: 'Cold Chain', active: true },
-                     { id: 3, text: 'Kirim Se-Jogja', active: true }
-                 ],
-                 status: 'Nonaktif',
-                 updated_at: 'Baru saja'
-             };
-             this.editorModalOpen = true;
-             this.startAutoplay();
-             this.initPreviewObserver();
-         },
-         
-         openEditDraftModal(draft) {
-             this.isEditingDraft = true;
-             this.previewDevice = 'desktop';
-             this.currentSlide = 0;
-             this.draftForm = JSON.parse(JSON.stringify(draft));
-             // Ensure trust_items has 3 items
-             if (!this.draftForm.trust_items || this.draftForm.trust_items.length === 0) {
-                 this.draftForm.trust_items = [
-                     { id: 1, text: '100% Halal', active: true },
-                     { id: 2, text: 'Cold Chain', active: true },
-                     { id: 3, text: 'Kirim Se-Jogja', active: true }
-                 ];
-             }
-             this.editorModalOpen = true;
-             this.startAutoplay();
-             this.initPreviewObserver();
-         },
-         
-          csrfToken: '{{ csrf_token() }}',
-          heroPartners: {{ json_encode($heroPartners) }},
-          partnerModalOpen: false,
-          isEditingPartner: false,
-          partnerForm: {
-              id: null,
-              name: '',
-              logo: '',
-              is_active: true,
-              sort_order: 1,
-          },
-
-          async saveHeroToDatabase(draftToSave) {
-              try {
-                  const draft = draftToSave || this.draftForm;
-                  const response = await fetch('/admin/hero', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'Accept': 'application/json',
-                          'X-CSRF-TOKEN': this.csrfToken,
-                      },
-                      body: JSON.stringify({
-                          hero: {
-                              badge: draft.badge,
-                              headline_prefix: draft.headline_prefix,
-                              highlight: draft.highlight,
-                              headline_suffix: draft.headline_suffix,
-                              title: (draft.headline_prefix || '') + ' ' + (draft.highlight || '') + (draft.headline_suffix || ''),
-                              subtitle: draft.description,
-                              description: draft.description,
-                              primary_cta_text: draft.primary_cta_text,
-                              primary_cta_link: draft.primary_cta_link,
-                              secondary_cta_text: draft.secondary_cta_text,
-                              secondary_cta_link: draft.secondary_cta_link,
-                              images: draft.images,
-                          },
-                          trust_items: (draft.trust_items || []).map((t, idx) => ({
-                              id: t.id || (idx + 1),
-                              text: t.text,
-                              is_active: t.active !== false,
-                              sort_order: idx + 1,
-                          })),
-                          partners: this.heroPartners,
-                      }),
-                  });
-
-                  const result = await response.json();
-                  if (!response.ok || !result.success) {
-                      alert(result.message || 'Gagal menyimpan ke database.');
-                      return;
-                  }
-                  this.showToast(result.message || 'Hero berhasil disimpan ke database!');
-              } catch (err) {
-                  console.error(err);
-                  alert('Terjadi kesalahan jaringan saat menyimpan Hero.');
-              }
-          },
-
-          async savePartnersToDatabase() {
-              try {
-                  const response = await fetch('/admin/hero', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'Accept': 'application/json',
-                          'X-CSRF-TOKEN': this.csrfToken,
-                      },
-                      body: JSON.stringify({
-                          partners: this.heroPartners,
-                      }),
-                  });
-
-                  const result = await response.json();
-                  if (!response.ok || !result.success) {
-                      alert(result.message || 'Gagal menyimpan mitra ke database.');
-                      return;
-                  }
-                  this.showToast(result.message || 'Pengaturan Mitra berhasil disimpan!');
-              } catch (err) {
-                  console.error(err);
-                  alert('Terjadi kesalahan jaringan saat menyimpan Mitra.');
-              }
-          },
-
-          openCreatePartnerModal() {
-              this.isEditingPartner = false;
-              this.partnerForm = {
-                  id: Date.now(),
-                  name: '',
-                  logo: 'images/mitra-placeholder.png',
-                  is_active: true,
-                  sort_order: (this.heroPartners.partners || []).length + 1,
-              };
-              this.partnerModalOpen = true;
-          },
-
-          openEditPartnerModal(p) {
-              this.isEditingPartner = true;
-              this.partnerForm = JSON.parse(JSON.stringify(p));
-              this.partnerModalOpen = true;
-          },
-
-          savePartner() {
-              if (!this.partnerForm.name) {
-                  alert('Nama mitra wajib diisi.');
-                  return;
-              }
-              if (!this.heroPartners.partners) {
-                  this.heroPartners.partners = [];
-              }
-              if (this.isEditingPartner) {
-                  const idx = this.heroPartners.partners.findIndex(p => p.id === this.partnerForm.id);
-                  if (idx !== -1) {
-                      this.heroPartners.partners[idx] = JSON.parse(JSON.stringify(this.partnerForm));
-                  }
-              } else {
-                  this.heroPartners.partners.push(JSON.parse(JSON.stringify(this.partnerForm)));
-              }
-              this.partnerModalOpen = false;
-              this.savePartnersToDatabase();
-          },
-
-          deletePartner(p) {
-              if (!confirm(`Hapus mitra "${p.name}"?`)) return;
-              this.heroPartners.partners = this.heroPartners.partners.filter(item => item.id !== p.id);
-              this.savePartnersToDatabase();
-          },
-
-          saveDraft() {
-              if (this.draftForm.images.length === 0) {
-                  alert('Minimal harus ada 1 gambar latar untuk slideshow.');
-                  return;
-              }
-              if (this.isEditingDraft) {
-                  const idx = this.drafts.findIndex(d => d.id === this.draftForm.id);
-                  if (idx !== -1) {
-                      this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                      this.drafts[idx] = JSON.parse(JSON.stringify(this.draftForm));
-                  }
-              } else {
-                  this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                  this.drafts.push(JSON.parse(JSON.stringify(this.draftForm)));
-              }
-              this.saveHeroToDatabase(this.draftForm);
-              this.closeEditorModal();
-          },
-
-          closeEditorModal() {
-              this.stopAutoplay();
-              this.editorModalOpen = false;
-          },
-
-          // Media Picker Management
-          openMediaPickerForAdd() {
-              if (this.draftForm.images.length >= 4) {
-                  this.showToast('Maksimal 4 gambar per Hero.');
-                  return;
-              }
-              this.mediaPickerTargetIndex = null; // append mode
-              this.selectedMediaItem = this.mediaLibrary[0];
-              this.mediaPickerTab = 'library';
-              this.uploadedMockImage = null;
-              this.mediaPickerOpen = true;
-          },
-
-          openMediaPickerForReplace(index) {
-              this.mediaPickerTargetIndex = index; // replace mode
-              const currentPath = this.draftForm.images[index];
-              const found = this.mediaLibrary.find(m => m.path === currentPath);
-              this.selectedMediaItem = found || this.mediaLibrary[0];
-              this.mediaPickerTab = 'library';
-              this.uploadedMockImage = null;
-              this.mediaPickerOpen = true;
-          },
-
-          handleFileSelected(file) {
-              if (!file) return;
-              if (!file.type.match('image.*')) {
-                  alert('Silakan pilih file gambar (JPG, PNG, atau WebP).');
-                  return;
-              }
-              const previewUrl = URL.createObjectURL(file);
-              const sizeKb = Math.round(file.size / 1024);
-              
-              this.uploadedMockImage = {
-                  filename: file.name,
-                  path: previewUrl,
-                  isBlob: true,
-                  title: file.name,
-                  resolution: '1920 × 1080 px',
-                  ratio: '16:9',
-                  size: sizeKb + ' KB',
-                  is_recommended: true
-              };
-              this.showToast('Gambar ' + file.name + ' siap digunakan.');
-          },
-
-          applySelectedMedia() {
-              let imagePath = null;
-              if (this.mediaPickerTab === 'library') {
-                  if (!this.selectedMediaItem) {
-                      alert('Silakan pilih salah satu gambar dari Media Library.');
-                      return;
-                  }
-                  imagePath = this.selectedMediaItem.path;
-              } else if (this.mediaPickerTab === 'upload') {
-                  if (!this.uploadedMockImage) {
-                      alert('Silakan unggah gambar terlebih dahulu.');
-                      return;
-                  }
-                  imagePath = this.uploadedMockImage.path;
-              }
-
-              if (this.mediaPickerTargetIndex === null) {
-                  this.draftForm.images.push(imagePath);
-                  this.showToast('Gambar berhasil ditambahkan ke slideshow.');
-              } else {
-                  this.draftForm.images[this.mediaPickerTargetIndex] = imagePath;
-                  this.showToast('Gambar slide ' + (this.mediaPickerTargetIndex + 1) + ' berhasil diganti.');
-              }
-
-              this.mediaPickerOpen = false;
-              this.startAutoplay();
-          },
-
-          removeImage(imgIndex) {
-              if (this.draftForm.images.length <= 1) {
-                  alert('Minimal harus tersisa 1 gambar latar untuk Hero.');
-                  return;
-              }
-              this.draftForm.images.splice(imgIndex, 1);
-              if (this.currentSlide >= this.draftForm.images.length) {
-                  this.currentSlide = 0;
-              }
-              this.startAutoplay();
-              this.showToast('Gambar dihapus dari slideshow.');
-          },
-
-          moveImageUp(imgIndex) {
-              if (imgIndex > 0) {
-                  const item = this.draftForm.images.splice(imgIndex, 1)[0];
-                  this.draftForm.images.splice(imgIndex - 1, 0, item);
-              }
-          },
-
-          moveImageDown(imgIndex) {
-              if (imgIndex < this.draftForm.images.length - 1) {
-                  const item = this.draftForm.images.splice(imgIndex, 1)[0];
-                  this.draftForm.images.splice(imgIndex + 1, 0, item);
-              }
-          },
-
-          // Activation & Deletion Handlers
-          openActivateModal(draft) {
-              this.selectedDraft = draft;
-              this.activateModalOpen = true;
-          },
-
-          confirmActivate() {
-              if (this.selectedDraft) {
-                  this.drafts.forEach(d => {
-                      d.status = (d.id === this.selectedDraft.id) ? 'Aktif' : 'Nonaktif';
-                  });
-                  this.saveHeroToDatabase(this.selectedDraft);
-                  this.showToast('Hero ' + this.selectedDraft.name + ' sekarang AKTIF di website!');
-                  this.activateModalOpen = false;
-                  this.selectedDraft = null;
-              }
-          },
-
-          duplicateDraft(draft) {
-              if (this.drafts.length >= 3) {
-                  this.showToast('Tidak dapat menduplikat. Maksimal 3 draft Hero.');
-                  return;
-              }
-              const copy = JSON.parse(JSON.stringify(draft));
-              copy.id = Date.now();
-              copy.name = copy.name + ' (Salinan)';
-              copy.status = 'Nonaktif';
-              copy.updated_at = 'Baru saja';
-              this.drafts.push(copy);
-              this.showToast('Draft berhasil diduplikat.');
-          },
-
-          openDeleteModal(draft) {
-              if (draft.status === 'Aktif' && this.drafts.length > 1) {
-                  alert('Tidak dapat menghapus Hero yang sedang AKTIF. Silakan aktifkan draft lain terlebih dahulu.');
-                  return;
-              }
-              this.selectedDraft = draft;
-              this.deleteModalOpen = true;
-          },
-
-          confirmDelete() {
-              if (this.selectedDraft) {
-                  this.drafts = this.drafts.filter(d => d.id !== this.selectedDraft.id);
-                  this.deleteModalOpen = false;
-                  this.selectedDraft = null;
-                  this.showToast('Draft Hero berhasil dihapus.');
-              }
-          }
-      }">
+         partnerMediaLibrary: {{ json_encode($partnerMediaLibrary) }},
+         heroPartners: {{ json_encode($heroPartners) }},
+         contacts: {{ json_encode($contacts) }},
+         csrfToken: '{{ csrf_token() }}',
+         updateRoute: '{{ route('admin.hero.update') }}',
+         partnerUploadRoute: '{{ route('admin.hero.partner.upload') }}',
+         partnerDeleteRoute: '{{ route('admin.hero.partner.delete') }}'
+     })">
     
     <!-- 1. Module Header & Draft Overview Card -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs">
@@ -550,7 +828,7 @@
                 <button @click="openCreateDraftModal()" 
                         :disabled="drafts.length >= 3"
                         type="button"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs sm:text-sm text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer">
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer">
                     <span class="text-base leading-none">＋</span>
                     <span>Buat Draft Hero</span>
                 </button>
@@ -753,40 +1031,180 @@
             </div>
         </div>
 
+        <!-- Integrated Partner Drag & Drop Upload Zone -->
+        <div class="p-5 bg-gray-50/80 rounded-modern-lg border-2 border-dashed text-center transition-all cursor-pointer"
+             :class="isDraggingPartner ? 'border-brand-primary bg-brand-primary/10 ring-2 ring-brand-primary/30 scale-[1.005]' : 'border-gray-300 hover:border-brand-primary/50'"
+             @dragover.prevent="isDraggingPartner = true"
+             @dragleave.prevent="isDraggingPartner = false"
+             @drop.prevent="isDraggingPartner = false; if ($event.dataTransfer && $event.dataTransfer.files.length > 0) { uploadMultiplePartnerFiles($event.dataTransfer.files); }">
+            <div class="flex flex-col items-center justify-center gap-2 max-w-md mx-auto">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
+                     :class="isDraggingPartner ? 'bg-brand-primary text-white scale-110' : 'bg-brand-primary/10 text-brand-primary'">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                </div>
+                <div class="space-y-1">
+                    <p class="text-xs font-bold text-brand-dark">
+                        <span>Drag &amp; Drop logo partner ke area ini</span>
+                    </p>
+                    <div class="text-xs text-gray-500">
+                        <span>atau</span>
+                        <label class="font-bold text-brand-primary hover:underline cursor-pointer ml-1">
+                            <span>[ Pilih File ]</span>
+                            <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple class="hidden" @change="uploadMultiplePartnerFiles($event.target.files)" :disabled="partnerUploading">
+                        </label>
+                    </div>
+                </div>
+                <p class="text-[11px] text-gray-400 font-medium tracking-wide">
+                    JPG • JPEG • PNG • WEBP &nbsp;•&nbsp; Maks. 2 MB
+                </p>
+                <template x-if="partnerUploading">
+                    <div class="inline-flex items-center gap-2 text-xs font-bold text-brand-primary mt-1">
+                        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                        <span>Mengunggah logo ke storage/partners/...</span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- MEDIA PARTNER (Isolated Storage: storage/app/public/partners/) -->
+        <div class="space-y-3 bg-gray-50/50 p-4 rounded-modern-lg border border-gray-200/70">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm">🖼️</span>
+                    <h4 class="text-xs font-bold text-brand-dark uppercase tracking-wider">
+                        Media Partner <span class="font-mono text-[11px] font-normal text-gray-500">(storage/partners/)</span>
+                    </h4>
+                </div>
+                <span class="text-[11px] text-gray-400 font-bold" x-text="(partnerMediaLibrary || []).length + ' Logo Tersedia'"></span>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 max-h-56 overflow-y-auto p-1">
+                <template x-for="item in partnerMediaLibrary" :key="item.id || item.path">
+                    <div class="group relative rounded-modern border p-2.5 bg-white hover:border-brand-primary hover:shadow-xs transition-all flex flex-col items-center justify-between text-center"
+                         :class="isPartnerLogoUsed(item.path) ? 'border-emerald-300 bg-emerald-50/30' : 'border-gray-200'">
+                        
+                        <!-- Top Controls: Used Badge & Delete Button -->
+                        <div class="absolute top-1.5 right-1.5 flex items-center gap-1">
+                            <template x-if="isPartnerLogoUsed(item.path)">
+                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    Digunakan
+                                </span>
+                            </template>
+                        </div>
+                        <button type="button" 
+                                @click.stop="deletePartnerMedia(item)"
+                                class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center transition-all cursor-pointer opacity-70 hover:opacity-100 shadow-2xs"
+                                title="Hapus Logo">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+
+                        <!-- Thumbnail Preview -->
+                        <div class="w-14 h-14 rounded-modern bg-gray-50 border border-gray-100 p-1 flex items-center justify-center my-1 overflow-hidden">
+                            <img :src="getImageUrl(item.path)" :alt="item.title" class="max-w-full max-h-full object-contain">
+                        </div>
+
+                        <!-- Filename -->
+                        <span class="text-[10px] font-bold text-brand-dark truncate w-full" x-text="item.title || item.filename"></span>
+                        <span class="text-[9px] text-gray-400 font-mono" x-text="item.size || ''"></span>
+
+                        <!-- Action Gunakan -->
+                        <button type="button" 
+                                @click="usePartnerMedia(item)"
+                                class="mt-2 w-full py-1 rounded-modern-sm text-[10px] font-bold transition-all cursor-pointer"
+                                :class="isPartnerLogoUsed(item.path) ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' : 'text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30'">
+                            <span>Gunakan</span>
+                        </button>
+                    </div>
+                </template>
+            </div>
+        </div>
+
         <!-- Partners Table / Grid -->
         <div class="overflow-x-auto rounded-modern border border-gray-200">
             <table class="w-full text-left text-xs">
                 <thead class="bg-gray-100/80 font-bold text-brand-dark border-b border-gray-200">
                     <tr>
+                        <th class="p-3 w-16 text-center">Urutan</th>
                         <th class="p-3">Nama Mitra / Kategori</th>
                         <th class="p-3">Logo Reference</th>
-                        <th class="p-3">Urutan</th>
                         <th class="p-3">Status</th>
-                        <th class="p-3 text-right">Aksi</th>
+                        <th class="p-3 text-right">Atur Posisi & Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     <template x-for="(p, pIdx) in (heroPartners.partners || [])" :key="p.id || pIdx">
                         <tr class="hover:bg-gray-50/50">
-                            <td class="p-3 font-bold text-brand-dark" x-text="p.name"></td>
-                            <td class="p-3 font-mono text-[11px] text-gray-500" x-text="p.logo || 'images/mitra-placeholder.png'"></td>
-                            <td class="p-3 font-mono" x-text="p.sort_order || (pIdx + 1)"></td>
+                            <!-- Urutan Badge -->
+                            <td class="p-3 text-center">
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-brand-dark font-bold font-mono text-xs border border-gray-200 shadow-2xs"
+                                      x-text="'#' + (p.sort_order || (pIdx + 1))">
+                                </span>
+                            </td>
+
+                            <!-- Nama & Logo Preview -->
+                            <td class="p-3">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 shrink-0 rounded-modern-sm border border-gray-200 bg-white p-0.5 flex items-center justify-center overflow-hidden">
+                                        <template x-if="p.logo">
+                                            <img :src="getImageUrl(p.logo)" :alt="p.name" class="max-w-full max-h-full object-contain">
+                                        </template>
+                                        <template x-if="!p.logo">
+                                            <span class="text-xs text-gray-400 font-bold">🤝</span>
+                                        </template>
+                                    </div>
+                                    <span class="font-bold text-brand-dark" x-text="p.name"></span>
+                                </div>
+                            </td>
+
+                            <!-- Logo Path -->
+                            <td class="p-3 font-mono text-[11px] text-gray-500 truncate max-w-[180px]" x-text="p.logo || '-'"></td>
+
+                            <!-- Status -->
                             <td class="p-3">
                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
                                       :class="(p.is_active !== false && p.active !== false) ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'"
                                       x-text="(p.is_active !== false && p.active !== false) ? 'Aktif' : 'Nonaktif'"></span>
                             </td>
-                            <td class="p-3 text-right space-x-2">
-                                <button type="button" 
-                                        @click="openEditPartnerModal(p)" 
-                                        class="text-xs font-bold text-brand-primary hover:underline cursor-pointer">
-                                    Edit
-                                </button>
-                                <button type="button" 
-                                        @click="deletePartner(p)" 
-                                        class="text-xs font-bold text-rose-600 hover:underline cursor-pointer">
-                                    Hapus
-                                </button>
+
+                            <!-- Reordering Controls & Actions -->
+                            <td class="p-3 text-right">
+                                <div class="inline-flex items-center gap-1.5">
+                                    <!-- Move Up Button -->
+                                    <button type="button" 
+                                            @click="movePartnerUp(pIdx)" 
+                                            :disabled="pIdx === 0"
+                                            class="w-7 h-7 rounded-modern-sm border border-gray-200 flex items-center justify-center transition-all cursor-pointer"
+                                            :class="pIdx === 0 ? 'opacity-30 cursor-not-allowed bg-gray-50 text-gray-400' : 'bg-white hover:bg-brand-primary/10 text-brand-dark hover:text-brand-primary hover:border-brand-primary/30 shadow-2xs'"
+                                            title="Geser Naik (Urutan Sebelumnya)">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
+                                    </button>
+
+                                    <!-- Move Down Button -->
+                                    <button type="button" 
+                                            @click="movePartnerDown(pIdx)" 
+                                            :disabled="pIdx === (heroPartners.partners || []).length - 1"
+                                            class="w-7 h-7 rounded-modern-sm border border-gray-200 flex items-center justify-center transition-all cursor-pointer"
+                                            :class="pIdx === (heroPartners.partners || []).length - 1 ? 'opacity-30 cursor-not-allowed bg-gray-50 text-gray-400' : 'bg-white hover:bg-brand-primary/10 text-brand-dark hover:text-brand-primary hover:border-brand-primary/30 shadow-2xs'"
+                                            title="Geser Turun (Urutan Berikutnya)">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+
+                                    <span class="text-gray-300 mx-0.5">|</span>
+
+                                    <!-- Edit Button -->
+                                    <button type="button" 
+                                            @click="openEditPartnerModal(p)" 
+                                            class="px-2 py-1 rounded-modern-sm text-xs font-bold text-brand-primary hover:bg-brand-primary/10 transition-colors cursor-pointer">
+                                        Edit
+                                    </button>
+
+                                    <!-- Delete Button -->
+                                    <button type="button" 
+                                            @click="deletePartner(p)" 
+                                            class="px-2 py-1 rounded-modern-sm text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer">
+                                        Hapus
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </template>
@@ -1038,36 +1456,80 @@
                             <div class="p-5 rounded-modern-xl bg-gray-50 border border-gray-200 space-y-4">
                                 <div class="border-b border-gray-200 pb-2">
                                     <h4 class="text-xs font-extrabold text-brand-dark uppercase tracking-wider">
-                                        3. Call To Action (Tombol Aksi)
+                                        3. Call To Action (Tombol Aksi & Saluran Kontak)
                                     </h4>
                                 </div>
 
-                                <!-- Primary CTA -->
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-xs font-bold text-brand-dark mb-1">
-                                            Primary CTA (Text)
-                                        </label>
-                                        <input type="text" 
-                                               x-model="draftForm.primary_cta_text" 
-                                               required
-                                               placeholder="Belanja Sekarang"
-                                               class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
+                                <!-- Primary CTA Destination & Contact Reference -->
+                                <div class="space-y-3 p-3.5 rounded-modern bg-white border border-gray-200">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-bold text-brand-dark mb-1">
+                                                Teks Tombol Utama (Primary Text) <span class="text-rose-500">*</span>
+                                            </label>
+                                            <input type="text" 
+                                                   x-model="draftForm.primary_cta_text" 
+                                                   required
+                                                   placeholder="Belanja Sekarang"
+                                                   class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary font-bold text-brand-dark">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-brand-dark mb-1">
+                                                Tujuan Kontak / Referensi Saluran <span class="text-rose-500">*</span>
+                                            </label>
+                                            <select x-model="draftForm.primary_cta_contact"
+                                                    @change="if (draftForm.primary_cta_contact) { draftForm.primary_cta_link = draftForm.primary_cta_contact; } else if (!draftForm.primary_cta_link || !draftForm.primary_cta_link.startsWith('#')) { draftForm.primary_cta_link = '#produk'; }"
+                                                    class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
+                                                <option value="">-- Tautan Kustom / Anchor (#produk) --</option>
+                                                <template x-for="c in (contacts ? contacts.filter(item => item.active !== false && item.type === 'whatsapp') : [])" :key="c.key || c.id">
+                                                    <option :value="c.key || c.id" x-text="c.name + ' (' + (c.division || 'Umum') + ')'"></option>
+                                                </template>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div>
+
+                                    <!-- Read-Only Contact Value Preview (When Contact Reference Selected) -->
+                                    <template x-if="draftForm.primary_cta_contact && getContactByKey(draftForm.primary_cta_contact)">
+                                        <div class="p-3 rounded-modern bg-emerald-50/80 border border-emerald-200 text-xs space-y-1.5">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-[10px] font-extrabold uppercase text-emerald-800 tracking-wider">
+                                                    Informasi Kontak Terpilih (Read-Only)
+                                                </span>
+                                                <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-white text-emerald-700 border border-emerald-300" x-text="'Key: ' + draftForm.primary_cta_contact"></span>
+                                            </div>
+                                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-emerald-200/60">
+                                                <div>
+                                                    <span class="text-[10px] text-gray-500 block">Divisi / Pemilik:</span>
+                                                    <strong class="text-brand-dark text-xs" x-text="getContactByKey(draftForm.primary_cta_contact)?.division || '-'"></strong>
+                                                </div>
+                                                <div>
+                                                    <span class="text-[10px] text-gray-500 block">Tipe Saluran:</span>
+                                                    <span class="inline-flex items-center gap-1 font-bold text-emerald-700">
+                                                        <span>💬 WhatsApp</span>
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-[10px] text-gray-500 block">Nomor WhatsApp:</span>
+                                                    <span class="font-mono font-bold text-xs text-emerald-900" x-text="'+' + getContactByKey(draftForm.primary_cta_contact)?.value"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Manual Custom Link (When No Contact Reference Selected) -->
+                                    <div x-show="!draftForm.primary_cta_contact">
                                         <label class="block text-xs font-bold text-brand-dark mb-1">
-                                            Primary CTA (Link)
+                                            Target URL / Anchor Link
                                         </label>
                                         <input type="text" 
                                                x-model="draftForm.primary_cta_link" 
-                                               required
                                                placeholder="#produk"
-                                               class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
+                                               class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary font-mono">
                                     </div>
                                 </div>
 
                                 <!-- Secondary CTA -->
-                                <div class="grid grid-cols-2 gap-3">
+                                <div class="grid grid-cols-2 gap-3 p-3.5 rounded-modern bg-white border border-gray-200">
                                     <div>
                                         <label class="block text-xs font-bold text-brand-dark mb-1">
                                             Secondary CTA (Text)
@@ -1086,7 +1548,7 @@
                                                x-model="draftForm.secondary_cta_link" 
                                                required
                                                placeholder="#kategori"
-                                               class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
+                                               class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary font-mono">
                                     </div>
                                 </div>
                             </div>
@@ -1536,9 +1998,32 @@
                 </div>
 
                 <!-- Tab 1: Media Library Grid -->
-                <div x-show="mediaPickerTab === 'library'" class="space-y-4">
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5 max-h-[380px] overflow-y-auto p-1">
-                        <template x-for="item in mediaLibrary" :key="item.id">
+                <div x-show="mediaPickerTab === 'library'" class="space-y-3">
+                    <!-- Search Bar -->
+                    <div class="flex items-center gap-3">
+                        <div class="relative flex-1">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 text-xs">
+                                🔍
+                            </span>
+                            <input type="text" 
+                                   x-model="mediaSearchQuery" 
+                                   placeholder="Cari gambar berdasarkan nama file..." 
+                                   class="w-full pl-8 pr-8 py-2 text-xs rounded-modern border border-gray-200 bg-gray-50 focus:bg-white focus:border-brand-primary focus:outline-none transition-all">
+                            <button x-show="mediaSearchQuery" 
+                                    @click="mediaSearchQuery = ''" 
+                                    type="button" 
+                                    class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 text-xs cursor-pointer">
+                                ✕
+                            </button>
+                        </div>
+                        <span class="text-[11px] text-gray-500 font-medium whitespace-nowrap">
+                            <span x-text="filteredMediaLibrary.length"></span> dari <span x-text="mediaLibrary.length"></span> gambar
+                        </span>
+                    </div>
+
+                    <!-- Media Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5 max-h-[380px] overflow-y-auto p-1 overscroll-contain no-scrollbar">
+                        <template x-for="item in filteredMediaLibrary" :key="item.id">
                             <div @click="selectedMediaItem = item" 
                                  class="group relative rounded-modern overflow-hidden border-2 cursor-pointer transition-all duration-150 p-1.5 bg-gray-50 flex flex-col justify-between"
                                  :class="selectedMediaItem?.id === item.id 
@@ -1559,6 +2044,18 @@
                                             </div>
                                         </div>
                                     </template>
+
+                                    <!-- Delete Button on Card -->
+                                    <template x-if="item.is_deletable">
+                                        <button @click.stop="deleteMedia(item)" 
+                                                type="button" 
+                                                title="Hapus media dari server" 
+                                                class="absolute top-1.5 left-1.5 p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center z-10">
+                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </template>
                                 </div>
 
                                 <!-- Metadata -->
@@ -1571,6 +2068,11 @@
                                 </div>
                             </div>
                         </template>
+                    </div>
+
+                    <!-- Empty Search State -->
+                    <div x-show="filteredMediaLibrary.length === 0" class="p-8 text-center bg-gray-50 rounded-modern border border-dashed border-gray-200 text-xs text-gray-400">
+                        Tidak ada gambar yang cocok dengan kata kunci "<span class="font-bold text-gray-600" x-text="mediaSearchQuery"></span>".
                     </div>
 
                     <div class="p-3 bg-gray-50 rounded-modern border border-gray-200 text-xs text-gray-500 flex items-center justify-between">
@@ -1782,10 +2284,41 @@
                         <input type="text" x-model="partnerForm.name" placeholder="Contoh: Restoran & Cafe Jogja" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-brand-dark">
                     </div>
 
-                    <!-- Logo Reference -->
+                    <!-- Logo Reference & Isolated Partner Media Picker -->
                     <div>
-                        <label class="block text-xs font-bold text-brand-dark mb-1">Logo / Image Asset</label>
-                        <input type="text" x-model="partnerForm.logo" placeholder="images/mitra-placeholder.png" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono text-[11px]">
+                        <label class="block text-xs font-bold text-brand-dark mb-1">Logo / Image Mitra</label>
+                        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-modern border border-gray-200 transition-all"
+                             @dragover.prevent="isDraggingPartner = true"
+                             @dragleave.prevent="isDraggingPartner = false"
+                             @drop.prevent="isDraggingPartner = false; if ($event.dataTransfer && $event.dataTransfer.files.length > 0) { uploadPartnerLogo($event.dataTransfer.files[0]); }"
+                             :class="isDraggingPartner ? 'border-brand-primary bg-brand-primary/10 ring-2 ring-brand-primary/30' : ''">
+                            <div class="w-14 h-14 shrink-0 rounded-modern border border-gray-200 bg-white p-1 flex items-center justify-center overflow-hidden">
+                                <template x-if="partnerForm.logo">
+                                    <img :src="getImageUrl(partnerForm.logo)" 
+                                         alt="Preview Logo" 
+                                         class="max-w-full max-h-full object-contain">
+                                </template>
+                                <template x-if="!partnerForm.logo">
+                                    <span class="text-xl text-gray-300">🤝</span>
+                                </template>
+                            </div>
+                            <div class="space-y-1.5 flex-1 min-w-0">
+                                <div class="text-[11px] font-mono text-gray-500 truncate" x-text="partnerForm.logo || 'Belum memilih logo'"></div>
+                                <div class="flex items-center flex-wrap gap-2">
+                                    <button type="button" 
+                                            @click="openPartnerMediaPicker()" 
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern-sm text-xs font-bold text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30 transition-all cursor-pointer">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        <span>Pilih dari Media Mitra</span>
+                                    </button>
+                                    <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern-sm text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 transition-all cursor-pointer">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                        <span x-text="partnerUploading ? 'Mengunggah...' : 'Upload / Drag Logo'"></span>
+                                        <input type="file" accept="image/*" class="hidden" @change="uploadPartnerLogo($event.target.files[0])" :disabled="partnerUploading">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Sort Order & Status -->
@@ -1810,6 +2343,106 @@
                     </button>
                     <button @click="savePartner()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer">
                         Simpan Mitra
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- 6C. ISOLATED PARTNER MEDIA PICKER MODAL                 -->
+    <!-- ======================================================= -->
+    <div x-show="partnerMediaPickerOpen" 
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         role="dialog" 
+         aria-modal="true">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="partnerMediaPickerOpen = false"></div>
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-xl max-w-2xl w-full p-6 shadow-2xl border border-gray-200 space-y-5">
+                
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">🤝</span>
+                            <h3 class="text-sm font-extrabold text-brand-dark">Media Storage Khusus Mitra (Partners)</h3>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                ISOLATED: storage/partners/
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            Pilih logo mitra dari storage terisolasi atau unggah logo mitra baru (tidak bercampur dengan gambar Hero).
+                        </p>
+                    </div>
+                    <button @click="partnerMediaPickerOpen = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <!-- Upload Zone with Drag & Drop -->
+                <div class="p-5 rounded-modern-lg border-2 border-dashed text-center transition-all cursor-pointer"
+                     :class="isDraggingPartner ? 'border-brand-primary bg-brand-primary/10 ring-2 ring-brand-primary/30 scale-[1.01]' : 'border-gray-300 hover:border-brand-primary/50 bg-gray-50'"
+                     @dragover.prevent="isDraggingPartner = true"
+                     @dragleave.prevent="isDraggingPartner = false"
+                     @drop.prevent="isDraggingPartner = false; if ($event.dataTransfer && $event.dataTransfer.files.length > 0) { uploadPartnerLogo($event.dataTransfer.files[0]); }">
+                    <div class="flex flex-col items-center justify-center gap-2">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
+                             :class="isDraggingPartner ? 'bg-brand-primary text-white scale-110' : 'bg-brand-primary/10 text-brand-primary'">
+                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        </div>
+                        <div class="text-xs">
+                            <label class="font-bold text-brand-primary hover:underline cursor-pointer">
+                                <span>Pilih file logo dari komputer</span>
+                                <input type="file" accept="image/*" class="hidden" @change="uploadPartnerLogo($event.target.files[0])" :disabled="partnerUploading">
+                            </label>
+                            <span class="text-gray-500 font-medium"> atau tarik &amp; lepas (drag &amp; drop) file ke sini</span>
+                        </div>
+                        <p class="text-[11px] text-gray-400">Format yang didukung: PNG, JPG, WebP (Maksimal 2 MB)</p>
+                        <template x-if="partnerUploading">
+                            <div class="inline-flex items-center gap-2 text-xs font-bold text-brand-primary mt-1">
+                                <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                <span>Mengunggah logo ke storage/partners/...</span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Isolated Partner Media Grid -->
+                <div class="space-y-2">
+                    <h4 class="text-xs font-bold text-brand-dark uppercase tracking-wider">Koleksi Logo Mitra</h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 max-h-64 overflow-y-auto p-1">
+                        <template x-for="item in partnerMediaLibrary" :key="item.id || item.path">
+                            <div @click="selectPartnerMedia(item)"
+                                 class="group relative rounded-modern border p-2.5 bg-white hover:border-brand-primary hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center text-center"
+                                 :class="partnerForm.logo === item.path ? 'ring-2 ring-brand-primary border-brand-primary bg-brand-primary/5' : 'border-gray-200'">
+                                
+                                <!-- Delete Button -->
+                                <button type="button" 
+                                        @click.stop="deletePartnerMedia(item)"
+                                        class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center transition-all cursor-pointer opacity-70 hover:opacity-100 shadow-2xs"
+                                        title="Hapus Logo">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+
+                                <div class="w-16 h-16 rounded-modern bg-gray-50 border border-gray-100 p-1 flex items-center justify-center mb-2 overflow-hidden">
+                                    <img :src="getImageUrl(item.path)" :alt="item.title" class="max-w-full max-h-full object-contain">
+                                </div>
+                                <span class="text-[11px] font-bold text-brand-dark truncate w-full" x-text="item.title || item.filename"></span>
+                                <span class="text-[10px] text-gray-400" x-text="item.size || ''"></span>
+                                <div x-show="partnerForm.logo === item.path" class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-brand-primary text-white flex items-center justify-center text-[10px] font-bold">
+                                    ✓
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="pt-3 flex items-center justify-end border-t border-gray-100">
+                    <button @click="partnerMediaPickerOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+                        Tutup
                     </button>
                 </div>
 

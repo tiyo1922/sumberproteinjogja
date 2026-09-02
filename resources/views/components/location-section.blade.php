@@ -78,9 +78,9 @@
                                 </svg>
                             </div>
                             <div>
-                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Customer Care & Pemesanan</h4>
+                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Customer Care &amp; Pemesanan</h4>
                                 <p class="text-xs sm:text-sm text-brand-dark font-semibold mt-0.5">
-                                    {{ $site['contact']['phone'] ?? ($storeInfo['phone'] ?? '+62 812-3456-7890') }}
+                                    {{ $location['contact_display'] ?? ($location['phone'] ?? ($site['contact']['phone'] ?? ($storeInfo['phone'] ?? '+62 812-3456-7890'))) }}
                                 </p>
                             </div>
                         </div>

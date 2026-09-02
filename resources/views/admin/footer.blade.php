@@ -4,397 +4,17 @@
 ])
 
 @section('content')
+<script>
+    window.__initialFooterData = {!! json_encode($footerData) !!};
+    window.__initialContactsData = {!! json_encode($contacts ?? ($footerData['contacts'] ?? [])) !!};
+</script>
+
 <div class="space-y-8"
-     x-data="{
-         footer: {{ json_encode($footerData) }},
-         activeTab: 'footer', // 'reviews' | 'location' | 'footer'
-         
-         // Preview Device & Virtual Viewport State (Matching Keunggulan & Mutu pattern)
-         previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
-         previewBoxWidth: 1000,
-         previewBoxHeight: 550,
-         previewObserver: null,
-         toastMessage: '',
-         toastVisible: false,
-         isSyncing: false,
-         
-         // Reference Viewport Dimensions (Laptop 14-inch 1366x768, Tablet 1024x768, Mobile 393x852)
-         virtualDimensions: {
-             desktop: { width: 1366, height: 768 },
-             tablet:  { width: 1024, height: 768 },
-             mobile:  { width: 393,  height: 852 }
-         },
-         
-         get currentVirtualWidth() {
-             return this.virtualDimensions[this.previewDevice]?.width || (this.previewDevice === 'mobile' ? 393 : (this.previewDevice === 'tablet' ? 1024 : 1366));
-         },
-         
-         get currentVirtualHeight() {
-             return this.virtualDimensions[this.previewDevice]?.height || (this.previewDevice === 'mobile' ? 852 : 768);
-         },
-         
-         // Scale dynamically fits BOTH available width AND fixed available height of previewBoxWrapper
-         get currentScale() {
-             const availableW = Math.max(200, (this.previewBoxWidth || 1000) - 24);
-             const availableH = Math.max(200, (this.previewBoxHeight || 550) - 24);
-             const scaleX = availableW / this.currentVirtualWidth;
-             const scaleY = availableH / this.currentVirtualHeight;
-             return Math.min(scaleX, scaleY);
-         },
-         
-         get currentFrameWidth() {
-             return Math.round(this.currentVirtualWidth * this.currentScale);
-         },
-         
-         get currentFrameHeight() {
-             return Math.round(this.currentVirtualHeight * this.currentScale);
-         },
-
-         get activeReviews() {
-             return (this.footer.reviews.items || []).filter(i => i.is_active).slice(0, this.footer.reviews.displayed_count || 3);
-         },
-
-         // Computed formatted display address from structured address fields
-         get computedLocationAddress() {
-             const addr = this.footer.location?.address;
-             if (!addr) return '';
-             const parts = [addr.street, addr.district, addr.city, addr.province, addr.postal_code].filter(Boolean);
-             return parts.length > 0 ? parts.join(', ') : (addr.full || '');
-         },
-         
-         // Dynamic Social Media URL & Platform Detector
-         getSocialPlatform(url) {
-             if (!url || typeof url !== 'string' || url.trim() === '') {
-                 return { key: 'generic', name: 'Link Web', badgeClass: 'bg-gray-100 text-gray-700 border-gray-200', hoverClass: 'hover:bg-brand-primary' };
-             }
-             const u = url.toLowerCase().trim();
-             if (u.includes('instagram.com') || u.includes('instagr.am')) {
-                 return { key: 'instagram', name: 'Instagram', badgeClass: 'bg-pink-50 text-pink-700 border-pink-200', hoverClass: 'hover:bg-[#E1306C]' };
-             }
-             if (u.includes('tiktok.com')) {
-                 return { key: 'tiktok', name: 'TikTok', badgeClass: 'bg-gray-900 text-white border-black', hoverClass: 'hover:bg-black' };
-             }
-             if (u.includes('wa.me') || u.includes('whatsapp.com')) {
-                 return { key: 'whatsapp', name: 'WhatsApp', badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300', hoverClass: 'hover:bg-[#25D366]' };
-             }
-             if (u.includes('facebook.com') || u.includes('fb.com') || u.includes('fb.watch')) {
-                 return { key: 'facebook', name: 'Facebook', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200', hoverClass: 'hover:bg-[#1877F2]' };
-             }
-             if (u.includes('youtube.com') || u.includes('youtu.be')) {
-                 return { key: 'youtube', name: 'YouTube', badgeClass: 'bg-red-50 text-red-700 border-red-200', hoverClass: 'hover:bg-[#FF0000]' };
-             }
-             if (u.includes('x.com') || u.includes('twitter.com')) {
-                 return { key: 'twitter', name: 'X / Twitter', badgeClass: 'bg-gray-800 text-white border-black', hoverClass: 'hover:bg-black' };
-             }
-             if (u.includes('shopee.')) {
-                 return { key: 'shopee', name: 'Shopee', badgeClass: 'bg-orange-50 text-orange-700 border-orange-200', hoverClass: 'hover:bg-[#EE4D2D]' };
-             }
-             if (u.includes('tokopedia.')) {
-                 return { key: 'tokopedia', name: 'Tokopedia', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200', hoverClass: 'hover:bg-[#03AC0E]' };
-             }
-             return { key: 'generic', name: 'Link Web', badgeClass: 'bg-gray-100 text-gray-700 border-gray-200', hoverClass: 'hover:bg-brand-primary' };
-         },
-         
-         addSocialLink() {
-             if (!this.footer.actual_footer.social_links) {
-                 this.footer.actual_footer.social_links = [];
-             }
-             this.footer.actual_footer.social_links.push({
-                 id: Date.now(),
-                 url: ''
-             });
-             this.showToast('Baris media sosial baru ditambahkan.');
-         },
-         
-         removeSocialLink(index) {
-             this.footer.actual_footer.social_links.splice(index, 1);
-             this.showToast('Media sosial telah dihapus.');
-         },
-         
-         initPreviewObserver() {
-             this.$nextTick(() => {
-                 if (this.$refs.previewBoxWrapper) {
-                     const rect = this.$refs.previewBoxWrapper.getBoundingClientRect();
-                     if (rect.width > 50) {
-                         this.previewBoxWidth = rect.width;
-                         this.previewBoxHeight = rect.height;
-                     }
-                     if (!this.previewObserver && window.ResizeObserver) {
-                         this.previewObserver = new ResizeObserver((entries) => {
-                             for (let entry of entries) {
-                                 const w = entry.contentRect.width;
-                                 const h = entry.contentRect.height;
-                                 if (w > 50) this.previewBoxWidth = w;
-                                 if (h > 50) this.previewBoxHeight = h;
-                             }
-                         });
-                         this.previewObserver.observe(this.$refs.previewBoxWrapper);
-                     }
-                 }
-             });
-         },
-         
+     x-data="footerManager({
          csrfToken: '{{ csrf_token() }}',
-         reviewModalOpen: false,
-         isEditingReview: false,
-         selectedReview: null,
-         reviewDeleteModalOpen: false,
-         reviewFilterSource: 'all',
-         reviewForm: {
-             id: null,
-             reviewer_name: '',
-             reviewer_title: '',
-             reviewer_location: '',
-             review_text: '',
-             rating: 5,
-             reviewed_at: '',
-             is_active: true,
-         },
-
-         openCreateReviewModal() {
-             this.isEditingReview = false;
-             this.reviewForm = {
-                 id: null,
-                 reviewer_name: '',
-                 reviewer_title: '',
-                 reviewer_location: '',
-                 review_text: '',
-                 rating: 5,
-                 reviewed_at: new Date().toISOString().split('T')[0],
-                 is_active: true,
-             };
-             this.reviewModalOpen = true;
-         },
-
-         openEditReviewModal(item) {
-             this.isEditingReview = true;
-             this.reviewForm = {
-                 id: item.id,
-                 reviewer_name: item.name,
-                 reviewer_title: item.role || '',
-                 reviewer_location: item.location || '',
-                 review_text: item.review_text || item.comment || '',
-                 rating: item.rating || 5,
-                 reviewed_at: item.reviewed_at || '',
-                 is_active: item.is_active,
-             };
-             this.reviewModalOpen = true;
-         },
-
-         async saveReview() {
-             if (!this.reviewForm.reviewer_name || !this.reviewForm.review_text) {
-                 alert('Nama reviewer dan isi ulasan wajib diisi.');
-                 return;
-             }
-
-             try {
-                 const url = this.isEditingReview ? `/admin/reviews/${this.reviewForm.id}` : '/admin/reviews';
-                 const method = this.isEditingReview ? 'PUT' : 'POST';
-
-                 const response = await fetch(url, {
-                     method: method,
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                     body: JSON.stringify(this.reviewForm),
-                 });
-
-                 const result = await response.json();
-
-                 if (!response.ok || !result.success) {
-                     alert(result.message || 'Gagal menyimpan ulasan.');
-                     return;
-                 }
-
-                 if (this.isEditingReview) {
-                     const idx = this.footer.reviews.items.findIndex(i => i.id === this.reviewForm.id);
-                     if (idx !== -1) {
-                         this.footer.reviews.items[idx].name = this.reviewForm.reviewer_name;
-                         this.footer.reviews.items[idx].role = this.reviewForm.reviewer_title;
-                         this.footer.reviews.items[idx].location = this.reviewForm.reviewer_location;
-                         this.footer.reviews.items[idx].comment = this.reviewForm.review_text;
-                         this.footer.reviews.items[idx].review_text = this.reviewForm.review_text;
-                         this.footer.reviews.items[idx].rating = this.reviewForm.rating;
-                         this.footer.reviews.items[idx].is_active = this.reviewForm.is_active;
-                     }
-                 } else {
-                     const newRev = {
-                         id: result.review.id,
-                         name: result.review.reviewer_name,
-                         role: result.review.reviewer_title,
-                         location: result.review.reviewer_location,
-                         comment: result.review.review_text,
-                         review_text: result.review.review_text,
-                         rating: result.review.rating,
-                         time: 'Baru saja',
-                         source: 'Manual Review',
-                         is_active: result.review.is_active,
-                     };
-                     this.footer.reviews.items.unshift(newRev);
-                 }
-
-                 this.reviewModalOpen = false;
-                 this.showToast(result.message);
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan jaringan saat menyimpan ulasan.');
-             }
-         },
-
-         async toggleReviewStatus(item) {
-             try {
-                 const response = await fetch(`/admin/reviews/${item.id}/toggle`, {
-                     method: 'PATCH',
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                 });
-
-                 const result = await response.json();
-
-                 if (!response.ok || !result.success) {
-                     alert(result.message || 'Gagal mengubah status ulasan.');
-                     return;
-                 }
-
-                 item.is_active = result.is_active;
-                 this.showToast(result.message);
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan saat mengubah status ulasan.');
-             }
-         },
-
-         async deleteReview(item) {
-             if (!confirm(`Hapus ulasan dari "${item.name}"?`)) return;
-
-             try {
-                 const response = await fetch(`/admin/reviews/${item.id}`, {
-                     method: 'DELETE',
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                 });
-
-                 const result = await response.json();
-
-                 if (!response.ok || !result.success) {
-                     alert(result.message || 'Gagal menghapus ulasan.');
-                     return;
-                 }
-
-                 this.footer.reviews.items = this.footer.reviews.items.filter(i => i.id !== item.id);
-                 this.showToast(result.message);
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan saat menghapus ulasan.');
-             }
-         },
-
-         async toggleReviewMode(targetMode) {
-             try {
-                 const response = await fetch('/admin/reviews/mode', {
-                     method: 'POST',
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                     body: JSON.stringify({ mode: targetMode }),
-                 });
-
-                 const result = await response.json();
-
-                 if (!response.ok || !result.success) {
-                     alert(result.message || 'Gagal mengubah mode ulasan.');
-                     return;
-                 }
-
-                 this.footer.reviews.review_mode = targetMode;
-                 this.showToast(result.message);
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan saat mengubah mode ulasan.');
-             }
-         },
-
-         async saveGoogleConfig() {
-             try {
-                 const response = await fetch('/admin/reviews/google-config', {
-                     method: 'POST',
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                     body: JSON.stringify({
-                         google_place_id: this.footer.reviews.google_place_id || (this.footer.reviews.google_place_url ? this.footer.reviews.google_place_url.replace('https://maps.google.com/?cid=', '') : null),
-                         google_rating: this.footer.reviews.rating,
-                         google_total_reviews: parseInt(this.footer.reviews.total_reviews) || 0,
-                     }),
-                 });
-
-                 const result = await response.json();
-
-                 if (!response.ok || !result.success) {
-                     alert(result.message || 'Gagal menyimpan konfigurasi Google.');
-                     return;
-                 }
-
-                 this.showToast(result.message || 'Konfigurasi Google Review berhasil disimpan.');
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan saat menyimpan konfigurasi Google.');
-             }
-         },
-         
-         showToast(msg) {
-             this.toastMessage = msg;
-             this.toastVisible = true;
-             setTimeout(() => { this.toastVisible = false; }, 3000);
-         },
-         
-         syncGoogleReviews() {
-             this.isSyncing = true;
-             setTimeout(() => {
-                 this.isSyncing = false;
-                 this.showToast('Data Google Reviews berhasil disinkronkan.');
-             }, 400);
-         },
-         
-         async saveFooter() {
-             try {
-                 const response = await fetch('/admin/footer', {
-                     method: 'POST',
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                     body: JSON.stringify({
-                         location: this.footer.location,
-                         actual_footer: this.footer.actual_footer,
-                     })
-                 });
-
-                 const result = await response.json();
-                 if (response.ok && result.success) {
-                     this.showToast('Pengaturan Lokasi & Footer berhasil disimpan ke database!');
-                 } else {
-                     alert(result.message || 'Gagal menyimpan pengaturan footer.');
-                 }
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan jaringan saat menyimpan pengaturan footer.');
-             }
-         }
-     }"
+         footer: window.__initialFooterData,
+         contacts: window.__initialContactsData
+     })"
      x-init="initPreviewObserver()">
     
     <style>
@@ -441,7 +61,7 @@
                     </span>
                 </div>
                 <p class="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-3xl">
-                    Struktur konfigurasi untuk 3 section paling bawah di Landing Page dengan <strong>Real Landing Page Preview</strong> berskala presisi di bagian bawah.
+                    Struktur konfigurasi untuk 3 section paling bawah di Landing Page dengan <strong>Preview</strong> berskala presisi di bagian bawah.
                 </p>
             </div>
 
@@ -449,8 +69,13 @@
             <div class="flex items-center gap-3 shrink-0">
                 <button @click="saveFooter()" 
                         type="button"
-                        class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs sm:text-sm text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
-                    <span>Simpan Pengaturan</span>
+                        :disabled="isSaving"
+                        class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                    <svg x-show="isSaving" class="animate-spin -ml-1 mr-1 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    <span x-text="isSaving ? 'Menyimpan...' : 'Simpan Pengaturan'"></span>
                 </button>
             </div>
         </div>
@@ -532,9 +157,20 @@
                             Konfigurasi Google Place
                         </h3>
                     </div>
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                        <span>Belum terhubung API</span>
-                    </span>
+                    <!-- Dynamic Status Indicator -->
+                    <template x-if="footer.reviews.last_updated && footer.reviews.last_updated !== 'Belum ada sync Google'">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                            <span>Tersinkronisasi Google</span>
+                        </span>
+                    </template>
+                    <template x-if="!footer.reviews.last_updated || footer.reviews.last_updated === 'Belum ada sync Google'">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                              :class="footer.reviews.google_place_id ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-gray-100 text-gray-600 border border-gray-200'">
+                            <span class="w-1.5 h-1.5 rounded-full" :class="footer.reviews.google_place_id ? 'bg-blue-600' : 'bg-gray-400'"></span>
+                            <span x-text="footer.reviews.google_place_id ? 'Place ID Terpasang' : 'Belum Terhubung'"></span>
+                        </span>
+                    </template>
                 </div>
 
                 <div class="space-y-3">
@@ -544,7 +180,7 @@
                                x-model="footer.reviews.google_place_id" 
                                class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono text-brand-dark"
                                placeholder="ChIJN1t_tDeuEmsRUsoyG83frY4">
-                        <p class="text-[10px] text-gray-400 mt-1">Wajib diisi sebelum mengaktifkan Mode Google Review.</p>
+                        <p class="text-[10px] text-gray-400 mt-1">Kode pengenal unik lokasi Google Maps toko Anda.</p>
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
@@ -566,12 +202,39 @@
                         </div>
                     </div>
 
-                    <div class="pt-2">
+                    <!-- Sync status line -->
+                    <div class="p-2.5 rounded-modern bg-gray-50 border border-gray-200/80 text-[11px] text-gray-600 flex items-center justify-between">
+                        <span class="font-medium">Status Sinkronisasi:</span>
+                        <span class="font-semibold text-brand-dark" x-text="footer.reviews.last_updated || 'Belum ada sync Google'"></span>
+                    </div>
+
+                    <div class="pt-2 space-y-2">
                         <button @click="saveGoogleConfig()" 
                                 type="button"
-                                class="w-full px-4 py-2.5 rounded-modern font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 transition-all cursor-pointer shadow-2xs">
-                            Simpan Konfigurasi Google
+                                class="w-full px-4 py-2.5 rounded-modern font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1.5">
+                            <span>Simpan Konfigurasi Google</span>
                         </button>
+                        
+                        <div class="grid grid-cols-2 gap-2">
+                            <template x-if="footer.reviews.google_place_id && footer.reviews.google_place_id.trim() !== ''">
+                                <a :href="'https://search.google.com/local/writereview?placeid=' + footer.reviews.google_place_id.trim()"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="w-full px-3 py-2 rounded-modern font-bold text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all flex items-center justify-center gap-1 cursor-pointer text-center">
+                                    <span>🌐 Link Ulasan ↗</span>
+                                </a>
+                            </template>
+                            <button @click="syncGoogleReviews()"
+                                    type="button"
+                                    :disabled="isSyncing || !footer.reviews.google_place_id"
+                                    class="w-full px-3 py-2 rounded-modern font-bold text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-center">
+                                <svg x-show="isSyncing" class="animate-spin h-3.5 w-3.5 text-emerald-700" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                </svg>
+                                <span x-text="isSyncing ? 'Menyinkronkan...' : '🔄 Tarik Ulasan API'"></span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -579,7 +242,7 @@
                 <div class="p-3 rounded-modern bg-blue-50/60 border border-blue-100 text-[11px] text-blue-900 flex items-start gap-2.5">
                     <span class="text-blue-600 text-sm mt-0.5">ℹ️</span>
                     <p class="leading-relaxed">
-                        Sinkronisasi Google Places API langsung tidak diaktifkan pada langkah ini. Konfigurasi Place ID dan rating agregat dikelola secara struktural.
+                        Jika Anda belum memiliki <strong>Google Cloud API Key</strong>, Anda dapat memasukkan ulasan terbaik dari Google Maps secara manual melalui tombol <strong>+ Tambah Ulasan</strong> dengan memilih Sumber: <em>Google Review</em>.
                     </p>
                 </div>
             </div>
@@ -681,8 +344,6 @@
             </div>
 
         </div>
-
-    </div>      </div>
 
     </div>
 
@@ -786,13 +447,80 @@
                     </div>
                 </div>
 
-                <!-- 3. ALAMAT TERSTRUKTUR & KOORDINAT GEO -->
+                <!-- 3. CUSTOMER CARE & KONTAK PEMESANAN (DROPDOWN SITE & CONTACT) -->
+                <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                            <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
+                                3. Customer Care &amp; Kontak Pemesanan
+                            </h3>
+                        </div>
+                        <span class="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Site &amp; Contact Registry</span>
+                    </div>
+
+                    <div class="space-y-3.5">
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="block text-xs font-bold text-gray-700">Pilih Kontak Registry Terdaftar</label>
+                                <a href="{{ route('admin.settings') }}" target="_blank" class="text-[11px] text-brand-primary hover:underline font-semibold flex items-center gap-1">
+                                    <span>Kelola di Site &amp; Contact</span>
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                </a>
+                            </div>
+                            <select x-model="footer.location.contact_key" 
+                                    @change="onLocationContactChange()"
+                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 bg-white font-semibold text-brand-dark focus:ring-1 focus:ring-brand-primary focus:border-brand-primary">
+                                <option value="">-- Pilih Kontak dari Registry --</option>
+                                <template x-for="c in (contacts || [])" :key="c.key || c.id">
+                                    <option :value="c.key || c.id" 
+                                            :selected="(footer.location.contact_key || '') === (c.key || c.id)"
+                                            x-text="c.name + ' (' + (c.division || c.type) + ') — ' + c.value"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <!-- Read-Only Info Card Preview (Saat Kontak Registry Terpilih) -->
+                        <template x-if="footer.location.contact_key && getContactByKey(footer.location.contact_key)">
+                            <div class="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-modern text-xs space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        <span class="font-bold text-emerald-950" x-text="getContactByKey(footer.location.contact_key)?.name"></span>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-white text-emerald-800 border border-emerald-300" x-text="'Key: ' + footer.location.contact_key"></span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-3 text-emerald-800 text-[11px] pt-1 border-t border-emerald-200/60">
+                                    <span class="font-medium" x-text="'Divisi: ' + (getContactByKey(footer.location.contact_key)?.division || '-')"></span>
+                                    <span class="text-emerald-400">•</span>
+                                    <span class="font-bold uppercase tracking-wider text-[10px]" x-text="'Tipe: ' + (getContactByKey(footer.location.contact_key)?.type || 'phone')"></span>
+                                    <span class="text-emerald-400">•</span>
+                                    <span class="font-mono font-bold text-emerald-950" x-text="'Nomor: ' + getContactByKey(footer.location.contact_key)?.value"></span>
+                                </div>
+                                <p class="text-[10px] text-emerald-700 italic">
+                                    ✓ Kontak ini otomatis tersinkronkan pada kartu Customer Care di Outlet &amp; section Lokasi landing page.
+                                </p>
+                            </div>
+                        </template>
+
+                        <!-- Fallback / Custom override bila tidak memilih registry -->
+                        <div x-show="!footer.location.contact_key">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Nomor Kontak Manual (Fallback)</label>
+                            <input type="text" 
+                                   x-model="footer.location.phone" 
+                                   class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-800 font-medium focus:ring-1 focus:ring-brand-primary"
+                                   placeholder="+62 812-3456-7890">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. ALAMAT TERSTRUKTUR & KOORDINAT GEO -->
                 <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
                     <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                         <div class="flex items-center gap-2">
                             <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
                             <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
-                                3. Alamat Fisik &amp; Koordinat Geo
+                                4. Alamat Fisik &amp; Koordinat Geo
                             </h3>
                         </div>
                         <span class="text-[11px] text-gray-400 font-mono">Structured Address</span>
@@ -881,13 +609,13 @@
             <!-- Right Column (6 cols): Jam Operasional & Integrasi Google Maps -->
             <div class="lg:col-span-6 space-y-6">
                 
-                <!-- 4. JAM OPERASIONAL TOKO -->
+                <!-- 5. JAM OPERASIONAL TOKO -->
                 <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
                     <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                         <div class="flex items-center gap-2">
                             <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
                             <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
-                                4. Jam Operasional Outlet
+                                5. Jam Operasional Outlet
                             </h3>
                         </div>
                         <span class="text-[11px] text-gray-400 font-mono">Operating Hours</span>
@@ -933,13 +661,13 @@
                     </div>
                 </div>
 
-                <!-- 5. INTEGRASI PETA GOOGLE MAPS EMBED & CTA -->
+                <!-- 6. INTEGRASI PETA GOOGLE MAPS EMBED & CTA -->
                 <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
                     <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                         <div class="flex items-center gap-2">
                             <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
                             <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
-                                5. Integrasi Google Maps &amp; CTA
+                                6. Integrasi Google Maps &amp; CTA
                             </h3>
                         </div>
                         <span class="text-[11px] text-gray-400 font-mono">Map &amp; Actions</span>
@@ -1245,7 +973,7 @@
     </div>
 
     <!-- =============================================================== -->
-    <!-- 4. REAL LANDING PAGE PREVIEW SECTION (FULL WIDTH AT THE BOTTOM) -->
+    <!-- 4. PREVIEW SECTION (FULL WIDTH AT THE BOTTOM)                   -->
     <!-- =============================================================== -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs space-y-5">
         
@@ -1255,10 +983,10 @@
                 <div class="flex items-center gap-2.5 flex-wrap">
                     <span class="text-lg">👁️</span>
                     <h3 class="text-base sm:text-lg font-extrabold text-brand-dark tracking-tight uppercase">
-                        REAL LANDING PAGE PREVIEW
+                        PREVIEW
                     </h3>
                     <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-soft-green text-brand-primary border border-brand-soft-green-border">
-                        1:1 LIVE RENDER
+                        LIVE RENDER
                     </span>
                 </div>
                 <p class="text-xs text-gray-500 font-mono">
@@ -1494,7 +1222,7 @@
                                                     <div>
                                                         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Customer Care &amp; Pemesanan</h4>
                                                         <p class="text-xs sm:text-sm text-brand-dark font-semibold mt-0.5"
-                                                           x-text="footer.actual_footer.outlet_phone"></p>
+                                                           x-text="getLocationContactDisplay()"></p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1801,7 +1529,7 @@
                                             <div class="pt-3 border-t border-gray-100 text-xs text-gray-700 space-y-2">
                                                 <p><strong class="text-gray-400 block text-[10px] uppercase">Alamat</strong><span x-text="computedLocationAddress"></span></p>
                                                 <p><strong class="text-gray-400 block text-[10px] uppercase">Jam Buka</strong><span x-text="footer.location.operational_hours.display"></span></p>
-                                                <p><strong class="text-gray-400 block text-[10px] uppercase">Customer Care</strong><span x-text="footer.actual_footer.outlet_phone"></span></p>
+                                                <p><strong class="text-gray-400 block text-[10px] uppercase">Customer Care</strong><span x-text="getLocationContactDisplay()"></span></p>
                                             </div>
                                         </div>
                                         <div class="pt-4 border-t border-gray-100">
@@ -2076,7 +1804,7 @@
                                         <span class="text-brand-primary text-sm">📞</span>
                                         <div>
                                             <span class="text-[10px] font-bold text-gray-400 uppercase block">Customer Care</span>
-                                            <p class="font-bold text-brand-dark" x-text="footer.actual_footer.outlet_phone"></p>
+                                            <p class="font-bold text-brand-dark" x-text="getLocationContactDisplay()"></p>
                                         </div>
                                     </div>
                                 </div>
@@ -2290,23 +2018,30 @@
                         </div>
                     </div>
 
-                    <!-- Rating & Active -->
-                    <div class="grid grid-cols-2 gap-3">
+                    <!-- Rating, Source & Active -->
+                    <div class="grid grid-cols-3 gap-2.5">
                         <div>
-                            <label class="block text-xs font-bold text-brand-dark mb-1">Rating Bintang (1 - 5)</label>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Rating</label>
                             <select x-model.number="reviewForm.rating" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-amber-500">
-                                <option value="5">⭐⭐⭐⭐⭐ (5 Bintang)</option>
-                                <option value="4">⭐⭐⭐⭐ (4 Bintang)</option>
-                                <option value="3">⭐⭐⭐ (3 Bintang)</option>
-                                <option value="2">⭐⭐ (2 Bintang)</option>
-                                <option value="1">⭐ (1 Bintang)</option>
+                                <option value="5">⭐⭐⭐⭐⭐ 5</option>
+                                <option value="4">⭐⭐⭐⭐ 4</option>
+                                <option value="3">⭐⭐⭐ 3</option>
+                                <option value="2">⭐⭐ 2</option>
+                                <option value="1">⭐ 1</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-brand-dark mb-1">Status Visibilitas</label>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Sumber</label>
+                            <select x-model="reviewForm.source" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold">
+                                <option value="manual">⭐ Manual</option>
+                                <option value="google">🗺️ Google</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-brand-dark mb-1">Status</label>
                             <select x-model="reviewForm.is_active" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold">
-                                <option :value="true">Aktif (Tampil)</option>
-                                <option :value="false">Nonaktif (Sembunyi)</option>
+                                <option :value="true">Aktif</option>
+                                <option :value="false">Nonaktif</option>
                             </select>
                         </div>
                     </div>

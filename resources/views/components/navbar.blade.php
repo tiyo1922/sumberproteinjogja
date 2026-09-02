@@ -1,7 +1,30 @@
 @php
     $site = $site ?? config('site');
     $cleanAdminWa = preg_replace('/[^0-9]/', '', $site['contact']['admin_whatsapp'] ?? '6281234567890');
-    $brandName = $site['brand']['name'] ?? 'Sumber Protein Jogja';
+    $rawBrandName = trim($site['brand']['name'] ?? 'Sumber Protein Jogja');
+    if ($rawBrandName === '') {
+        $rawBrandName = 'Sumber Protein Jogja';
+    }
+    $brandName = $rawBrandName;
+    $brandWords = preg_split('/\s+/', $rawBrandName);
+    if (count($brandWords) > 1) {
+        $brandHighlight = array_pop($brandWords);
+        $brandMain = implode(' ', $brandWords);
+    } else {
+        $brandMain = $rawBrandName;
+        $brandHighlight = '';
+    }
+
+    $brandTagline = !empty($site['brand']['tagline']) ? $site['brand']['tagline'] : 'Fresh & Frozen Food';
+
+    $rawLogo = trim($site['brand']['logo_url'] ?? '');
+    $hasCustomLogo = !empty($rawLogo) 
+        && !str_contains($rawLogo, 'hero-1.jpg') 
+        && !str_starts_with($rawLogo, 'blob:')
+        && (str_starts_with($rawLogo, 'http') || file_exists(public_path($rawLogo)) || file_exists(public_path('storage/' . ltrim($rawLogo, '/'))));
+    $customLogoUrl = $hasCustomLogo
+        ? (str_starts_with($rawLogo, 'http') ? $rawLogo : (file_exists(public_path($rawLogo)) ? asset($rawLogo) : asset('storage/' . ltrim($rawLogo, '/'))))
+        : null;
 @endphp
 <header class="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
         :class="scrolled ? 'glass-nav-scrolled py-3' : 'glass-nav py-4 border-b border-gray-100/60'">
@@ -10,21 +33,25 @@
             
             <!-- Brand Logo -->
             <a href="#hero" class="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-brand-primary/30 rounded-lg p-1">
-                <div class="w-10 h-10 rounded-modern bg-brand-primary flex items-center justify-center text-white shadow-md shadow-brand-primary/20 group-hover:scale-105 transition-transform duration-200">
-                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <!-- Custom Fresh Protein Icon (Meat & Fresh Leaf) -->
-                        <path d="M12 2a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5 5 5 0 0 1-5-5V7a5 5 0 0 1 5-5z" fill="currentColor" fill-opacity="0.2"/>
-                        <path d="M12 13v9"/>
-                        <path d="M7 17l5 5 5-5"/>
-                        <circle cx="12" cy="7" r="3"/>
-                    </svg>
+                <div class="w-10 h-10 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shrink-0">
+                    @if($hasCustomLogo)
+                        <img src="{{ $customLogoUrl }}" alt="{{ $brandName }}" class="w-full h-full object-contain">
+                    @else
+                        <svg class="w-8 h-8 text-brand-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <!-- Custom Fresh Protein Icon (Meat & Fresh Leaf) -->
+                            <path d="M12 2a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5 5 5 0 0 1-5-5V7a5 5 0 0 1 5-5z" fill="currentColor" fill-opacity="0.2"/>
+                            <path d="M12 13v9"/>
+                            <path d="M7 17l5 5 5-5"/>
+                            <circle cx="12" cy="7" r="3"/>
+                        </svg>
+                    @endif
                 </div>
                 <div class="flex flex-col">
                     <span class="text-lg sm:text-xl font-extrabold tracking-tight text-brand-dark leading-none group-hover:text-brand-primary transition-colors">
-                        {{ $site['brand']['short_name'] ?? 'Sumber Protein' }} <span class="text-brand-primary">Jogja</span>
+                        {{ $brandMain }}@if(!empty($brandHighlight)) <span class="text-brand-primary">{{ $brandHighlight }}</span>@endif
                     </span>
                     <span class="text-[11px] font-medium text-gray-500 tracking-wider uppercase mt-0.5">
-                        Fresh & Frozen Food
+                        {{ $brandTagline }}
                     </span>
                 </div>
             </a>

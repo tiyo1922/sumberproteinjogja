@@ -241,7 +241,7 @@ export function parseHtmlContent(html) {
 
         // 7. Paragraphs (P)
         if (tag === 'p') {
-            const isLead = className.includes('lead');
+            const isLead = (el.classList && el.classList.contains('lead')) || /\blead\b/.test(className);
             const segments = domNodeToSegments(el);
             if (segments.length > 0) {
                 const block = {
@@ -438,7 +438,7 @@ export function renderBlocksToHtml(canonical) {
                     : 'list-disc list-inside space-y-2 text-sm sm:text-base text-gray-600 mb-4 pl-2';
 
                 const items = block.items || [];
-                const renderedList = renderListItems(items, isOrdered);
+                const renderedList = renderListItems(items, isOrdered, 0);
                 htmlParts.push(`<${tag} class="${listClass}"${styleAttr}>${renderedList}</${tag}>`);
                 break;
             }
@@ -826,12 +826,27 @@ function parseListElement(listNode, isOrdered) {
 }
 
 /**
+ * Ordered-list marker style per nesting depth, matching the Word-style
+ * cycle used in #documentCanvas (1, 2, 3 -> a, b, c -> i, ii, iii -> repeat).
+ * @param {number} depth 0-based nesting depth (0 = top-level list)
+ * @returns {string} Tailwind-ish utility class for the marker style
+ */
+function orderedMarkerClass(depth) {
+    const cycle = ['list-decimal', 'list-style-alpha', 'list-style-roman'];
+    return cycle[depth % cycle.length];
+}
+
+/**
  * Render list items recursively with nested children and item typography styles.
+ * Nested sub-lists get their own marker + list-inside classes (not just the
+ * top-level list) so they stay visible outside #documentCanvas too (e.g. in
+ * a .prose reader view), and their numbering style cycles per depth like Word.
  * @param {Array<object>} items
  * @param {boolean} isOrdered
+ * @param {number} [depth=0] 0-based nesting depth of this items array
  * @returns {string}
  */
-function renderListItems(items, isOrdered) {
+function renderListItems(items, isOrdered, depth = 0) {
     return items.map(item => {
         const itemSegments = item && item.segments ? item.segments : [{ text: typeof item === 'string' ? item : (item.text || '') }];
         const renderedText = renderSegmentsToHtml(itemSegments);
@@ -839,9 +854,13 @@ function renderListItems(items, isOrdered) {
 
         let nestedHtml = '';
         if (item.children && item.children.length > 0) {
+            const childDepth = depth + 1;
             const childOrdered = item.childrenStyle === 'ordered' || (item.childrenStyle === undefined ? isOrdered : false);
             const childTag = childOrdered ? 'ol' : 'ul';
-            nestedHtml = `<${childTag}>${renderListItems(item.children, childOrdered)}</${childTag}>`;
+            const childClass = childOrdered
+                ? `${orderedMarkerClass(childDepth)} list-inside`
+                : 'list-disc list-inside';
+            nestedHtml = `<${childTag} class="${childClass}">${renderListItems(item.children, childOrdered, childDepth)}</${childTag}>`;
         }
 
         return `<li${itemStyle}>${renderedText}${nestedHtml}</li>`;

@@ -10,9 +10,12 @@
              setFilter(catId) {
                  this.activeFilter = catId;
              },
-             matches(prodCatId) {
+             matches(prodCatIds) {
                  if (this.activeFilter === 'all') return true;
-                 return prodCatId == this.activeFilter;
+                 if (Array.isArray(prodCatIds)) {
+                     return prodCatIds.map(Number).includes(Number(this.activeFilter));
+                 }
+                 return Number(prodCatIds) === Number(this.activeFilter);
              }
          }"
          @filter-category.window="activeFilter = $event.detail.category_id">
@@ -23,13 +26,13 @@
         <div class="flex flex-col md:flex-row md:items-end justify-between mb-6 sm:mb-8 gap-4">
             <div>
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-soft-green text-brand-primary mb-2.5">
-                    Katalog Lengkap
+                    {{ $catalogSection['label'] ?? 'Katalog Lengkap' }}
                 </span>
                 <h2 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-brand-dark tracking-tight mb-2">
-                    Produk Pilihan
+                    {{ $catalogSection['title'] ?? 'Produk Pilihan' }}
                 </h2>
                 <p class="text-xs sm:text-sm md:text-base text-gray-600 font-normal">
-                    Pilih bahan masak sesuai kebutuhanmu. Tersedia skala retail rumah tangga maupun pembelian curah.
+                    {{ $catalogSection['subtitle'] ?? 'Pilih bahan masak sesuai kebutuhanmu. Tersedia skala retail rumah tangga maupun pembelian curah.' }}
                 </p>
             </div>
 
@@ -61,9 +64,17 @@
                     Semua Produk
                 </button>
 
-                <!-- Dynamic Category Tabs from Master Categories -->
-                @foreach($categories as $cat)
-                    @if(in_array(($cat['status'] ?? ''), ['active_landing', 'active_catalog', 'Aktif']))
+                <!-- Dynamic Category Tabs from Master Categories (Render for active_landing + active_catalog) -->
+                @php
+                    $tabCategories = $catalogCategories ?? $categories;
+                @endphp
+                @foreach($tabCategories as $cat)
+                    @php
+                        $rawActive = (int) ($cat->is_active ?? ($cat['is_active'] ?? 0));
+                        $st = $cat->status ?? ($cat['status'] ?? '');
+                        $isTabVisible = ($rawActive === 1 || $rawActive === 2) || in_array($st, ['active_landing', 'active_catalog']);
+                    @endphp
+                    @if($isTabVisible)
                     <button @click="setFilter({{ $cat['id'] }})" 
                             type="button" 
                             role="tab"
@@ -79,13 +90,19 @@
             </div>
         </div>
 
-        <!-- Product Grid: Mobile 2 Cols (grid-cols-2), Tablet 2 Cols, Desktop 4 Cols -->
-        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
+        <!-- Product Grid: Mobile 2 Cols (<640px), Tablet 3 Cols (640px-1023px), Desktop 4 Cols (>=1024px) -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             @foreach($products as $prod)
-            <div x-show="matches({{ $prod['category_id'] ?? 1 }})"
+            @php
+                $prodCategoryIds = ($prod instanceof \App\Models\Product) 
+                    ? $prod->category_ids 
+                    : ($prod['category_ids'] ?? [(int) ($prod['category_id'] ?? 1)]);
+            @endphp
+            <div x-show="matches({{ json_encode($prodCategoryIds) }})"
                  x-transition:enter="transition ease-out duration-250"
                  x-transition:enter-start="opacity-0 scale-95"
-                 x-transition:enter-end="opacity-100 scale-100">
+                 x-transition:enter-end="opacity-100 scale-100"
+                 class="h-full flex flex-col">
                 @include('components.product-card-item', ['prod' => $prod, 'isLivePreview' => false])
             </div>
             @endforeach

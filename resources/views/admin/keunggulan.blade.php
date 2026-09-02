@@ -4,204 +4,252 @@
 ])
 
 @section('content')
+<script>
+window.__initialBenefitsData = {!! json_encode($benefitsData) !!};
+window.__initialQualityData = {!! json_encode($qualityStandardsData) !!};
+
+window.adminKeunggulanManager = function(initialPayload) {
+    const payload = initialPayload || {};
+    return {
+        benefits: window.__initialBenefitsData || { items: [] },
+        quality: window.__initialQualityData || { items: [] },
+        activeTab: 'benefits', // 'benefits' | 'quality'
+        
+        // Preview Device & Virtual Viewport State
+        previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
+        previewBoxWidth: 1000,
+        previewBoxHeight: 550,
+        previewObserver: null,
+        toastMessage: '',
+        toastVisible: false,
+        
+        iconOptions: [
+            { id: 'grid', label: 'Grid / Kotak (Pilihan Lengkap)' },
+            { id: 'shield', label: 'Shield / Perisai (Higienis & Cold Chain)' },
+            { id: 'clock', label: 'Clock / Jam (Ready to Cook Praktis)' },
+            { id: 'truck', label: 'Truck / Truk (Pengiriman & Curah)' },
+        ],
+        
+        // Reference Viewport Dimensions (Laptop 14-inch 1366x768, Tablet 1024x768, Mobile 393x852)
+        virtualDimensions: {
+            desktop: { width: 1366, height: 768 },
+            tablet:  { width: 1024, height: 768 },
+            mobile:  { width: 393,  height: 852 }
+        },
+        
+        get currentVirtualWidth() {
+            return this.virtualDimensions[this.previewDevice]?.width || (this.previewDevice === 'mobile' ? 393 : (this.previewDevice === 'tablet' ? 1024 : 1366));
+        },
+        
+        get currentVirtualHeight() {
+            return this.virtualDimensions[this.previewDevice]?.height || (this.previewDevice === 'mobile' ? 852 : 768);
+        },
+        
+        // Scale dynamically fits BOTH available width AND fixed available height of previewBoxWrapper
+        get currentScale() {
+            const availableW = Math.max(200, (this.previewBoxWidth || 1000) - 24);
+            const availableH = Math.max(200, (this.previewBoxHeight || 550) - 24);
+            const scaleX = availableW / this.currentVirtualWidth;
+            const scaleY = availableH / this.currentVirtualHeight;
+            return Math.min(scaleX, scaleY);
+        },
+        
+        get currentFrameWidth() {
+            return Math.round(this.currentVirtualWidth * this.currentScale);
+        },
+        
+        get currentFrameHeight() {
+            return Math.round(this.currentVirtualHeight * this.currentScale);
+        },
+
+        // =========================================================
+        // Content Validation Helpers (Empty Item Filtering)
+        // =========================================================
+        hasBenefitContent(item) {
+            if (!item) return false;
+            const title = (item.title || '').trim();
+            const desc = (item.desc || item.subtitle || '').trim();
+            return title.length > 0 || desc.length > 0;
+        },
+
+        hasQualityContent(pk) {
+            if (!pk) return false;
+            const name = (pk.name || '').trim();
+            const tag = (pk.tag || '').trim();
+            const desc = (pk.desc || '').trim();
+            const hasFeat = Array.isArray(pk.features) && pk.features.some(f => (f || '').trim().length > 0);
+            return name.length > 0 || tag.length > 0 || desc.length > 0 || hasFeat;
+        },
+
+        get validBenefitsItems() {
+            return (this.benefits.items || []).filter(item => this.hasBenefitContent(item));
+        },
+
+        get validQualityItems() {
+            return (this.quality.items || []).filter(pk => this.hasQualityContent(pk));
+        },
+
+        // =========================================================
+        // Add & Delete Item Handlers
+        // =========================================================
+        deleteModalOpen: false,
+        deleteTargetType: null, // 'benefit' | 'quality'
+        selectedItemIndex: null,
+        selectedItemName: '',
+
+        addBenefitItem() {
+            const nextId = (this.benefits.items && this.benefits.items.length > 0) 
+                ? Math.max(...this.benefits.items.map(i => parseInt(i.id) || 0)) + 1 
+                : 1;
+            this.benefits.items.push({
+                id: nextId,
+                title: 'Keunggulan Baru',
+                desc: 'Deskripsi poin keunggulan komitmen layanan dan mutu produk.',
+                icon: 'shield'
+            });
+            this.showToast('Poin keunggulan baru berhasil ditambahkan!');
+        },
+
+        openDeleteBenefit(idx, item) {
+            if (this.benefits.items.length <= 1) {
+                this.showToast('Minimal harus ada 1 poin keunggulan.');
+                return;
+            }
+            this.deleteTargetType = 'benefit';
+            this.selectedItemIndex = idx;
+            this.selectedItemName = item.title || ('Keunggulan ' + (idx + 1));
+            this.deleteModalOpen = true;
+        },
+
+        removeBenefitItem(idx) {
+            const item = this.benefits.items[idx];
+            this.openDeleteBenefit(idx, item || {});
+        },
+
+        addQualityItem() {
+            const nextId = (this.quality.items && this.quality.items.length > 0) 
+                ? Math.max(...this.quality.items.map(i => parseInt(i.id) || 0)) + 1 
+                : 1;
+            this.quality.items.push({
+                id: nextId,
+                tag: 'Standar Mutu',
+                name: 'Pilar Baru',
+                desc: 'Penjelasan standar jaminan kualitas dan keamanan pangan.',
+                features: [
+                    'Proses seleksi ketat',
+                    'Kontrol higienitas berkala',
+                    'Cold chain terpadu'
+                ]
+            });
+            this.showToast('Pilar standar mutu baru berhasil ditambahkan!');
+        },
+
+        openDeleteQuality(idx, pk) {
+            if (this.quality.items.length <= 1) {
+                this.showToast('Minimal harus ada 1 pilar standar mutu.');
+                return;
+            }
+            this.deleteTargetType = 'quality';
+            this.selectedItemIndex = idx;
+            this.selectedItemName = pk.name || ('Pilar ' + (idx + 1));
+            this.deleteModalOpen = true;
+        },
+
+        removeQualityItem(idx) {
+            const pk = this.quality.items[idx];
+            this.openDeleteQuality(idx, pk || {});
+        },
+
+        confirmDelete() {
+            if (this.deleteTargetType === 'benefit' && this.selectedItemIndex !== null) {
+                this.benefits.items.splice(this.selectedItemIndex, 1);
+                this.showToast('Poin keunggulan berhasil dihapus.');
+            } else if (this.deleteTargetType === 'quality' && this.selectedItemIndex !== null) {
+                this.quality.items.splice(this.selectedItemIndex, 1);
+                this.showToast('Pilar standar mutu berhasil dihapus.');
+            }
+            this.deleteModalOpen = false;
+            this.deleteTargetType = null;
+            this.selectedItemIndex = null;
+            this.selectedItemName = '';
+        },
+        
+        initPreviewObserver() {
+            this.$nextTick(() => {
+                if (this.$refs.previewBoxWrapper) {
+                    const rect = this.$refs.previewBoxWrapper.getBoundingClientRect();
+                    if (rect.width > 50) {
+                        this.previewBoxWidth = rect.width;
+                        this.previewBoxHeight = rect.height;
+                    }
+                    if (!this.previewObserver && window.ResizeObserver) {
+                        this.previewObserver = new ResizeObserver((entries) => {
+                            for (let entry of entries) {
+                                const w = entry.contentRect.width;
+                                const h = entry.contentRect.height;
+                                if (w > 50) this.previewBoxWidth = w;
+                                if (h > 50) this.previewBoxHeight = h;
+                            }
+                        });
+                        this.previewObserver.observe(this.$refs.previewBoxWrapper);
+                    }
+                }
+            });
+        },
+        
+        isSaving: false,
+        csrfToken: payload.csrfToken || '{{ csrf_token() }}',
+        updateRoute: payload.updateRoute || '{{ route('admin.keunggulan.update') }}',
+        
+        showToast(msg) {
+            this.toastMessage = msg;
+            this.toastVisible = true;
+            setTimeout(() => { this.toastVisible = false; }, 3000);
+        },
+        
+        async saveSection() {
+            if (this.isSaving) return;
+            this.isSaving = true;
+
+            try {
+                const token = this.csrfToken || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+                const response = await fetch(this.updateRoute, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': token,
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        benefits: this.benefits,
+                        quality: this.quality
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Gagal menyimpan perubahan.');
+                }
+
+                this.showToast(data.message || 'Pengaturan Keunggulan & Standar Mutu berhasil disimpan!');
+            } catch (err) {
+                console.error(err);
+                this.showToast(err.message || 'Terjadi kesalahan jaringan saat menyimpan.');
+            } finally {
+                this.isSaving = false;
+            }
+        }
+    };
+};
+</script>
+
 <div class="space-y-8"
-     x-data="{
-         benefits: {{ json_encode($benefitsData) }},
-         quality: {{ json_encode($qualityStandardsData) }},
-         activeTab: 'benefits', // 'benefits' | 'quality'
-         
-         // Preview Device & Virtual Viewport State
-         previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
-         previewBoxWidth: 1000,
-         previewBoxHeight: 550,
-         previewObserver: null,
-         toastMessage: '',
-         toastVisible: false,
-         
-         iconOptions: [
-             { id: 'grid', label: 'Grid / Kotak (Pilihan Lengkap)' },
-             { id: 'shield', label: 'Shield / Perisai (Higienis & Cold Chain)' },
-             { id: 'clock', label: 'Clock / Jam (Ready to Cook Praktis)' },
-             { id: 'truck', label: 'Truck / Truk (Pengiriman & Curah)' },
-         ],
-         
-         // Reference Viewport Dimensions (Laptop 14-inch 1366x768, Tablet 1024x768, Mobile 393x852)
-         virtualDimensions: {
-             desktop: { width: 1366, height: 768 },
-             tablet:  { width: 1024, height: 768 },
-             mobile:  { width: 393,  height: 852 }
-         },
-         
-         get currentVirtualWidth() {
-             return this.virtualDimensions[this.previewDevice]?.width || (this.previewDevice === 'mobile' ? 393 : (this.previewDevice === 'tablet' ? 1024 : 1366));
-         },
-         
-         get currentVirtualHeight() {
-             return this.virtualDimensions[this.previewDevice]?.height || (this.previewDevice === 'mobile' ? 852 : 768);
-         },
-         
-         // Scale dynamically fits BOTH available width AND fixed available height of previewBoxWrapper
-         get currentScale() {
-             const availableW = Math.max(200, (this.previewBoxWidth || 1000) - 24);
-             const availableH = Math.max(200, (this.previewBoxHeight || 550) - 24);
-             const scaleX = availableW / this.currentVirtualWidth;
-             const scaleY = availableH / this.currentVirtualHeight;
-             return Math.min(scaleX, scaleY);
-         },
-         
-         get currentFrameWidth() {
-             return Math.round(this.currentVirtualWidth * this.currentScale);
-         },
-         
-         get currentFrameHeight() {
-             return Math.round(this.currentVirtualHeight * this.currentScale);
-         },
-
-         // =========================================================
-         // Content Validation Helpers (Empty Item Filtering)
-         // =========================================================
-         hasBenefitContent(item) {
-             if (!item) return false;
-             const title = (item.title || '').trim();
-             const desc = (item.desc || item.subtitle || '').trim();
-             return title.length > 0 || desc.length > 0;
-         },
-
-         hasQualityContent(pk) {
-             if (!pk) return false;
-             const name = (pk.name || '').trim();
-             const tag = (pk.tag || '').trim();
-             const desc = (pk.desc || '').trim();
-             const hasFeat = Array.isArray(pk.features) && pk.features.some(f => (f || '').trim().length > 0);
-             return name.length > 0 || tag.length > 0 || desc.length > 0 || hasFeat;
-         },
-
-         get validBenefitsItems() {
-             return (this.benefits.items || []).filter(item => this.hasBenefitContent(item));
-         },
-
-         get validQualityItems() {
-             return (this.quality.items || []).filter(pk => this.hasQualityContent(pk));
-         },
-
-         // =========================================================
-         // Add & Delete Item Handlers
-         // =========================================================
-         deleteModalOpen: false,
-         deleteTargetType: null, // 'benefit' | 'quality'
-         selectedItemIndex: null,
-         selectedItemName: '',
-
-         addBenefitItem() {
-             const nextId = (this.benefits.items && this.benefits.items.length > 0) 
-                 ? Math.max(...this.benefits.items.map(i => parseInt(i.id) || 0)) + 1 
-                 : 1;
-             this.benefits.items.push({
-                 id: nextId,
-                 title: 'Keunggulan Baru',
-                 desc: 'Deskripsi poin keunggulan komitmen layanan dan mutu produk.',
-                 icon: 'shield'
-             });
-             this.showToast('Poin keunggulan baru berhasil ditambahkan!');
-         },
-
-         openDeleteBenefit(idx, item) {
-             if (this.benefits.items.length <= 1) {
-                 this.showToast('Minimal harus ada 1 poin keunggulan.');
-                 return;
-             }
-             this.deleteTargetType = 'benefit';
-             this.selectedItemIndex = idx;
-             this.selectedItemName = item.title || ('Keunggulan ' + (idx + 1));
-             this.deleteModalOpen = true;
-         },
-
-         removeBenefitItem(idx) {
-             const item = this.benefits.items[idx];
-             this.openDeleteBenefit(idx, item || {});
-         },
-
-         addQualityItem() {
-             const nextId = (this.quality.items && this.quality.items.length > 0) 
-                 ? Math.max(...this.quality.items.map(i => parseInt(i.id) || 0)) + 1 
-                 : 1;
-             this.quality.items.push({
-                 id: nextId,
-                 tag: 'Standar Mutu',
-                 name: 'Pilar Baru',
-                 desc: 'Penjelasan standar jaminan kualitas dan keamanan pangan.',
-                 features: [
-                     'Proses seleksi ketat',
-                     'Kontrol higienitas berkala',
-                     'Cold chain terpadu'
-                 ]
-             });
-             this.showToast('Pilar standar mutu baru berhasil ditambahkan!');
-         },
-
-         openDeleteQuality(idx, pk) {
-             if (this.quality.items.length <= 1) {
-                 this.showToast('Minimal harus ada 1 pilar standar mutu.');
-                 return;
-             }
-             this.deleteTargetType = 'quality';
-             this.selectedItemIndex = idx;
-             this.selectedItemName = pk.name || ('Pilar ' + (idx + 1));
-             this.deleteModalOpen = true;
-         },
-
-         removeQualityItem(idx) {
-             const pk = this.quality.items[idx];
-             this.openDeleteQuality(idx, pk || {});
-         },
-
-         confirmDelete() {
-             if (this.deleteTargetType === 'benefit' && this.selectedItemIndex !== null) {
-                 this.benefits.items.splice(this.selectedItemIndex, 1);
-                 this.showToast('Poin keunggulan berhasil dihapus.');
-             } else if (this.deleteTargetType === 'quality' && this.selectedItemIndex !== null) {
-                 this.quality.items.splice(this.selectedItemIndex, 1);
-                 this.showToast('Pilar standar mutu berhasil dihapus.');
-             }
-             this.deleteModalOpen = false;
-             this.deleteTargetType = null;
-             this.selectedItemIndex = null;
-             this.selectedItemName = '';
-         },
-         
-         initPreviewObserver() {
-             this.$nextTick(() => {
-                 if (this.$refs.previewBoxWrapper) {
-                     const rect = this.$refs.previewBoxWrapper.getBoundingClientRect();
-                     if (rect.width > 50) {
-                         this.previewBoxWidth = rect.width;
-                         this.previewBoxHeight = rect.height;
-                     }
-                     if (!this.previewObserver && window.ResizeObserver) {
-                         this.previewObserver = new ResizeObserver((entries) => {
-                             for (let entry of entries) {
-                                 const w = entry.contentRect.width;
-                                 const h = entry.contentRect.height;
-                                 if (w > 50) this.previewBoxWidth = w;
-                                 if (h > 50) this.previewBoxHeight = h;
-                             }
-                         });
-                         this.previewObserver.observe(this.$refs.previewBoxWrapper);
-                     }
-                 }
-             });
-         },
-         
-         showToast(msg) {
-             this.toastMessage = msg;
-             this.toastVisible = true;
-             setTimeout(() => { this.toastVisible = false; }, 3000);
-         },
-         
-         saveSection() {
-             this.showToast('Pengaturan Keunggulan & Standar Mutu berhasil disimpan!');
-         }
-     }"
+     x-data="adminKeunggulanManager({
+         csrfToken: '{{ csrf_token() }}',
+         updateRoute: '{{ route('admin.keunggulan.update') }}'
+     })"
      x-init="initPreviewObserver()">
     
     <style>
@@ -243,7 +291,7 @@
                     </h2>
                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
                         <span class="w-2 h-2 rounded-full bg-amber-600"></span>
-                        <span>REAL PREVIEW &bull; DYNAMIC ITEM MANAGEMENT</span>
+                        <span>PREVIEW &bull; DYNAMIC ITEM MANAGEMENT</span>
                     </span>
                     <span class="text-xs text-gray-500 font-medium">
                         • Desktop (1366&times;768), Tablet (1024&times;768) &amp; Mobile (393&times;852)
@@ -258,8 +306,13 @@
             <div class="flex items-center gap-3 shrink-0">
                 <button @click="saveSection()" 
                         type="button"
-                        class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs sm:text-sm text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
-                    <span>Simpan Perubahan</span>
+                        :disabled="isSaving"
+                        class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg x-show="isSaving" class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-text="isSaving ? 'Menyimpan...' : 'Simpan Perubahan'"></span>
                 </button>
             </div>
         </div>
@@ -565,19 +618,24 @@
         <!-- Section Bottom Action Bar -->
         <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white rounded-modern-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs">
             <div class="text-xs text-gray-500 text-center sm:text-left">
-                💡 Setiap perubahan data, penambahan, penghapusan, atau pengosongan card langsung tercermin secara realtime pada <strong>Real Landing Page Preview</strong> di bawah.
+                💡 Setiap perubahan data, penambahan, penghapusan, atau pengosongan card langsung tercermin secara realtime pada <strong>Preview</strong> di bawah.
             </div>
             <button @click="saveSection()" 
                     type="button"
-                    class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs sm:text-sm text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer shrink-0">
-                <span>Simpan Perubahan</span>
+                    :disabled="isSaving"
+                    class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg x-show="isSaving" class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span x-text="isSaving ? 'Menyimpan...' : 'Simpan Perubahan'"></span>
             </button>
         </div>
 
     </div>
 
     <!-- =============================================================== -->
-    <!-- 4. REAL LANDING PAGE PREVIEW SECTION (FULL WIDTH AT THE BOTTOM) -->
+    <!-- 4. PREVIEW SECTION (FULL WIDTH AT THE BOTTOM)                   -->
     <!-- =============================================================== -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs space-y-5">
         
@@ -587,10 +645,10 @@
                 <div class="flex items-center gap-2.5 flex-wrap">
                     <span class="text-lg">👁️</span>
                     <h3 class="text-base sm:text-lg font-extrabold text-brand-dark tracking-tight uppercase">
-                        REAL LANDING PAGE PREVIEW
+                        PREVIEW
                     </h3>
                     <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-soft-green text-brand-primary border border-brand-soft-green-border">
-                        1:1 LIVE RENDER
+                        LIVE RENDER
                     </span>
                 </div>
                 <p class="text-xs text-gray-500 font-mono">

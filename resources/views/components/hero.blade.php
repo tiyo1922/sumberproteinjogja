@@ -197,12 +197,23 @@
                     <span>🤝</span>
                     <span>{{ $partnerData['title'] ?? 'Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja' }}</span>
                 </p>
-                <div class="flex items-center flex-wrap gap-2.5 sm:gap-4">
+                <div class="flex items-center flex-wrap gap-4 sm:gap-6 md:gap-8">
                     @foreach($activePartners as $partner)
-                    <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern-sm bg-white/10 backdrop-blur-xs border border-white/15 text-white/90 text-[10px] sm:text-xs font-semibold hover:bg-white/20 transition-all">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        <span>{{ $partner['name'] ?? 'Mitra Pilihan' }}</span>
-                    </div>
+                        @php
+                            $pLogo = trim($partner['logo'] ?? '');
+                            $hasValidLogo = !empty($pLogo) && !str_contains($pLogo, 'mitra-placeholder');
+                            $logoUrl = $hasValidLogo 
+                                ? (str_starts_with($pLogo, 'http') ? $pLogo : asset(ltrim($pLogo, '/'))) 
+                                : null;
+                        @endphp
+                        @if($logoUrl)
+                        <div class="inline-flex items-center justify-center group"
+                             title="{{ $partner['name'] ?? 'Mitra' }}">
+                            <img src="{{ $logoUrl }}" 
+                                 alt="{{ $partner['name'] ?? 'Logo Mitra' }}" 
+                                 class="h-7 sm:h-9 md:h-10 max-w-[120px] sm:max-w-[150px] object-contain opacity-85 hover:opacity-100 transition-opacity duration-200" />
+                        </div>
+                        @endif
                     @endforeach
                 </div>
             </div>

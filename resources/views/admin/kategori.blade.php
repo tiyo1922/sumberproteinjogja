@@ -4,309 +4,433 @@
 ])
 
 @section('content')
+<script>
+window.adminCategoryManager = function(initialPayload) {
+    const payload = initialPayload || {};
+    return {
+        categorySection: payload.categorySection || {},
+        categories: payload.categories || [],
+        products: payload.products || [],
+        mediaLibrary: payload.mediaLibrary || [],
+        editorModalOpen: false,
+        mediaPickerOpen: false,
+        deleteModalOpen: false,
+        deleteBlocked: false,
+        deleteBlockMessage: '',
+        isEditing: false,
+        toastMessage: '',
+        toastVisible: false,
+        previewDevice: 'desktop', // 'desktop' | 'mobile'
+        mediaTab: 'library', // 'library' | 'upload'
+        mediaSearchQuery: '',
+        mediaDeleteRoute: payload.mediaDeleteRoute || '{{ route('admin.media.delete') }}',
+        mediaUploadRoute: payload.mediaUploadRoute || '{{ route('admin.media.upload') }}',
+        isDeletingMedia: false,
+        isUploadingMedia: false,
+        selectedMedia: null,
+        uploadedFile: null,
+        uploadedPreviewUrl: null,
+        csrfToken: payload.csrfToken || '{{ csrf_token() }}',
+
+        get filteredMediaLibrary() {
+            if (!this.mediaSearchQuery || !this.mediaSearchQuery.trim()) {
+                return this.mediaLibrary;
+            }
+            const q = this.mediaSearchQuery.toLowerCase().trim();
+            return this.mediaLibrary.filter(m => 
+                (m.filename && m.filename.toLowerCase().includes(q)) || 
+                (m.title && m.title.toLowerCase().includes(q)) || 
+                (m.path && m.path.toLowerCase().includes(q))
+            );
+        },
+
+        async deleteMedia(media) {
+            if (!confirm('Apakah Anda yakin ingin menghapus file "' + media.filename + '" secara permanen dari server?')) {
+                return;
+            }
+            this.isDeletingMedia = true;
+            try {
+                const response = await fetch(this.mediaDeleteRoute || '{{ route('admin.media.delete') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ path: media.path })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== media.id && m.path !== media.path);
+                    if (this.selectedMedia && this.selectedMedia.path === media.path) {
+                        this.selectedMedia = null;
+                    }
+                    this.showToast(result.message || 'File media berhasil dihapus!');
+                } else {
+                    alert(result.message || 'Gagal menghapus file media.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan koneksi saat menghapus file media.');
+            } finally {
+                this.isDeletingMedia = false;
+            }
+        },
+        
+        colorOptions: [
+            { id: 'orange', name: 'Oranye (Warm)', class: 'bg-orange-100 text-orange-800 border-orange-300' },
+            { id: 'yellow', name: 'Kuning (Gold)', class: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+            { id: 'blue', name: 'Biru (Fresh Ocean)', class: 'bg-blue-100 text-blue-800 border-blue-300' },
+            { id: 'green', name: 'Hijau (Organik)', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+            { id: 'purple', name: 'Ungu (Premium)', class: 'bg-purple-100 text-purple-800 border-purple-300' },
+            { id: 'red', name: 'Merah (Bold)', class: 'bg-rose-100 text-rose-800 border-rose-300' },
+            { id: 'teal', name: 'Teal (Clean)', class: 'bg-teal-100 text-teal-800 border-teal-300' }
+        ],
+        
+        form: {
+            id: null,
+            name: '',
+            slug: '',
+            subtitle: '',
+            badge: 'Sertifikasi Halal',
+            color: 'orange',
+            image: 'images/cat-daging.jpg',
+            description: '',
+            order: 1,
+            status: 'active_landing', // 'active_landing' | 'active_catalog' | 'inactive'
+            is_system: false,
+        },
+        
+        selectedCategory: null,
+        
+        showToast(msg) {
+            this.toastMessage = msg;
+            this.toastVisible = true;
+            setTimeout(() => { this.toastVisible = false; }, 3000);
+        },
+        
+        getStatusLabel(status) {
+            if (status === 'active_landing' || status === 'Aktif') return 'Aktif (LP & Katalog)';
+            if (status === 'active_catalog') return 'Aktif (Hanya Katalog)';
+            return 'Nonaktif (Disembunyikan)';
+        },
+        
+        getActiveProductCount(categoryId) {
+            if (!categoryId) return 0;
+            return this.products.filter(p => p.category_id == categoryId && p.status === 'Aktif').length;
+        },
+        
+        getTotalProductCount(categoryId) {
+            if (!categoryId) return 0;
+            return this.products.filter(p => p.category_id == categoryId).length;
+        },
+        
+        async saveSectionSettings() {
+            try {
+                const res = await fetch('{{ route('admin.kategori.section.update') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken
+                    },
+                    body: JSON.stringify(this.categorySection)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast(data.message || 'Pengaturan Header Section Kategori berhasil disimpan!');
+                } else {
+                    this.showToast('Gagal menyimpan: ' + (data.message || 'Error'));
+                }
+            } catch (err) {
+                this.showToast('Terjadi kesalahan saat menyimpan pengaturan header.');
+            }
+        },
+        
+        openCreateModal() {
+            this.isEditing = false;
+            const newId = this.categories.length > 0 ? Math.max(...this.categories.map(c => c.id)) + 1 : 1;
+            this.form = {
+                id: newId,
+                name: '',
+                slug: '',
+                subtitle: '',
+                badge: 'Sertifikasi Halal',
+                color: 'orange',
+                image: 'images/cat-daging.jpg',
+                description: '',
+                order: this.categories.length + 1,
+                status: 'active_landing',
+                is_system: false,
+            };
+            this.editorModalOpen = true;
+        },
+        
+        openEditModal(cat) {
+            this.isEditing = true;
+            this.form = JSON.parse(JSON.stringify(cat));
+            if (!this.form.badge) this.form.badge = 'Sertifikasi Halal';
+            if (!this.form.status) this.form.status = 'active_landing';
+            this.editorModalOpen = true;
+        },
+        
+        autoSlug() {
+            if (this.form.is_system) return;
+            this.form.slug = this.form.name.toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .trim()
+                .replace(/\s+/g, '-');
+        },
+        
+        openMediaPicker() {
+            this.mediaTab = 'library';
+            this.selectedMedia = this.mediaLibrary.find(m => m.path === this.form.image) || this.mediaLibrary[0] || null;
+            this.uploadedFile = null;
+            this.uploadedPreviewUrl = null;
+            this.mediaPickerOpen = true;
+        },
+        
+        selectMedia(media) {
+            this.selectedMedia = media;
+        },
+        
+        confirmMediaSelection() {
+            if (this.mediaTab === 'library' && this.selectedMedia) {
+                this.form.image = this.selectedMedia.path;
+                this.mediaPickerOpen = false;
+                this.showToast('Gambar dipilih dari Media Library!');
+            } else if (this.mediaTab === 'upload' && this.uploadedFile && this.uploadedFile.path) {
+                this.form.image = this.uploadedFile.path;
+                this.mediaPickerOpen = false;
+                this.showToast('Gambar hasil upload berhasil digunakan!');
+            } else if (this.selectedMedia) {
+                this.form.image = this.selectedMedia.path;
+                this.mediaPickerOpen = false;
+                this.showToast('Gambar dipilih dari Media Library!');
+            }
+        },
+        
+        async handleFileUpload(e) {
+            const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
+            if (!file) return;
+            if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
+                alert('Format file tidak didukung. Gunakan JPG, PNG, atau WebP.');
+                return;
+            }
+            this.isUploadingMedia = true;
+            this.uploadedFile = {
+                name: file.name,
+                size: (file.size / 1024).toFixed(0) + ' KB',
+                type: file.type,
+                path: ''
+            };
+            this.uploadedPreviewUrl = URL.createObjectURL(file);
+
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch(this.mediaUploadRoute || '{{ route('admin.media.upload') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success && result.media) {
+                    this.mediaLibrary.unshift(result.media);
+                    this.selectedMedia = result.media;
+                    this.uploadedPreviewUrl = result.media.url;
+                    this.uploadedFile.path = result.media.path;
+                    this.showToast('File media berhasil diunggah ke storage server!');
+                } else {
+                    this.showToast(result.message || 'Gagal mengunggah file media.');
+                }
+            } catch (err) {
+                console.error(err);
+                this.showToast('Terjadi kesalahan koneksi saat mengunggah file.');
+            } finally {
+                this.isUploadingMedia = false;
+            }
+        },
+        
+        async saveCategory() {
+            if (!this.form.name.trim()) {
+                alert('Nama kategori wajib diisi.');
+                return;
+            }
+            if (!this.form.slug.trim()) {
+                this.autoSlug();
+            }
+
+            const rawActive = (this.form.status === 'active_landing') ? 1 : ((this.form.status === 'active_catalog') ? 2 : 0);
+
+            const payload = {
+                name: this.form.name,
+                slug: this.form.slug,
+                color: this.form.color || 'orange',
+                image: this.form.image || 'images/cat-daging.jpg',
+                sort_order: parseInt(this.form.order || this.form.sort_order || 1),
+                status: this.form.status,
+                is_active: rawActive,
+            };
+
+            try {
+                const url = this.isEditing ? `/admin/kategori/${this.form.id}` : '/admin/kategori';
+                const method = this.isEditing ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menyimpan kategori.');
+                    return;
+                }
+
+                if (this.isEditing) {
+                    const idx = this.categories.findIndex(c => c.id === this.form.id);
+                    if (idx !== -1) {
+                        this.categories[idx] = {
+                            ...this.categories[idx],
+                            ...this.form,
+                            sort_order: payload.sort_order,
+                            order: payload.sort_order,
+                            status: payload.status,
+                            is_active: payload.is_active,
+                        };
+                    }
+                    this.products.forEach(p => {
+                        if (p.category_id === this.form.id) {
+                            p.category = this.form.name;
+                        }
+                    });
+                    this.showToast(result.message || `Kategori ${this.form.name} berhasil diperbarui!`);
+                } else {
+                    const newCat = {
+                        ...this.form,
+                        id: result.category.id,
+                        sort_order: result.category.sort_order,
+                        order: result.category.sort_order,
+                        status: payload.status,
+                        is_active: result.category.is_active,
+                        products_count: 0,
+                        count: '0+ Variasi',
+                    };
+                    this.categories.push(newCat);
+                    this.showToast(result.message || `Kategori baru ${this.form.name} berhasil ditambahkan!`);
+                }
+                this.editorModalOpen = false;
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menyimpan kategori.');
+            }
+        },
+        
+        async toggleStatus(cat) {
+            try {
+                const response = await fetch(`/admin/kategori/${cat.id}/toggle`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal mengubah status kategori.');
+                    return;
+                }
+
+                cat.is_active = result.is_active;
+                cat.status = result.status;
+                this.showToast(result.message || `Status ${cat.name} diubah menjadi ${this.getStatusLabel(cat.status)}`);
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan saat mengubah status.');
+            }
+        },
+        
+        openDelete(cat) {
+            this.selectedCategory = cat;
+            const usedCount = this.getTotalProductCount(cat.id);
+            
+            if (usedCount > 0) {
+                this.deleteBlocked = true;
+                this.deleteBlockMessage = 'Kategori ini masih digunakan oleh ' + usedCount + ' produk. Silakan pindahkan produk ke kategori lain terlebih dahulu sebelum menghapus kategori.';
+            } else {
+                this.deleteBlocked = false;
+                this.deleteBlockMessage = '';
+            }
+            this.deleteModalOpen = true;
+        },
+        
+        async confirmDelete() {
+            if (!this.selectedCategory || this.deleteBlocked) return;
+
+            try {
+                const catId = this.selectedCategory.id;
+                const catName = this.selectedCategory.name;
+
+                const response = await fetch(`/admin/kategori/${catId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    alert(result.message || 'Gagal menghapus kategori.');
+                    return;
+                }
+
+                this.categories = this.categories.filter(c => c.id !== catId);
+                this.deleteModalOpen = false;
+                this.showToast(result.message || `Kategori ${catName} telah dihapus.`);
+                this.selectedCategory = null;
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan saat menghapus kategori.');
+            }
+        },
+        
+        getImageUrl(path) {
+            if (!path) return '/images/cat-daging.jpg';
+            if (path.startsWith('blob:') || path.startsWith('http')) return path;
+            return path.startsWith('/') ? path : '/' + path;
+        }
+    };
+};
+
+window.initialCategoryPayload = {
+    csrfToken: '{{ csrf_token() }}',
+    categorySection: @json($categorySection),
+    categories: @json($categories),
+    products: @json($products),
+    mediaLibrary: @json($mediaLibrary)
+};
+</script>
+
 <div class="space-y-8" 
-     x-data="{
-         categorySection: {{ json_encode($categorySection) }},
-         categories: {{ json_encode($categories) }},
-         products: {{ json_encode($products) }},
-         mediaLibrary: {{ json_encode($mediaLibrary) }},
-         editorModalOpen: false,
-         mediaPickerOpen: false,
-         deleteModalOpen: false,
-         deleteBlocked: false,
-         deleteBlockMessage: '',
-         isEditing: false,
-         toastMessage: '',
-         toastVisible: false,
-         previewDevice: 'desktop', // 'desktop' | 'mobile'
-         mediaTab: 'library', // 'library' | 'upload'
-         selectedMedia: null,
-         uploadedFile: null,
-         uploadedPreviewUrl: null,
-        csrfToken: '{{ csrf_token() }}',
-         
-         colorOptions: [
-             { id: 'orange', name: 'Oranye (Warm)', class: 'bg-orange-100 text-orange-800 border-orange-300' },
-             { id: 'yellow', name: 'Kuning (Gold)', class: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
-             { id: 'blue', name: 'Biru (Fresh Ocean)', class: 'bg-blue-100 text-blue-800 border-blue-300' },
-             { id: 'green', name: 'Hijau (Organik)', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-             { id: 'purple', name: 'Ungu (Premium)', class: 'bg-purple-100 text-purple-800 border-purple-300' },
-             { id: 'red', name: 'Merah (Bold)', class: 'bg-rose-100 text-rose-800 border-rose-300' },
-             { id: 'teal', name: 'Teal (Clean)', class: 'bg-teal-100 text-teal-800 border-teal-300' }
-         ],
-         
-         form: {
-             id: null,
-             name: '',
-             slug: '',
-             subtitle: '',
-             badge: 'Sertifikasi Halal',
-             color: 'orange',
-             image: 'images/cat-daging.jpg',
-             description: '',
-             order: 1,
-             status: 'active_landing', // 'active_landing' | 'active_catalog' | 'inactive'
-             is_system: false,
-         },
-         
-         selectedCategory: null,
-         
-         showToast(msg) {
-             this.toastMessage = msg;
-             this.toastVisible = true;
-             setTimeout(() => { this.toastVisible = false; }, 3000);
-         },
-         
-         getStatusLabel(status) {
-             if (status === 'active_landing' || status === 'Aktif') return 'Aktif (LP & Katalog)';
-             if (status === 'active_catalog') return 'Aktif (Hanya Katalog)';
-             return 'Nonaktif (Disembunyikan)';
-         },
-         
-         getActiveProductCount(categoryId) {
-             if (!categoryId) return 0;
-             return this.products.filter(p => p.category_id == categoryId && p.status === 'Aktif').length;
-         },
-         
-         getTotalProductCount(categoryId) {
-             if (!categoryId) return 0;
-             return this.products.filter(p => p.category_id == categoryId).length;
-         },
-         
-         saveSectionSettings() {
-             this.showToast('Pengaturan Header Section Kategori berhasil disimpan!');
-         },
-         
-         openCreateModal() {
-             this.isEditing = false;
-             const newId = this.categories.length > 0 ? Math.max(...this.categories.map(c => c.id)) + 1 : 1;
-             this.form = {
-                 id: newId,
-                 name: '',
-                 slug: '',
-                 subtitle: '',
-                 badge: 'Sertifikasi Halal',
-                 color: 'orange',
-                 image: 'images/cat-daging.jpg',
-                 description: '',
-                 order: this.categories.length + 1,
-                 status: 'active_landing',
-                 is_system: false,
-             };
-             this.editorModalOpen = true;
-         },
-         
-         openEditModal(cat) {
-             this.isEditing = true;
-             this.form = JSON.parse(JSON.stringify(cat));
-             if (!this.form.badge) this.form.badge = 'Sertifikasi Halal';
-             if (!this.form.status) this.form.status = 'active_landing';
-             this.editorModalOpen = true;
-         },
-         
-         autoSlug() {
-             if (this.form.is_system) return;
-             this.form.slug = this.form.name.toLowerCase()
-                 .replace(/[^a-z0-9\s-]/g, '')
-                 .trim()
-                 .replace(/\s+/g, '-');
-         },
-         
-         openMediaPicker() {
-             this.mediaTab = 'library';
-             this.selectedMedia = this.mediaLibrary.find(m => m.path === this.form.image) || this.mediaLibrary[0] || null;
-             this.uploadedFile = null;
-             this.uploadedPreviewUrl = null;
-             this.mediaPickerOpen = true;
-         },
-         
-         selectMedia(media) {
-             this.selectedMedia = media;
-         },
-         
-         confirmMediaSelection() {
-             if (this.mediaTab === 'library' && this.selectedMedia) {
-                 this.form.image = this.selectedMedia.path;
-                 this.mediaPickerOpen = false;
-                 this.showToast('Gambar dipilih dari Media Library!');
-             } else if (this.mediaTab === 'upload' && this.uploadedPreviewUrl) {
-                 this.form.image = this.uploadedPreviewUrl;
-                 this.mediaPickerOpen = false;
-                 this.showToast('Gambar hasil upload berhasil digunakan!');
-             }
-         },
-         
-         handleFileUpload(e) {
-             const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
-             if (!file) return;
-             if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
-                 alert('Format file tidak didukung. Gunakan JPG, PNG, atau WebP.');
-                 return;
-             }
-             this.uploadedFile = {
-                 name: file.name,
-                 size: (file.size / 1024).toFixed(0) + ' KB',
-                 type: file.type,
-             };
-             this.uploadedPreviewUrl = URL.createObjectURL(file);
-         },
-         
-         async saveCategory() {
-             if (!this.form.name.trim()) {
-                 alert('Nama kategori wajib diisi.');
-                 return;
-             }
-             if (!this.form.slug.trim()) {
-                 this.autoSlug();
-             }
- 
-             const payload = {
-                 name: this.form.name,
-                 slug: this.form.slug,
-                 color: this.form.color || 'orange',
-                 image: this.form.image || 'images/cat-daging.jpg',
-                 sort_order: parseInt(this.form.order || this.form.sort_order || 1),
-                 is_active: this.form.status !== 'inactive',
-             };
- 
-             try {
-                 const url = this.isEditing ? `/admin/kategori/${this.form.id}` : '/admin/kategori';
-                 const method = this.isEditing ? 'PUT' : 'POST';
- 
-                 const response = await fetch(url, {
-                     method: method,
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                     body: JSON.stringify(payload),
-                 });
- 
-                 const result = await response.json();
- 
-                 if (!response.ok || !result.success) {
-                     alert(result.message || 'Gagal menyimpan kategori.');
-                     return;
-                 }
- 
-                 if (this.isEditing) {
-                     const idx = this.categories.findIndex(c => c.id === this.form.id);
-                     if (idx !== -1) {
-                         this.categories[idx] = {
-                             ...this.categories[idx],
-                             ...this.form,
-                             sort_order: payload.sort_order,
-                             order: payload.sort_order,
-                             is_active: payload.is_active,
-                         };
-                     }
-                     this.products.forEach(p => {
-                         if (p.category_id === this.form.id) {
-                             p.category = this.form.name;
-                         }
-                     });
-                     this.showToast(result.message || `Kategori ${this.form.name} berhasil diperbarui!`);
-                 } else {
-                     const newCat = {
-                         ...this.form,
-                         id: result.category.id,
-                         sort_order: result.category.sort_order,
-                         order: result.category.sort_order,
-                         is_active: result.category.is_active,
-                         products_count: 0,
-                         count: '0+ Variasi',
-                     };
-                     this.categories.push(newCat);
-                     this.showToast(result.message || `Kategori baru ${this.form.name} berhasil ditambahkan!`);
-                 }
-                 this.editorModalOpen = false;
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan jaringan saat menyimpan kategori.');
-             }
-         },
-         
-         async toggleStatus(cat) {
-             try {
-                 const response = await fetch(`/admin/kategori/${cat.id}/toggle`, {
-                     method: 'PATCH',
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                 });
- 
-                 const result = await response.json();
- 
-                 if (!response.ok || !result.success) {
-                     alert(result.message || 'Gagal mengubah status kategori.');
-                     return;
-                 }
- 
-                 cat.is_active = result.is_active;
-                 cat.status = result.is_active ? 'active_landing' : 'inactive';
-                 this.showToast(result.message || `Status ${cat.name} diubah menjadi ${this.getStatusLabel(cat.status)}`);
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan saat mengubah status.');
-             }
-         },
-         
-         openDelete(cat) {
-             this.selectedCategory = cat;
-             const usedCount = this.getTotalProductCount(cat.id);
-             
-             if (usedCount > 0) {
-                 this.deleteBlocked = true;
-                 this.deleteBlockMessage = 'Kategori ini masih digunakan oleh ' + usedCount + ' produk. Silakan pindahkan produk ke kategori lain terlebih dahulu sebelum menghapus kategori.';
-             } else {
-                 this.deleteBlocked = false;
-                 this.deleteBlockMessage = '';
-             }
-             this.deleteModalOpen = true;
-         },
-         
-         async confirmDelete() {
-             if (!this.selectedCategory || this.deleteBlocked) return;
- 
-             try {
-                 const catId = this.selectedCategory.id;
-                 const catName = this.selectedCategory.name;
- 
-                 const response = await fetch(`/admin/kategori/${catId}`, {
-                     method: 'DELETE',
-                     headers: {
-                         'Content-Type': 'application/json',
-                         'Accept': 'application/json',
-                         'X-CSRF-TOKEN': this.csrfToken,
-                     },
-                 });
- 
-                 const result = await response.json();
- 
-                 if (!response.ok || !result.success) {
-                     alert(result.message || 'Gagal menghapus kategori.');
-                     return;
-                 }
- 
-                 this.categories = this.categories.filter(c => c.id !== catId);
-                 this.deleteModalOpen = false;
-                 this.showToast(result.message || `Kategori ${catName} telah dihapus.`);
-                 this.selectedCategory = null;
-             } catch (err) {
-                 console.error(err);
-                 alert('Terjadi kesalahan saat menghapus kategori.');
-             }
-         },
-         
-         getImageUrl(path) {
-             if (!path) return '/images/cat-daging.jpg';
-             if (path.startsWith('blob:') || path.startsWith('http')) return path;
-             return path.startsWith('/') ? path : '/' + path;
-         }
-     }">
+     x-data="adminCategoryManager(window.initialCategoryPayload)">
     
     <!-- ======================================================= -->
     <!-- 1. HEADER & INTRO CARD                                  -->
@@ -335,7 +459,7 @@
             <div class="flex items-center gap-3 shrink-0">
                 <button @click="openCreateModal()" 
                         type="button"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs sm:text-sm text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                     </svg>
@@ -467,15 +591,15 @@
                                 </div>
                                 <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 inline-flex items-center gap-1.5"
                                       :class="{
-                                          'bg-emerald-50 text-emerald-800 border-emerald-300': cat.status === 'active_landing' || cat.status === 'Aktif',
+                                          'bg-emerald-50 text-emerald-800 border-emerald-300': cat.status === 'active_landing',
                                           'bg-sky-50 text-sky-800 border-sky-300': cat.status === 'active_catalog',
-                                          'bg-gray-100 text-gray-600 border-gray-300': cat.status === 'inactive' || cat.status === 'Nonaktif'
+                                          'bg-gray-100 text-gray-600 border-gray-300': cat.status === 'inactive'
                                       }">
                                     <span class="w-1.5 h-1.5 rounded-full shrink-0"
                                           :class="{
-                                              'bg-emerald-500 animate-pulse': cat.status === 'active_landing' || cat.status === 'Aktif',
+                                              'bg-emerald-500 animate-pulse': cat.status === 'active_landing',
                                               'bg-sky-500': cat.status === 'active_catalog',
-                                              'bg-gray-400': cat.status === 'inactive' || cat.status === 'Nonaktif'
+                                              'bg-gray-400': cat.status === 'inactive'
                                           }"></span>
                                     <span x-text="getStatusLabel(cat.status)"></span>
                                 </span>
@@ -508,8 +632,8 @@
 
                         <div class="flex items-center gap-1.5">
                             <button @click="openEditModal(cat)" 
-                                    type="button"
-                                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
+                                     type="button"
+                                     class="inline-flex items-center gap-1 px-3 py-1.5 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
                                 <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
@@ -522,11 +646,11 @@
                                     :title="'Ubah Status: ' + getStatusLabel(cat.status)">
                                 <span class="w-2 h-2 rounded-full shrink-0"
                                       :class="{
-                                          'bg-emerald-500': cat.status === 'active_landing' || cat.status === 'Aktif',
+                                          'bg-emerald-500': cat.status === 'active_landing',
                                           'bg-sky-500': cat.status === 'active_catalog',
-                                          'bg-gray-400': cat.status === 'inactive' || cat.status === 'Nonaktif'
+                                          'bg-gray-400': cat.status === 'inactive'
                                       }"></span>
-                                <span class="text-[11px]" x-text="cat.status === 'active_landing' || cat.status === 'Aktif' ? 'LP' : (cat.status === 'active_catalog' ? 'Katalog' : 'Off')"></span>
+                                <span class="text-[11px]" x-text="cat.status === 'active_landing' ? 'LP' : (cat.status === 'active_catalog' ? 'Katalog' : 'Off')"></span>
                             </button>
 
                             <button @click="openDelete(cat)" 
@@ -704,7 +828,7 @@
                             
                             <div class="flex items-center justify-between">
                                 <label class="block text-xs font-extrabold text-brand-dark uppercase tracking-wider">
-                                    Real Landing Page Preview
+                                    Preview
                                 </label>
                                 <div class="flex items-center bg-gray-100 p-0.5 rounded text-[10px]">
                                     <button @click="previewDevice = 'desktop'" type="button" 
@@ -814,20 +938,57 @@
                 </div>
 
                 <!-- Tab 1: Library -->
-                <div x-show="mediaTab === 'library'" class="space-y-4">
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-72 overflow-y-auto p-1">
-                        <template x-for="media in mediaLibrary" :key="media.id">
+                <div x-show="mediaTab === 'library'" class="space-y-3">
+                    <!-- Search Bar -->
+                    <div class="flex items-center gap-3">
+                        <div class="relative flex-1">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 text-xs">
+                                🔍
+                            </span>
+                            <input type="text" 
+                                   x-model="mediaSearchQuery" 
+                                   placeholder="Cari gambar berdasarkan nama file..." 
+                                   class="w-full pl-8 pr-8 py-2 text-xs rounded-modern border border-gray-200 bg-gray-50 focus:bg-white focus:border-brand-primary focus:outline-none transition-all">
+                            <button x-show="mediaSearchQuery" 
+                                    @click="mediaSearchQuery = ''" 
+                                    type="button" 
+                                    class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 text-xs cursor-pointer">
+                                ✕
+                            </button>
+                        </div>
+                        <span class="text-[11px] text-gray-500 font-medium whitespace-nowrap">
+                            <span x-text="filteredMediaLibrary.length"></span> dari <span x-text="mediaLibrary.length"></span> gambar
+                        </span>
+                    </div>
+
+                    <!-- Media Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-72 overflow-y-auto p-1 overscroll-contain no-scrollbar">
+                        <template x-for="media in filteredMediaLibrary" :key="media.id">
                             <div @click="selectMedia(media)"
                                  class="group relative aspect-[4/3] rounded-modern overflow-hidden border-2 transition-all cursor-pointer bg-brand-dark"
                                  :class="selectedMedia?.id === media.id ? 'border-brand-primary ring-2 ring-emerald-400' : 'border-gray-200 hover:border-gray-400'">
                                 <img :src="getImageUrl(media.path)" :alt="media.title" class="w-full h-full object-cover">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-between">
-                                    <div class="self-end" x-show="selectedMedia?.id === media.id">
-                                        <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
-                                            <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                        </span>
+                                    <div class="flex items-center justify-between w-full">
+                                        <div>
+                                            <template x-if="media.is_deletable">
+                                                <button @click.stop="deleteMedia(media)" 
+                                                        type="button" 
+                                                        title="Hapus media dari server" 
+                                                        class="p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center">
+                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </template>
+                                        </div>
+                                        <div x-show="selectedMedia?.id === media.id">
+                                            <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                                                <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </span>
+                                        </div>
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-white truncate" x-text="media.filename"></p>
@@ -836,6 +997,11 @@
                                 </div>
                             </div>
                         </template>
+                    </div>
+
+                    <!-- Empty Search State -->
+                    <div x-show="filteredMediaLibrary.length === 0" class="p-8 text-center bg-gray-50 rounded-modern border border-dashed border-gray-200 text-xs text-gray-400">
+                        Tidak ada gambar yang cocok dengan kata kunci "<span class="font-bold text-gray-600" x-text="mediaSearchQuery"></span>".
                     </div>
 
                     <div class="p-3 bg-gray-50 rounded-modern border border-gray-200 flex items-center justify-between text-xs">

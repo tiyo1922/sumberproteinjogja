@@ -97,6 +97,16 @@
     }
 }
 
+/* Multi-level ordered list markers (Word-style: 1 -> a -> i), used both
+   inside #documentCanvas (editor) and inside .prose (preview/reader) so the
+   two stay visually identical. */
+.list-style-alpha {
+    list-style-type: lower-alpha;
+}
+.list-style-roman {
+    list-style-type: lower-roman;
+}
+
 /* Hide scrollbar for category tabs on mobile */
 .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -195,7 +205,7 @@
 }
 
 #documentCanvas ol ol {
-    list-style-type: decimal;
+    list-style-type: lower-alpha;
     margin-top: 0.25rem;
     margin-bottom: 0.25rem;
     margin-left: 1.5rem;
@@ -203,6 +213,14 @@
 }
 
 #documentCanvas ol ol ol {
+    list-style-type: lower-roman;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    margin-left: 1.5rem;
+    padding-left: 0;
+}
+
+#documentCanvas ol ol ol ol {
     list-style-type: decimal;
     margin-top: 0.25rem;
     margin-bottom: 0.25rem;
@@ -285,3 +303,16 @@
     font-style: italic;
     pointer-events: none;
 }
+
+/* Hide scrollbar utility for isolated invisible scrolling */
+.no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+.no-scrollbar {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+}
+
+

@@ -43,6 +43,84 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Master Contact Registry
+    |--------------------------------------------------------------------------
+    |
+    | Centralized registry of contact entities, divisions, and channels.
+    | Other sections and CTA builders reference these contacts by key.
+    |
+    */
+    'contacts' => [
+        [
+            'id' => 'order_wa',
+            'key' => 'order_wa',
+            'name' => 'Pemesanan & Order Produk',
+            'division' => 'Pemesanan & Kasir',
+            'type' => 'whatsapp',
+            'value' => '6281234567891',
+            'description' => 'Kanal WhatsApp untuk transaksi checkout keranjang belanja produk.',
+            'active' => true,
+            'is_system' => true,
+        ],
+        [
+            'id' => 'admin_wa',
+            'key' => 'admin_wa',
+            'name' => 'Customer Service & Konsultasi Admin',
+            'division' => 'Customer Care',
+            'type' => 'whatsapp',
+            'value' => '6281234567890',
+            'description' => 'Kanal WhatsApp untuk konsultasi bahan masak, tanya stok, dan informasi toko.',
+            'active' => true,
+            'is_system' => true,
+        ],
+        [
+            'id' => 'cs_care',
+            'key' => 'cs_care',
+            'name' => 'WhatsApp Layanan Pelanggan (CS Care)',
+            'division' => 'Customer Care',
+            'type' => 'whatsapp',
+            'value' => '6281234567892',
+            'description' => 'Kanal alternatif bantuan dan komplain pelanggan.',
+            'active' => true,
+            'is_system' => false,
+        ],
+        [
+            'id' => 'main_phone',
+            'key' => 'main_phone',
+            'name' => 'Hotline Outlet Yogyakarta',
+            'division' => 'Toko & Outlet',
+            'type' => 'phone',
+            'value' => '+62 812-3456-7890',
+            'description' => 'Nomor telepon hotline outlet untuk panggilan langsung.',
+            'active' => true,
+            'is_system' => false,
+        ],
+        [
+            'id' => 'office_phone',
+            'key' => 'office_phone',
+            'name' => 'Telepon Kantor & Gudang',
+            'division' => 'Kantor Operasional',
+            'type' => 'phone',
+            'value' => '(0274) 889977',
+            'description' => 'Telepon tetap kantor & cold storage.',
+            'active' => true,
+            'is_system' => false,
+        ],
+        [
+            'id' => 'official_email',
+            'key' => 'official_email',
+            'name' => 'Email Resmi Customer Care',
+            'division' => 'Manajemen & CS',
+            'type' => 'email',
+            'value' => 'halo@sumberproteinjogja.id',
+            'description' => 'Alamat email resmi untuk surat bisnis dan layanan umum.',
+            'active' => true,
+            'is_system' => false,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Official Social Media Channels
     |--------------------------------------------------------------------------
     |

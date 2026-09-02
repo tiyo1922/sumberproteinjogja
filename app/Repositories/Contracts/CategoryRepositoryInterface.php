@@ -18,7 +18,17 @@ interface CategoryRepositoryInterface
     public function getActive(): Collection;
 
     /**
-     * Get active categories with eager active product count.
+     * Get active landing categories (is_active = 1) with eager active product count.
+     */
+    public function getActiveLandingWithProductCount(): Collection;
+
+    /**
+     * Get active catalog categories (is_active = 1 or 2) with eager active product count.
+     */
+    public function getActiveCatalogWithProductCount(): Collection;
+
+    /**
+     * Get active categories with eager active product count (default).
      */
     public function getActiveWithProductCount(): Collection;
 
@@ -58,9 +68,9 @@ interface CategoryRepositoryInterface
     public function hasProducts(int $id): bool;
 
     /**
-     * Toggle the active status of a category.
+     * Toggle the active status of a category cycling through (inactive -> active_landing -> active_catalog -> inactive) or to targetStatus.
      */
-    public function toggleActive(int $id): ?Category;
+    public function toggleActive(int $id, ?string $targetStatus = null): ?Category;
 
     /**
      * Update sort order for multiple categories.

@@ -6,6 +6,15 @@
         ? $seo['og_image'] 
         : asset($seo['og_image'] ?? 'images/hero-1.jpg');
 
+    $rawFavicon = trim($site['brand']['favicon_url'] ?? '');
+    $hasCustomFavicon = !empty($rawFavicon) 
+        && !str_contains($rawFavicon, 'hero-1.jpg') 
+        && !str_starts_with($rawFavicon, 'blob:')
+        && (str_starts_with($rawFavicon, 'http') || file_exists(public_path($rawFavicon)) || file_exists(public_path('storage/' . ltrim($rawFavicon, '/'))));
+    $faviconUrl = $hasCustomFavicon
+        ? (str_starts_with($rawFavicon, 'http') ? $rawFavicon : (file_exists(public_path($rawFavicon)) ? asset($rawFavicon) : asset('storage/' . ltrim($rawFavicon, '/'))))
+        : 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥩</text></svg>';
+
     // Build structured Schema.org opening hours array from location config days
     $schemaOpeningHours = [];
     $dayNameMap = [
@@ -38,10 +47,11 @@
         '@context' => 'https://schema.org',
         '@type' => 'LocalBusiness',
         'name' => $location['outlet']['name'] ?? ($site['brand']['name'] ?? 'Sumber Protein Jogja'),
+        'description' => !empty($seo['meta_description']) ? $seo['meta_description'] : ($site['brand']['description'] ?? ''),
         'image' => $ogImageUrl,
         'telephone' => $site['contact']['phone'] ?? '+62 812-3456-7890',
         'email' => $site['contact']['email'] ?? 'halo@sumberproteinjogja.id',
-        'url' => $site['website']['url'] ?? 'https://sumberproteinjogja.com',
+        'url' => !empty($seo['canonical_url']) ? $seo['canonical_url'] : ($site['website']['url'] ?? 'https://sumberproteinjogja.com'),
         'address' => [
             '@type' => 'PostalAddress',
             'streetAddress' => $location['address']['street'] ?? 'Jl. Kaliurang Km. 8.5 No. 42',
@@ -68,32 +78,32 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     
     <!-- Primary SEO Meta Tags (Single Source of Truth) -->
-    <title>{{ $seo['meta_title'] ?? 'Sumber Protein Jogja - Bahan Masak Siap Olah, Frozen & Segar Yogyakarta' }}</title>
+    <title>{{ !empty($seo['meta_title']) ? $seo['meta_title'] : 'Sumber Protein Jogja - Bahan Masak Siap Olah, Frozen & Segar Yogyakarta' }}</title>
     <meta name="description" content="{{ $seo['meta_description'] ?? '' }}">
     <meta name="keywords" content="{{ $seo['meta_keywords'] ?? '' }}">
-    <meta name="author" content="{{ $seo['author'] ?? ($site['brand']['name'] ?? 'Sumber Protein Jogja') }}">
-    <meta name="robots" content="{{ $seo['robots'] ?? 'index, follow' }}">
-    <link rel="canonical" href="{{ $seo['canonical_url'] ?? url()->current() }}">
+    <meta name="author" content="{{ !empty($seo['author']) ? $seo['author'] : ($site['brand']['name'] ?? 'Sumber Protein Jogja') }}">
+    <meta name="robots" content="{{ !empty($seo['robots']) ? $seo['robots'] : 'index, follow' }}">
+    <link rel="canonical" href="{{ !empty($seo['canonical_url']) ? $seo['canonical_url'] : url()->current() }}">
     @if(!empty($seo['google']['site_verification']))
     <meta name="google-site-verification" content="{{ $seo['google']['site_verification'] }}">
     @endif
     
     <!-- Open Graph / Facebook / WhatsApp -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="{{ $seo['og_title'] ?? $seo['meta_title'] }}">
-    <meta property="og:description" content="{{ $seo['og_description'] ?? $seo['meta_description'] }}">
-    <meta property="og:url" content="{{ $seo['canonical_url'] ?? url()->current() }}">
+    <meta property="og:title" content="{{ !empty($seo['og_title']) ? $seo['og_title'] : (!empty($seo['meta_title']) ? $seo['meta_title'] : 'Sumber Protein Jogja') }}">
+    <meta property="og:description" content="{{ !empty($seo['og_description']) ? $seo['og_description'] : ($seo['meta_description'] ?? '') }}">
+    <meta property="og:url" content="{{ !empty($seo['canonical_url']) ? $seo['canonical_url'] : url()->current() }}">
     <meta property="og:image" content="{{ $ogImageUrl }}">
     <meta property="og:locale" content="id_ID">
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="{{ $seo['twitter_card'] ?? 'summary_large_image' }}">
-    <meta name="twitter:title" content="{{ $seo['og_title'] ?? $seo['meta_title'] }}">
-    <meta name="twitter:description" content="{{ $seo['og_description'] ?? $seo['meta_description'] }}">
+    <meta name="twitter:title" content="{{ !empty($seo['og_title']) ? $seo['og_title'] : (!empty($seo['meta_title']) ? $seo['meta_title'] : 'Sumber Protein Jogja') }}">
+    <meta name="twitter:description" content="{{ !empty($seo['og_description']) ? $seo['og_description'] : ($seo['meta_description'] ?? '') }}">
     <meta name="twitter:image" content="{{ $ogImageUrl }}">
     
     <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥩</text></svg>">
+    <link rel="icon" href="{{ $faviconUrl }}">
     
     <!-- Google Fonts: Poppins -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -109,7 +119,7 @@
 
     <!-- Schema.org JSON-LD (Single Source of Truth) -->
     <script type="application/ld+json">
-    {!! json_encode($schemaLocalBusiness, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) !!}
+    {!! json_encode($schemaLocalBusiness, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}
     </script>
 
     <!-- Google Analytics 4 (GA4) -->

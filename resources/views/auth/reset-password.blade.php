@@ -15,7 +15,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Masuk — Admin Panel {{ $loginBrandName }}</title>
+    <title>Atur Ulang Kata Sandi — Admin Panel {{ $loginBrandName }}</title>
     
     <!-- Google Fonts: Poppins -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -63,32 +63,23 @@
             </p>
         </div>
 
-        <!-- Login Card Container -->
+        <!-- Reset Password Card Container -->
         <div class="w-full bg-white py-7 sm:py-8 px-6 sm:px-8 shadow-xl shadow-gray-200/50 rounded-2xl border border-gray-100"
              x-data="{ 
-                 showPassword: false, 
-                 forgotModalOpen: false 
+                 showNewPassword: false, 
+                 showConfirmPassword: false,
+                 isSubmitting: false 
              }">
             
             <!-- Card Header -->
             <div class="mb-5 text-left">
                 <h2 class="text-[22px] font-bold text-gray-900 tracking-tight leading-tight">
-                    Selamat Datang
+                    Atur Ulang Kata Sandi
                 </h2>
                 <p class="text-xs sm:text-[13px] text-gray-500 mt-1 font-normal">
-                    Masuk ke panel admin untuk melanjutkan
+                    Buat kata sandi baru yang aman untuk akun administrator Anda.
                 </p>
             </div>
-
-            <!-- Status / Success Banner -->
-            @if (session('status'))
-                <div class="mb-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2 font-medium" role="alert">
-                    <svg class="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{{ session('status') }}</span>
-                </div>
-            @endif
 
             <!-- Error Banner -->
             @if (isset($errors) && $errors->any())
@@ -97,7 +88,7 @@
                         <svg class="w-4 h-4 shrink-0 text-red-600" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
                         </svg>
-                        <span>Gagal Masuk</span>
+                        <span>Gagal Mengubah Kata Sandi</span>
                     </div>
                     <ul class="list-disc list-inside space-y-0.5 text-[11px] sm:text-xs text-red-700 pl-1 font-medium">
                         @foreach ($errors->all() as $error)
@@ -105,31 +96,29 @@
                         @endforeach
                     </ul>
                 </div>
-            @elseif (session('error'))
-                <div class="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2 font-medium" role="alert">
-                    <svg class="w-4 h-4 shrink-0 text-red-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
-                    <span>{{ session('error') }}</span>
-                </div>
             @endif
 
-            <!-- Login Form -->
-            <form action="{{ route('login.authenticate') }}" method="POST" class="space-y-4">
+            <!-- Reset Password Form -->
+            <form action="{{ route('password.update') }}" 
+                  method="POST" 
+                  @submit="isSubmitting = true" 
+                  class="space-y-4">
                 @csrf
+
+                <!-- Hidden Reset Token -->
+                <input type="hidden" name="token" value="{{ $token }}">
 
                 <!-- Email Input -->
                 <div>
                     <label for="email" class="block text-xs font-semibold text-gray-700 mb-1.5">
-                        Email
+                        Email Administrator
                     </label>
                     <input id="email" 
                            name="email" 
                            type="email" 
                            autocomplete="email" 
                            required 
-                           autofocus
-                           value="{{ old('email') }}" 
+                           value="{{ old('email', $email ?? '') }}" 
                            placeholder="nama@sumberproteinjogja.com"
                            class="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all">
                 </div>
@@ -137,96 +126,91 @@
                 <!-- Password Input with Eye Visibility Toggle -->
                 <div>
                     <label for="password" class="block text-xs font-semibold text-gray-700 mb-1.5">
-                        Password
+                        Password Baru <span class="text-rose-500">*</span>
                     </label>
                     <div class="relative">
                         <input id="password" 
                                name="password" 
-                               :type="showPassword ? 'text' : 'password'" 
-                               autocomplete="current-password" 
+                               :type="showNewPassword ? 'text' : 'password'" 
+                               autocomplete="new-password" 
                                required 
-                               placeholder="••••••••"
+                               placeholder="Min. 8 karakter"
                                class="w-full h-11 pl-3.5 pr-11 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all">
                         
                         <!-- Eye Visibility Toggle Button -->
                         <button type="button" 
-                                @click="showPassword = !showPassword"
-                                :aria-label="showPassword ? 'Sembunyikan password' : 'Tampilkan password'"
+                                @click="showNewPassword = !showNewPassword"
+                                :aria-label="showNewPassword ? 'Sembunyikan password' : 'Tampilkan password'"
                                 class="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-hidden focus:text-brand-primary cursor-pointer transition-colors"
                                 tabindex="0">
                             <!-- Eye Open Icon (When hidden) -->
-                            <svg x-show="!showPassword" class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <svg x-show="!showNewPassword" class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                             <!-- Eye Slash Icon (When visible) -->
-                            <svg x-show="showPassword" x-cloak class="w-4 h-4 sm:w-4.5 sm:h-4.5 text-brand-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <svg x-show="showNewPassword" x-cloak class="w-4 h-4 sm:w-4.5 sm:h-4.5 text-brand-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
                             </svg>
                         </button>
                     </div>
                 </div>
 
-                <!-- Forgot Password Row (Right Aligned, Subordinate) -->
-                <div class="flex items-center justify-end -mt-1">
-                    <a href="{{ route('password.request') }}" 
-                       class="text-xs font-medium text-gray-500 hover:text-brand-primary transition-colors">
-                        Lupa password?
-                    </a>
+                <!-- Password Confirmation Input with Eye Visibility Toggle -->
+                <div>
+                    <label for="password_confirmation" class="block text-xs font-semibold text-gray-700 mb-1.5">
+                        Konfirmasi Password Baru <span class="text-rose-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <input id="password_confirmation" 
+                               name="password_confirmation" 
+                               :type="showConfirmPassword ? 'text' : 'password'" 
+                               autocomplete="new-password" 
+                               required 
+                               placeholder="Ulangi password baru"
+                               class="w-full h-11 pl-3.5 pr-11 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all">
+                        
+                        <!-- Eye Visibility Toggle Button -->
+                        <button type="button" 
+                                @click="showConfirmPassword = !showConfirmPassword"
+                                :aria-label="showConfirmPassword ? 'Sembunyikan password' : 'Tampilkan password'"
+                                class="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-hidden focus:text-brand-primary cursor-pointer transition-colors"
+                                tabindex="0">
+                            <!-- Eye Open Icon (When hidden) -->
+                            <svg x-show="!showConfirmPassword" class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            <!-- Eye Slash Icon (When visible) -->
+                            <svg x-show="showConfirmPassword" x-cloak class="w-4 h-4 sm:w-4.5 sm:h-4.5 text-brand-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Primary Submit Button -->
                 <div class="pt-1">
                     <button type="submit" 
-                            class="w-full h-11 sm:h-12 bg-brand-primary hover:bg-brand-primary/90 active:scale-[0.99] text-white font-semibold text-xs rounded-xl shadow-md shadow-brand-primary/20 hover:shadow-lg hover:shadow-brand-primary/30 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer">
-                        <span>Masuk</span>
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                            :disabled="isSubmitting"
+                            class="w-full h-11 sm:h-12 bg-brand-primary hover:bg-brand-primary/90 active:scale-[0.99] text-white font-semibold text-xs rounded-xl shadow-md shadow-brand-primary/20 hover:shadow-lg hover:shadow-brand-primary/30 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg x-show="isSubmitting" x-cloak class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
+                        <span x-text="isSubmitting ? 'Memperbarui...' : 'Perbarui Kata Sandi'">Perbarui Kata Sandi</span>
                     </button>
                 </div>
             </form>
 
-            <!-- Back to Website Link -->
+            <!-- Back to Login Link -->
             <div class="mt-5 pt-4 border-t border-gray-100 flex flex-col items-center gap-1 text-center">
-                <span class="text-[11px] text-gray-400 font-normal">Kembali ke website</span>
-                <a href="{{ route('home') }}" class="text-xs text-brand-primary hover:text-brand-primary/80 font-semibold inline-flex items-center gap-1 transition-colors group">
-                    <span>Kunjungi Sumber Protein Jogja</span>
-                    <svg class="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <a href="{{ route('login') }}" class="text-xs text-brand-primary hover:text-brand-primary/80 font-semibold inline-flex items-center gap-1.5 transition-colors group">
+                    <svg class="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                     </svg>
+                    <span>Kembali ke Halaman Masuk</span>
                 </a>
-            </div>
-
-            <!-- Forgot Password Modal Notice -->
-            <div x-show="forgotModalOpen" 
-                 x-cloak
-                 class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-2xs"
-                 x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0"
-                 x-transition:enter-end="opacity-100"
-                 x-transition:leave="transition ease-in duration-150"
-                 x-transition:leave-start="opacity-100"
-                 x-transition:leave-end="opacity-0">
-                <div @click.away="forgotModalOpen = false"
-                     class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 text-center space-y-4">
-                    <div class="w-11 h-11 rounded-full bg-emerald-50 text-brand-primary flex items-center justify-center mx-auto">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                    </div>
-                    <div class="space-y-1.5">
-                        <h3 class="text-base font-bold text-gray-900">Pemulihan Kata Sandi</h3>
-                        <p class="text-xs text-gray-600 leading-relaxed">
-                            Akses panel admin dibatasi untuk Super Admin internal. Untuk mereset kata sandi, hubungi administrator teknis atau perbarui melalui terminal server (CLI).
-                        </p>
-                    </div>
-                    <button type="button" 
-                            @click="forgotModalOpen = false"
-                            class="w-full h-10 bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer">
-                        Mengerti
-                    </button>
-                </div>
             </div>
 
         </div>

@@ -9,20 +9,20 @@ use Illuminate\Database\Eloquent\Collection;
 class EloquentProductRepository implements ProductRepositoryInterface
 {
     /**
-     * Get all products with category relation ordered by sort_order.
+     * Get all products with categories relation ordered by sort_order.
      */
     public function getAll(): Collection
     {
-        return Product::with('category')->orderBy('sort_order', 'asc')->get();
+        return Product::with(['categories', 'category'])->orderBy('sort_order', 'asc')->get();
     }
 
     /**
-     * Get active product catalog with category relation ordered by sort_order.
+     * Get active product catalog with categories relation ordered by sort_order.
      */
     public function getActiveCatalog(): Collection
     {
         return Product::active()
-            ->with('category')
+            ->with(['categories', 'category'])
             ->orderBy('sort_order', 'asc')
             ->get();
     }
@@ -34,54 +34,85 @@ class EloquentProductRepository implements ProductRepositoryInterface
     {
         return Product::active()
             ->flashSale()
-            ->with('category')
+            ->with(['categories', 'category'])
             ->get();
     }
 
     /**
-     * Find product by primary ID with category relation.
+     * Find product by primary ID with categories relation.
      */
     public function findById(int $id): ?Product
     {
-        return Product::with('category')->find($id);
+        return Product::with(['categories', 'category'])->find($id);
     }
 
     /**
-     * Find product by unique slug with category relation.
+     * Find product by unique slug with categories relation.
      */
     public function findBySlug(string $slug): ?Product
     {
-        return Product::with('category')->where('slug', $slug)->first();
+        return Product::with(['categories', 'category'])->where('slug', $slug)->first();
     }
 
     /**
-     * Get active products by category ID.
+     * Get active products by category ID via many-to-many pivot or legacy category_id.
      */
     public function getByCategory(int $categoryId): Collection
     {
         return Product::active()
-            ->byCategory($categoryId)
-            ->with('category')
+            ->where(function ($query) use ($categoryId) {
+                $query->whereHas('categories', function ($q) use ($categoryId) {
+                    $q->where('categories.id', $categoryId);
+                })->orWhere('category_id', $categoryId);
+            })
+            ->with(['categories', 'category'])
             ->orderBy('sort_order', 'asc')
             ->get();
     }
 
     /**
-     * Create a new product.
+     * Create a new product and sync categories.
      */
     public function create(array $data): Product
     {
-        return Product::create($data);
+        $categoryIds = null;
+        if (isset($data['category_ids'])) {
+            $categoryIds = (array) $data['category_ids'];
+            unset($data['category_ids']);
+            if (!empty($categoryIds) && empty($data['category_id'])) {
+                $data['category_id'] = $categoryIds[0];
+            }
+        }
+
+        $product = Product::create($data);
+
+        if (!empty($categoryIds)) {
+            $product->categories()->sync($categoryIds);
+        } elseif (!empty($product->category_id)) {
+            $product->categories()->syncWithoutDetaching([$product->category_id]);
+        }
+
+        return $product->load(['categories', 'category']);
     }
 
     /**
-     * Update an existing product.
+     * Update an existing product and sync categories.
      */
     public function update(int $id, array $data): bool
     {
         $product = Product::find($id);
         if (!$product) {
             return false;
+        }
+
+        $categoryIds = null;
+        if (isset($data['category_ids'])) {
+            $categoryIds = (array) $data['category_ids'];
+            unset($data['category_ids']);
+            if (!empty($categoryIds)) {
+                $data['category_id'] = $categoryIds[0];
+                $product->categories()->sync($categoryIds);
+            }
         }
 
         return (bool) $product->update($data);
@@ -96,6 +127,9 @@ class EloquentProductRepository implements ProductRepositoryInterface
         if (!$product) {
             return false;
         }
+
+        // Pivot records are automatically deleted by ON DELETE CASCADE, but detach cleanly
+        $product->categories()->detach();
 
         return (bool) $product->delete();
     }

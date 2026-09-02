@@ -38,8 +38,21 @@
             </div>
 
             <!-- Google Review Aggregate Rating Badge -->
+            @php
+                $gRating = number_format((float) ($reviewSettings['google_rating'] ?? 4.9), 1);
+                $gTotal = (int) ($reviewSettings['google_total_reviews'] ?? 180);
+                $gUrl = $reviewSettings['google_place_url'] ?? null;
+            @endphp
+            @if($gUrl)
+            <a href="{{ $gUrl }}" 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               title="Buka profil & ulasan di Google Maps"
+               class="flex items-center gap-3 bg-brand-cream p-3 sm:p-3.5 rounded-modern border border-gray-200/80 shadow-xs hover:shadow-md hover:border-brand-primary/40 transition-all shrink-0 self-start md:self-auto group cursor-pointer">
+            @else
             <div class="flex items-center gap-3 bg-brand-cream p-3 sm:p-3.5 rounded-modern border border-gray-200/80 shadow-xs shrink-0 self-start md:self-auto">
-                <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white flex items-center justify-center shadow-2xs border border-gray-100 shrink-0">
+            @endif
+                <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white flex items-center justify-center shadow-2xs border border-gray-100 shrink-0 group-hover:scale-105 transition-transform">
                     <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -49,8 +62,8 @@
                 </div>
                 <div>
                     <div class="flex items-center gap-1">
-                        <span class="text-sm sm:text-base font-extrabold text-brand-dark">4.9 / 5.0</span>
-                        <div class="flex text-amber-400 gap-0.5" aria-label="4.9 dari 5 bintang">
+                        <span class="text-sm sm:text-base font-extrabold text-brand-dark">{{ $gRating }} / 5.0</span>
+                        <div class="flex text-amber-400 gap-0.5" aria-label="{{ $gRating }} dari 5 bintang">
                             @for($i=0; $i<5; $i++)
                                 <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" viewBox="0 0 20 20">
                                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -58,9 +71,18 @@
                             @endfor
                         </div>
                     </div>
-                    <span class="text-[11px] sm:text-xs text-gray-500 font-medium">Berdasarkan 180+ Google Reviews</span>
+                    <span class="text-[11px] sm:text-xs text-gray-500 font-medium flex items-center gap-1">
+                        Berdasarkan {{ $gTotal }}+ Google Reviews
+                        @if($gUrl)
+                            <svg class="w-3 h-3 text-brand-primary inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        @endif
+                    </span>
                 </div>
+            @if($gUrl)
+            </a>
+            @else
             </div>
+            @endif
         </div>
 
         <!-- Testimonial Cards: Horizontal Snap Slider on Mobile, 3-Card Grid on Desktop -->

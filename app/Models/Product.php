@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Product extends Model
 {
@@ -59,11 +60,110 @@ class Product extends Model
     ];
 
     /**
-     * Get the category that owns the product.
+     * The accessors to append to the model's array and JSON representation.
+     *
+     * @var array<int, string>
+     */
+    protected $appends = [
+        'category_ids',
+        'category_names',
+        'category_display',
+        'effective_price',
+        'flash_sale_effective_price',
+        'type_badges',
+    ];
+
+    /**
+     * The categories that belong to the product (Many-to-Many).
+     */
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class, 'category_product')->withTimestamps();
+    }
+
+    /**
+     * Get the primary category that owns the product (Backward compatibility).
      */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    /**
+     * Get array of category IDs attached to the product (Many-to-Many source of truth).
+     *
+     * @return array<int>
+     */
+    public function getCategoryIdsAttribute(): array
+    {
+        if ($this->relationLoaded('categories')) {
+            $ids = $this->categories->pluck('id')->map(fn($id) => (int) $id)->toArray();
+            if (!empty($ids)) {
+                return array_values($ids);
+            }
+        } elseif ($this->exists) {
+            $ids = $this->categories()->pluck('categories.id')->map(fn($id) => (int) $id)->toArray();
+            if (!empty($ids)) {
+                return array_values($ids);
+            }
+        }
+        return $this->category_id ? [(int) $this->category_id] : [];
+    }
+
+    /**
+     * Get array of category names attached to the product.
+     *
+     * @return array<string>
+     */
+    public function getCategoryNamesAttribute(): array
+    {
+        if ($this->relationLoaded('categories')) {
+            $names = $this->categories->pluck('name')->toArray();
+            if (!empty($names)) {
+                return array_values($names);
+            }
+        } elseif ($this->exists) {
+            $names = $this->categories()->pluck('categories.name')->toArray();
+            if (!empty($names)) {
+                return array_values($names);
+            }
+        }
+        return $this->category ? [$this->category->name] : [];
+    }
+
+    /**
+     * Get combined category display name.
+     */
+    public function getCategoryDisplayAttribute(): string
+    {
+        $names = $this->category_names;
+        return !empty($names) ? implode(', ', $names) : ($this->category->name ?? 'Daging Sapi');
+    }
+
+    /**
+     * Get formatted type badges array with CSS classes.
+     */
+    public function getTypeBadgesAttribute(): array
+    {
+        $types = is_array($this->types) ? $this->types : [];
+        $badges = [];
+        $map = [
+            'Frozen' => 'badge-frozen',
+            'Fresh' => 'badge-fresh',
+            'Ready to Cook' => 'badge-ready',
+            'Berbumbu' => 'badge-accent',
+            'Curah' => 'badge-bulk',
+            'Plain' => 'badge-primary',
+        ];
+
+        foreach ($types as $t) {
+            $badges[] = [
+                'text' => $t,
+                'class' => $map[$t] ?? 'badge-primary',
+            ];
+        }
+
+        return $badges;
     }
 
     /**

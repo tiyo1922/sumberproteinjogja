@@ -279,7 +279,7 @@ class KnowledgeArticleParser
 
             // 7. Paragraphs (p)
             if ($tagName === 'p') {
-                $isLead = str_contains($class, 'lead');
+                $isLead = (bool) preg_match('/\blead\b/', $class);
                 $segments = self::domNodeToSegments($node);
                 if (!empty($segments)) {
                     $block = [
@@ -483,7 +483,7 @@ class KnowledgeArticleParser
                         : 'list-disc list-inside space-y-2 text-sm sm:text-base text-gray-600 mb-4 pl-2';
 
                     $items = $block['items'] ?? [];
-                    $renderedListItems = self::renderListItems($items, $isOrdered);
+                    $renderedListItems = self::renderListItems($items, $isOrdered, 0);
                     $htmlParts[] = '<' . $tag . ' class="' . $listClass . '"' . $styleAttr . '>' . $renderedListItems . '</' . $tag . '>';
                     break;
 
@@ -944,9 +944,22 @@ class KnowledgeArticleParser
     }
 
     /**
-     * Render list items recursively with nested children and item typography styles.
+     * Ordered-list marker style per nesting depth, matching the Word-style
+     * cycle used in #documentCanvas (1, 2, 3 -> a, b, c -> i, ii, iii -> repeat).
      */
-    private static function renderListItems(array $items, bool $isOrdered): string
+    private static function orderedMarkerClass(int $depth): string
+    {
+        $cycle = ['list-decimal', 'list-style-alpha', 'list-style-roman'];
+        return $cycle[$depth % count($cycle)];
+    }
+
+    /**
+     * Render list items recursively with nested children and item typography styles.
+     * Nested sub-lists get their own marker + list-inside classes (not just the
+     * top-level list) so they stay visible outside #documentCanvas too (e.g. in
+     * a .prose reader view), and their numbering style cycles per depth like Word.
+     */
+    private static function renderListItems(array $items, bool $isOrdered, int $depth = 0): string
     {
         $liParts = [];
         foreach ($items as $item) {
@@ -956,9 +969,13 @@ class KnowledgeArticleParser
 
             $nestedHtml = '';
             if (!empty($item['children'])) {
+                $childDepth = $depth + 1;
                 $childOrdered = isset($item['childrenStyle']) ? ($item['childrenStyle'] === 'ordered') : $isOrdered;
                 $childTag = $childOrdered ? 'ol' : 'ul';
-                $nestedHtml = '<' . $childTag . '>' . self::renderListItems($item['children'], $childOrdered) . '</' . $childTag . '>';
+                $childClass = $childOrdered
+                    ? self::orderedMarkerClass($childDepth) . ' list-inside'
+                    : 'list-disc list-inside';
+                $nestedHtml = '<' . $childTag . ' class="' . $childClass . '">' . self::renderListItems($item['children'], $childOrdered, $childDepth) . '</' . $childTag . '>';
             }
 
             $liParts[] = '<li' . $itemStyle . '>' . $renderedText . $nestedHtml . '</li>';

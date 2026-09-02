@@ -4,75 +4,233 @@
 ])
 
 @section('content')
+<script>
+window.adminSeoManager = function(initialPayload) {
+    const payload = initialPayload || {};
+    return {
+        csrfToken: payload.csrfToken || '{{ csrf_token() }}',
+        isSaving: false,
+        seo: payload.seo || {},
+        mediaLibrary: payload.mediaLibrary || [],
+        mediaPickerOpen: false,
+        toastMessage: '',
+        toastVisible: false,
+        previewTab: 'google', // 'google' | 'social'
+        googleDevice: 'desktop', // 'desktop' | 'mobile'
+        mediaTab: 'library', // 'library' | 'upload'
+        mediaSearchQuery: '',
+        mediaDeleteRoute: payload.mediaDeleteRoute || '{{ route('admin.media.delete') }}',
+        mediaUploadRoute: payload.mediaUploadRoute || '{{ route('admin.media.upload') }}',
+        isDeletingMedia: false,
+        isUploadingMedia: false,
+        selectedMedia: null,
+        uploadedFile: null,
+        uploadedPreviewUrl: null,
+        
+        get filteredMediaLibrary() {
+            if (!this.mediaSearchQuery || !this.mediaSearchQuery.trim()) {
+                return this.mediaLibrary;
+            }
+            const q = this.mediaSearchQuery.toLowerCase().trim();
+            return this.mediaLibrary.filter(m => 
+                (m.filename && m.filename.toLowerCase().includes(q)) || 
+                (m.title && m.title.toLowerCase().includes(q)) || 
+                (m.path && m.path.toLowerCase().includes(q))
+            );
+        },
+
+        async deleteMedia(media) {
+            if (!confirm('Apakah Anda yakin ingin menghapus file "' + media.filename + '" secara permanen dari server?')) {
+                return;
+            }
+            this.isDeletingMedia = true;
+            try {
+                const response = await fetch(this.mediaDeleteRoute || '{{ route('admin.media.delete') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ path: media.path })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== media.id && m.path !== media.path);
+                    if (this.selectedMedia && this.selectedMedia.path === media.path) {
+                        this.selectedMedia = null;
+                    }
+                    this.showToast(result.message || 'File media berhasil dihapus!');
+                } else {
+                    alert(result.message || 'Gagal menghapus file media.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan koneksi saat menghapus file media.');
+            } finally {
+                this.isDeletingMedia = false;
+            }
+        },
+        
+        showToast(msg) {
+            this.toastMessage = msg;
+            this.toastVisible = true;
+            setTimeout(() => { this.toastVisible = false; }, 3000);
+        },
+        
+        openMediaPicker() {
+            this.mediaTab = 'library';
+            this.selectedMedia = this.mediaLibrary.find(m => m.path === this.seo.og_image) || this.mediaLibrary[0] || null;
+            this.uploadedFile = null;
+            this.uploadedPreviewUrl = null;
+            this.mediaPickerOpen = true;
+        },
+        
+        selectMedia(media) {
+            this.selectedMedia = media;
+        },
+        
+        confirmMediaSelection() {
+            if (this.mediaTab === 'library' && this.selectedMedia) {
+                this.seo.og_image = this.selectedMedia.path;
+                this.mediaPickerOpen = false;
+                this.showToast('OG Image dipilih dari Media Library!');
+            } else if (this.mediaTab === 'upload' && this.uploadedFile && this.uploadedFile.path) {
+                this.seo.og_image = this.uploadedFile.path;
+                this.mediaPickerOpen = false;
+                this.showToast('OG Image hasil upload berhasil digunakan!');
+            } else if (this.selectedMedia) {
+                this.seo.og_image = this.selectedMedia.path;
+                this.mediaPickerOpen = false;
+                this.showToast('OG Image dipilih dari Media Library!');
+            }
+        },
+        
+        async handleFileUpload(e) {
+            const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
+            if (!file) return;
+            if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
+                alert('Format file tidak didukung. Gunakan JPG, PNG, atau WebP.');
+                return;
+            }
+            this.isUploadingMedia = true;
+            this.uploadedFile = {
+                name: file.name,
+                size: (file.size / 1024).toFixed(0) + ' KB',
+                type: file.type,
+                path: ''
+            };
+            this.uploadedPreviewUrl = URL.createObjectURL(file);
+
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch(this.mediaUploadRoute || '{{ route('admin.media.upload') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success && result.media) {
+                    this.mediaLibrary.unshift(result.media);
+                    this.selectedMedia = result.media;
+                    this.uploadedPreviewUrl = result.media.url;
+                    this.uploadedFile.path = result.media.path;
+                    this.showToast('File media berhasil diunggah ke storage server!');
+                } else {
+                    this.showToast(result.message || 'Gagal mengunggah file media.');
+                }
+            } catch (err) {
+                console.error(err);
+                this.showToast('Terjadi kesalahan koneksi saat mengunggah file.');
+            } finally {
+                this.isUploadingMedia = false;
+            }
+        },
+        
+        async saveSeo() {
+            if (this.isSaving) return;
+            this.isSaving = true;
+
+            try {
+                const response = await fetch('{{ route('admin.seo.update') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                    },
+                    body: JSON.stringify({
+                        seo: {
+                            meta_title: this.seo.meta_title,
+                            meta_description: this.seo.meta_description,
+                            canonical_url: this.seo.canonical_url,
+                            robots: this.seo.robots,
+                            meta_keywords: this.seo.meta_keywords,
+                            og_title: this.seo.og_title,
+                            og_description: this.seo.og_description,
+                            og_image: this.seo.og_image,
+                        }
+                    }),
+                });
+
+                const result = await response.json().catch(() => ({}));
+
+                if (response.status === 401 || (result && result.message === 'Unauthenticated.')) {
+                    alert('Sesi login Anda telah berakhir. Anda akan dialihkan ke halaman login.');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (response.status === 419) {
+                    alert('Sesi token kedaluwarsa. Halaman akan dimuat ulang.');
+                    window.location.reload();
+                    return;
+                }
+
+                if (!response.ok || !result.success) {
+                    const errorMsg = result.errors 
+                        ? Object.values(result.errors).flat().join('\n') 
+                        : (result.message || 'Gagal menyimpan pengaturan SEO.');
+                    alert(errorMsg);
+                    return;
+                }
+
+                if (result.seo) {
+                    this.seo = { ...this.seo, ...result.seo };
+                }
+
+                this.showToast(result.message || 'Pengaturan SEO & Meta berhasil disimpan ke database.');
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan saat menyimpan pengaturan SEO.');
+            } finally {
+                this.isSaving = false;
+            }
+        },
+        
+        getImageUrl(path) {
+            if (!path) return '/images/hero-1.jpg';
+            if (path.startsWith('blob:') || path.startsWith('http')) return path;
+            return path.startsWith('/') ? path : '/' + path;
+        }
+    };
+};
+
+window.initialSeoPayload = {
+    csrfToken: '{{ csrf_token() }}',
+    seo: @json($seoData),
+    mediaLibrary: @json($mediaLibrary)
+};
+</script>
+
 <div class="space-y-6"
-     x-data="{
-         seo: {{ json_encode($seoData) }},
-         mediaLibrary: {{ json_encode($mediaLibrary) }},
-         mediaPickerOpen: false,
-         toastMessage: '',
-         toastVisible: false,
-         previewTab: 'google', // 'google' | 'social'
-         googleDevice: 'desktop', // 'desktop' | 'mobile'
-         mediaTab: 'library', // 'library' | 'upload'
-         selectedMedia: null,
-         uploadedFile: null,
-         uploadedPreviewUrl: null,
-         
-         showToast(msg) {
-             this.toastMessage = msg;
-             this.toastVisible = true;
-             setTimeout(() => { this.toastVisible = false; }, 3000);
-         },
-         
-         openMediaPicker() {
-             this.mediaTab = 'library';
-             this.selectedMedia = this.mediaLibrary.find(m => m.path === this.seo.og_image) || this.mediaLibrary[0] || null;
-             this.uploadedFile = null;
-             this.uploadedPreviewUrl = null;
-             this.mediaPickerOpen = true;
-         },
-         
-         selectMedia(media) {
-             this.selectedMedia = media;
-         },
-         
-         confirmMediaSelection() {
-             if (this.mediaTab === 'library' && this.selectedMedia) {
-                 this.seo.og_image = this.selectedMedia.path;
-                 this.mediaPickerOpen = false;
-                 this.showToast('OG Image dipilih dari Media Library!');
-             } else if (this.mediaTab === 'upload' && this.uploadedPreviewUrl) {
-                 this.seo.og_image = this.uploadedPreviewUrl;
-                 this.mediaPickerOpen = false;
-                 this.showToast('OG Image hasil upload berhasil digunakan!');
-             }
-         },
-         
-         handleFileUpload(e) {
-             const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
-             if (!file) return;
-             if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
-                 alert('Format file tidak didukung. Gunakan JPG, PNG, atau WebP.');
-                 return;
-             }
-             this.uploadedFile = {
-                 name: file.name,
-                 size: (file.size / 1024).toFixed(0) + ' KB',
-                 type: file.type,
-             };
-             this.uploadedPreviewUrl = URL.createObjectURL(file);
-         },
-         
-         saveSeo() {
-             this.showToast('Mode demo: Pengaturan SEO siap diterapkan (In-Memory).');
-         },
-         
-         getImageUrl(path) {
-             if (!path) return '/images/hero-1.jpg';
-             if (path.startsWith('blob:') || path.startsWith('http')) return path;
-             return path.startsWith('/') ? path : '/' + path;
-         }
-     }">
+     x-data="adminSeoManager(window.initialSeoPayload)">
     
     <!-- 1. Header Card -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs">
@@ -98,9 +256,14 @@
             <!-- Save Action Button -->
             <div class="flex items-center gap-3 shrink-0">
                 <button @click="saveSeo()" 
+                        :disabled="isSaving"
                         type="button"
-                        class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs sm:text-sm text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
-                    <span>Simpan Pengaturan SEO</span>
+                        class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                    <svg x-show="isSaving" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    <span x-text="isSaving ? 'Menyimpan...' : 'Simpan Pengaturan SEO'"></span>
                 </button>
             </div>
         </div>
@@ -244,13 +407,13 @@
 
         </div>
 
-        <!-- Right: REAL LIVE PREVIEWS (5 cols on lg) -->
+        <!-- Right: PREVIEWS (5 cols on lg) -->
         <div class="lg:col-span-5 space-y-6 sticky top-4">
             
             <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 shadow-2xs space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
                     <h3 class="text-xs font-extrabold text-brand-dark uppercase tracking-wider">
-                        Real Live Preview
+                        Preview
                     </h3>
                     <div class="flex items-center bg-gray-100 p-0.5 rounded text-[11px]">
                         <button @click="previewTab = 'google'" 
@@ -353,20 +516,57 @@
                 </div>
 
                 <!-- Tab 1: Library -->
-                <div x-show="mediaTab === 'library'" class="space-y-4">
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-72 overflow-y-auto p-1">
-                        <template x-for="media in mediaLibrary" :key="media.id">
+                <div x-show="mediaTab === 'library'" class="space-y-3">
+                    <!-- Search Bar -->
+                    <div class="flex items-center gap-3">
+                        <div class="relative flex-1">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 text-xs">
+                                🔍
+                            </span>
+                            <input type="text" 
+                                   x-model="mediaSearchQuery" 
+                                   placeholder="Cari gambar berdasarkan nama file..." 
+                                   class="w-full pl-8 pr-8 py-2 text-xs rounded-modern border border-gray-200 bg-gray-50 focus:bg-white focus:border-brand-primary focus:outline-none transition-all">
+                            <button x-show="mediaSearchQuery" 
+                                    @click="mediaSearchQuery = ''" 
+                                    type="button" 
+                                    class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 text-xs cursor-pointer">
+                                ✕
+                            </button>
+                        </div>
+                        <span class="text-[11px] text-gray-500 font-medium whitespace-nowrap">
+                            <span x-text="filteredMediaLibrary.length"></span> dari <span x-text="mediaLibrary.length"></span> gambar
+                        </span>
+                    </div>
+
+                    <!-- Media Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-72 overflow-y-auto p-1 overscroll-contain no-scrollbar">
+                        <template x-for="media in filteredMediaLibrary" :key="media.id">
                             <div @click="selectMedia(media)"
                                  class="group relative aspect-[1.91/1] rounded-modern overflow-hidden border-2 transition-all cursor-pointer bg-brand-dark"
                                  :class="selectedMedia?.id === media.id ? 'border-brand-primary ring-2 ring-emerald-400' : 'border-gray-200 hover:border-gray-400'">
                                 <img :src="getImageUrl(media.path)" :alt="media.title" class="w-full h-full object-cover">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-between">
-                                    <div class="self-end" x-show="selectedMedia?.id === media.id">
-                                        <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
-                                            <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                        </span>
+                                    <div class="flex items-center justify-between w-full">
+                                        <div>
+                                            <template x-if="media.is_deletable">
+                                                <button @click.stop="deleteMedia(media)" 
+                                                        type="button" 
+                                                        title="Hapus media dari server" 
+                                                        class="p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center">
+                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </template>
+                                        </div>
+                                        <div x-show="selectedMedia?.id === media.id">
+                                            <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                                                <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </span>
+                                        </div>
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-white truncate" x-text="media.filename"></p>
@@ -375,6 +575,11 @@
                                 </div>
                             </div>
                         </template>
+                    </div>
+
+                    <!-- Empty Search State -->
+                    <div x-show="filteredMediaLibrary.length === 0" class="p-8 text-center bg-gray-50 rounded-modern border border-dashed border-gray-200 text-xs text-gray-400">
+                        Tidak ada gambar yang cocok dengan kata kunci "<span class="font-bold text-gray-600" x-text="mediaSearchQuery"></span>".
                     </div>
 
                     <div class="p-3 bg-gray-50 rounded-modern border border-gray-200 flex items-center justify-between text-xs">

@@ -1,13 +1,17 @@
 import Alpine from 'alpinejs';
+import Chart from 'chart.js/auto';
 import './knowledge-parser.js';
 
 import { createKnowledgeManager } from './knowledge-admin.js';
+import { createFooterManager } from './footer-admin.js';
 
 window.Alpine = Alpine;
+window.Chart = Chart;
 
 // Store global UI states if needed
 document.addEventListener('alpine:init', () => {
     Alpine.data('knowledgeManager', createKnowledgeManager);
+    Alpine.data('footerManager', createFooterManager);
 
     Alpine.data('heroSlider', () => ({
         currentSlide: 0,

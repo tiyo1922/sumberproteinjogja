@@ -14,21 +14,28 @@ Route::get('/kontak', [LandingController::class, 'index'])->name('contact');
 
 // SEO Technical Foundation - Robots.txt & Sitemap.xml
 Route::get('/robots.txt', function () {
-    $canonicalUrl = rtrim(config('seo.canonical_url', 'https://sumberproteinjogja.com'), '/');
+    $seoSettings = \App\Models\SiteSetting::get('seo', config('seo', []));
+    $canonicalUrl = !empty($seoSettings['canonical_url'])
+        ? rtrim($seoSettings['canonical_url'], '/')
+        : rtrim(config('seo.canonical_url', 'https://sumberproteinjogja.com'), '/');
     $sitemapUrl = $canonicalUrl . '/sitemap.xml';
 
     $content = "User-agent: *\n"
         . "Allow: /\n"
-        . "Disallow: /admin\n\n"
+        . "Disallow: /admin\n"
+        . "Disallow: /login\n\n"
         . "Sitemap: " . $sitemapUrl . "\n";
 
     return response($content, 200, [
-        'Content-Type' => 'text/plain',
+        'Content-Type' => 'text/plain; charset=UTF-8',
     ]);
 })->name('robots');
 
 Route::get('/sitemap.xml', function () {
-    $baseUrl = rtrim(config('seo.canonical_url', 'https://sumberproteinjogja.com'), '/');
+    $seoSettings = \App\Models\SiteSetting::get('seo', config('seo', []));
+    $baseUrl = !empty($seoSettings['canonical_url'])
+        ? rtrim($seoSettings['canonical_url'], '/')
+        : rtrim(config('seo.canonical_url', 'https://sumberproteinjogja.com'), '/');
 
     $routes = [
         '/',
@@ -60,11 +67,21 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.authenticate');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
+// Password Reset Routes (Guest only)
+Route::middleware('guest')->group(function () {
+    Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
+    Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail'])->name('password.email');
+    Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+});
+
 // Admin Panel CMS Routes
 Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
     Route::get('/hero', [AdminController::class, 'hero'])->name('hero');
     Route::post('/hero', [AdminController::class, 'heroUpdate'])->name('hero.update');
+    Route::post('/hero/partner-upload', [AdminController::class, 'partnerMediaUpload'])->name('hero.partner.upload');
+    Route::delete('/hero/partner-media', [AdminController::class, 'partnerMediaDelete'])->name('hero.partner.delete');
 
     // Category CRUD
     Route::get('/kategori', [AdminController::class, 'kategori'])->name('kategori');
@@ -73,6 +90,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::delete('/kategori/{id}', [AdminController::class, 'categoryDestroy'])->name('kategori.destroy');
     Route::patch('/kategori/{id}/toggle', [AdminController::class, 'categoryToggle'])->name('kategori.toggle');
     Route::post('/kategori/reorder', [AdminController::class, 'categoryReorder'])->name('kategori.reorder');
+    Route::post('/kategori/section-settings', [AdminController::class, 'categorySectionUpdate'])->name('kategori.section.update');
 
     // Product CRUD
     Route::get('/produk', [AdminController::class, 'produk'])->name('produk');
@@ -81,6 +99,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::delete('/produk/{id}', [AdminController::class, 'productDestroy'])->name('produk.destroy');
     Route::patch('/produk/{id}/toggle', [AdminController::class, 'productToggle'])->name('produk.toggle');
     Route::post('/produk/reorder', [AdminController::class, 'productReorder'])->name('produk.reorder');
+    Route::post('/produk/section-settings', [AdminController::class, 'productSectionUpdate'])->name('produk.section.update');
 
     // Flash Sale Management
     Route::post('/flash-sale/toggle', [AdminController::class, 'flashSaleToggle'])->name('flash_sale.toggle');
@@ -98,9 +117,11 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/reviews/reorder', [AdminController::class, 'reviewReorder'])->name('reviews.reorder');
     Route::post('/reviews/mode', [AdminController::class, 'reviewMode'])->name('reviews.mode');
     Route::post('/reviews/google-config', [AdminController::class, 'reviewGoogleConfig'])->name('reviews.google_config');
+    Route::post('/reviews/sync-google', [AdminController::class, 'reviewSyncGoogle'])->name('reviews.sync_google');
 
     // Knowledge & Edukasi CMS
     Route::get('/knowledge', [AdminController::class, 'knowledge'])->name('knowledge');
+    Route::post('/knowledge/section-settings', [AdminController::class, 'knowledgeSectionUpdate'])->name('knowledge.section.update');
     Route::post('/knowledge-categories', [AdminController::class, 'knowledgeCategoryStore'])->name('knowledge_categories.store');
     Route::put('/knowledge-categories/{id}', [AdminController::class, 'knowledgeCategoryUpdate'])->name('knowledge_categories.update');
     Route::delete('/knowledge-categories/{id}', [AdminController::class, 'knowledgeCategoryDestroy'])->name('knowledge_categories.destroy');
@@ -114,8 +135,17 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/knowledge-articles/reorder', [AdminController::class, 'knowledgeArticleReorder'])->name('knowledge_articles.reorder');
 
     Route::get('/keunggulan', [AdminController::class, 'keunggulan'])->name('keunggulan');
+    Route::post('/keunggulan', [AdminController::class, 'keunggulanUpdate'])->name('keunggulan.update');
     Route::get('/footer', [AdminController::class, 'footer'])->name('footer');
     Route::post('/footer', [AdminController::class, 'footerUpdate'])->name('footer.update');
     Route::get('/seo', [AdminController::class, 'seo'])->name('seo');
+    Route::post('/seo', [AdminController::class, 'seoUpdate'])->name('seo.update');
     Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+    Route::post('/settings', [AdminController::class, 'settingsUpdate'])->name('settings.update');
+    Route::post('/profile/avatar', [AdminController::class, 'avatarUpdate'])->name('profile.avatar.update');
+    Route::post('/profile/name', [AdminController::class, 'nameUpdate'])->name('profile.name.update');
+    Route::post('/profile/email', [AdminController::class, 'emailUpdate'])->name('profile.email.update');
+    Route::post('/profile/password', [AdminController::class, 'passwordUpdate'])->name('profile.password.update');
+    Route::post('/media/upload', [AdminController::class, 'mediaUpload'])->name('media.upload');
+    Route::post('/media/delete', [AdminController::class, 'mediaDestroy'])->name('media.delete');
 });
