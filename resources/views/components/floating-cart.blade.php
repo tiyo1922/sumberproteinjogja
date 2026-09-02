@@ -118,6 +118,9 @@
 
                 const phone = "{{ $cleanOrderWa }}";
                 const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
+                if (typeof window.trackTrafficEvent === 'function') {
+                    window.trackTrafficEvent('pesan_order_wa');
+                }
                 window.open(url, '_blank');
             }
         });

@@ -150,5 +150,58 @@
     <!-- Floating Cart & Confirmation Modal -->
     @include('components.floating-cart')
 
+    <!-- Real Traffic Analytics: Non-blocking WhatsApp Event Tracker -->
+    <script>
+        (function() {
+            function sendTrafficEvent(eventType) {
+                if (!eventType) return;
+                try {
+                    const payload = new FormData();
+                    payload.append('event_type', eventType);
+                    payload.append('page_path', window.location.pathname || '/');
+
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.has('utm_source')) payload.append('utm_source', params.get('utm_source'));
+                    if (params.has('utm_medium')) payload.append('utm_medium', params.get('utm_medium'));
+                    if (params.has('utm_campaign')) payload.append('utm_campaign', params.get('utm_campaign'));
+                    if (params.has('fbclid')) payload.append('fbclid', params.get('fbclid'));
+                    if (params.has('gclid')) payload.append('gclid', params.get('gclid'));
+
+                    if (navigator.sendBeacon) {
+                        navigator.sendBeacon('/api/track-event', payload);
+                    } else {
+                        fetch('/api/track-event', {
+                            method: 'POST',
+                            body: payload,
+                            keepalive: true,
+                            credentials: 'same-origin'
+                        }).catch(function() {});
+                    }
+                } catch (e) {}
+            }
+
+            window.trackTrafficEvent = sendTrafficEvent;
+
+            document.addEventListener('click', function(e) {
+                try {
+                    const target = e.target.closest('[data-traffic-event], a[href*="wa.me"], a[href*="whatsapp.com"]');
+                    if (!target) return;
+
+                    let eventType = target.getAttribute('data-traffic-event');
+                    if (!eventType) {
+                        const href = target.getAttribute('href') || '';
+                        if (href.includes('wa.me') || href.includes('whatsapp.com')) {
+                            eventType = 'chat_admin';
+                        }
+                    }
+
+                    if (eventType === 'chat_admin' || eventType === 'pesan_order_wa') {
+                        sendTrafficEvent(eventType);
+                    }
+                } catch (err) {}
+            }, { capture: true, passive: true });
+        })();
+    </script>
+
 </body>
 </html>

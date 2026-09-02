@@ -11,12 +11,11 @@ class AnalyticsService
 
     public function __construct(?AnalyticsRepositoryInterface $repository = null)
     {
-        $this->repository = $repository ?? new MockAnalyticsRepository();
+        $this->repository = $repository ?? (app()->bound(AnalyticsRepositoryInterface::class) ? app(AnalyticsRepositoryInterface::class) : new MockAnalyticsRepository());
     }
 
     /**
      * Get complete dashboard payload ready for Blade rendering and Alpine.js reactive state.
-     * Hardcoded test mode: pure dummy data in memory, zero database queries.
      *
      * @return array
      */
@@ -25,7 +24,7 @@ class AnalyticsService
         $initialPeriod = 'bulanan';
         $initialSource = 'all';
         $initialGranularity = 'harian';
-        $initialParams = ['year' => 2026, 'month' => 8, 'week_offset' => 0];
+        $initialParams = ['year' => (int)date('Y'), 'month' => (int)date('n'), 'week_offset' => 0];
 
         $initialTrend = $this->repository->getTrendData($initialPeriod, $initialParams, $initialSource, $initialGranularity);
         $masterData = $this->repository->getAllDashboardData();

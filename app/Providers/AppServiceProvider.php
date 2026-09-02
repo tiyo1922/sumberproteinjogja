@@ -29,7 +29,7 @@ class AppServiceProvider extends ServiceProvider
         KnowledgeRepositoryInterface::class => EloquentKnowledgeRepository::class,
         ReviewRepositoryInterface::class => EloquentReviewRepository::class,
         SiteSettingRepositoryInterface::class => EloquentSiteSettingRepository::class,
-        AnalyticsRepositoryInterface::class => MockAnalyticsRepository::class,
+        AnalyticsRepositoryInterface::class => \App\Repositories\EloquentAnalyticsRepository::class,
     ];
 
     /**

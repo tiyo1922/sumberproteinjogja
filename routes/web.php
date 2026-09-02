@@ -6,11 +6,16 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 
 // Customer Landing Page Routes
-Route::get('/', [LandingController::class, 'index'])->name('home');
-Route::get('/produk', [LandingController::class, 'index'])->name('products');
-Route::get('/knowledge', [LandingController::class, 'index'])->name('knowledge');
-Route::get('/tentang-kami', [LandingController::class, 'index'])->name('about');
-Route::get('/kontak', [LandingController::class, 'index'])->name('contact');
+Route::middleware([\App\Http\Middleware\TrackVisitorTraffic::class])->group(function () {
+    Route::get('/', [LandingController::class, 'index'])->name('home');
+    Route::get('/produk', [LandingController::class, 'index'])->name('products');
+    Route::get('/knowledge', [LandingController::class, 'index'])->name('knowledge');
+    Route::get('/tentang-kami', [LandingController::class, 'index'])->name('about');
+    Route::get('/kontak', [LandingController::class, 'index'])->name('contact');
+});
+
+// Public Traffic Event Tracking (WhatsApp CTA & Conversion Actions)
+Route::post('/api/track-event', [\App\Http\Controllers\TrafficEventController::class, 'track'])->name('api.traffic.event');
 
 // SEO Technical Foundation - Robots.txt & Sitemap.xml
 Route::get('/robots.txt', function () {
