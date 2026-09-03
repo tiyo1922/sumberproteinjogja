@@ -3,7 +3,7 @@
     $featuredProduct = $flashSaleProducts->first();
     $supportingProducts = $flashSaleProducts->slice(1);
 @endphp
-<section id="flash-sale" 
+<section id="flash-sale"
          x-data="{
              targetTime: new Date('{{ $flashSaleSetting['end_at'] }}').getTime(),
              hours: '00',
@@ -34,17 +34,17 @@
          }"
          x-show="!expired"
          class="py-8 sm:py-10 lg:py-12 bg-gradient-to-b from-orange-50/40 via-amber-50/15 to-white relative overflow-hidden">
-    
+
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        
+
         <!-- PROMOTIONAL CONTENT HOOK COMPOSITION -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 xl:gap-16 items-center">
-            
+
             <!-- ========================================================= -->
             <!-- 1. LEFT / PROMO STORY & COUNTDOWN URGENCY                 -->
             <!-- ========================================================= -->
             <div class="lg:col-span-5 space-y-6 sm:space-y-7">
-                
+
                 <!-- Promo Badge -->
                 <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-600 text-white text-xs font-black uppercase tracking-wider shadow-sm">
                     <span class="animate-pulse text-sm">⚡</span>
@@ -79,17 +79,17 @@
                             <div class="w-14 sm:w-16 h-13 sm:h-15 bg-[#064e3b] text-white font-mono font-black text-2xl sm:text-3xl rounded-xl flex items-center justify-center shadow-xs" x-text="hours">00</div>
                             <span class="text-[10px] font-bold text-gray-500 mt-1 uppercase tracking-wider">Jam</span>
                         </div>
-                        
+
                         <span class="font-black text-2xl sm:text-3xl text-orange-500 -mt-4">:</span>
-                        
+
                         <!-- Menit -->
                         <div class="flex flex-col items-center">
                             <div class="w-14 sm:w-16 h-13 sm:h-15 bg-[#064e3b] text-white font-mono font-black text-2xl sm:text-3xl rounded-xl flex items-center justify-center shadow-xs" x-text="minutes">00</div>
                             <span class="text-[10px] font-bold text-gray-500 mt-1 uppercase tracking-wider">Menit</span>
                         </div>
-                        
+
                         <span class="font-black text-2xl sm:text-3xl text-orange-500 -mt-4">:</span>
-                        
+
                         <!-- Detik -->
                         <div class="flex flex-col items-center">
                             <div class="w-14 sm:w-16 h-13 sm:h-15 bg-[#064e3b] text-white font-mono font-black text-2xl sm:text-3xl rounded-xl flex items-center justify-center shadow-xs" x-text="seconds">00</div>
@@ -116,11 +116,11 @@
             <!-- 2. RIGHT / GRAND HERO PRODUCT & SUPPORTING OFFERS         -->
             <!-- ========================================================= -->
             <div class="lg:col-span-7 space-y-6">
-                
+
                 <!-- FEATURED GRAND HERO PRODUCT CARD -->
                 @if($featuredProduct)
                 <div class="bg-white rounded-3xl p-5 sm:p-7 shadow-xl border border-gray-100/90 relative overflow-hidden group hover:shadow-2xl transition-all duration-300">
-                    
+
                     <!-- Top Section: Large Appetizing Product Image with Floating Discount Badge -->
                     <div class="relative w-full aspect-[4/3] sm:aspect-[16/10] rounded-2xl overflow-hidden bg-gray-50 mb-5">
                         <!-- Floating Discount Badge Top Left -->
@@ -143,11 +143,11 @@
                             </span>
                         </div>
 
-                        <img src="{{ asset($featuredProduct->image ?? 'images/prod-beef-slice.jpg') }}" 
-                             alt="{{ $featuredProduct->name }} - Flash Sale Sumber Protein Jogja" 
-                             width="600" 
-                             height="400" 
-                             loading="lazy" 
+                        <img src="{{ asset($featuredProduct->image ?? 'storage/media/prod_beef_slice_1786890263309.jpg') }}"
+                             alt="{{ $featuredProduct->name }} - Flash Sale Sumber Protein Jogja"
+                             width="600"
+                             height="400"
+                             loading="lazy"
                              class="w-full h-full object-cover object-center group-hover:scale-104 transition-transform duration-500 ease-out">
                     </div>
 
@@ -189,7 +189,7 @@
                             <!-- Primary CTA Button -->
                             @if($featuredProduct->stock_status !== 'OUT_OF_STOCK')
                             <button @click="$store.cart.addItem('{{ $featuredProduct->id }}', '{{ addslashes($featuredProduct->name) }} (Flash Sale)', {{ $featuredProduct->flash_sale_effective_price }})"
-                                    type="button" 
+                                    type="button"
                                     class="sm:w-auto px-7 py-3.5 rounded-xl font-black text-sm text-white bg-brand-primary hover:bg-brand-primary-dark active:scale-98 transition-all cursor-pointer shadow-md hover:shadow-lg flex items-center justify-center gap-2">
                                 <svg class="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="9" cy="21" r="1"></circle>
@@ -199,8 +199,8 @@
                                 <span>Beli Sekarang</span>
                             </button>
                             @else
-                            <button disabled 
-                                    type="button" 
+                            <button disabled
+                                    type="button"
                                     class="sm:w-auto px-7 py-3.5 rounded-xl font-bold text-sm text-gray-400 bg-gray-100 cursor-not-allowed text-center">
                                 Stok Promo Habis
                             </button>
@@ -226,14 +226,14 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         @foreach($supportingProducts as $supProd)
                         <div class="bg-white/90 hover:bg-white rounded-2xl p-3 border border-gray-200/80 shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-3 group">
-                            
+
                             <div class="flex items-center gap-3 min-w-0">
                                 <!-- Mini Thumbnail with Badge -->
                                 <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-gray-50 shrink-0 relative border border-gray-100">
-                                    <img src="{{ asset($supProd->image ?? 'images/prod-beef-slice.jpg') }}" 
-                                         alt="{{ $supProd->name }}" 
+                                    <img src="{{ asset($supProd->image ?? 'storage/media/prod_beef_slice_1786890263309.jpg') }}"
+                                         alt="{{ $supProd->name }}"
                                          class="w-full h-full object-cover group-hover:scale-106 transition-transform duration-300">
-                                    
+
                                     <!-- Mini Discount Pill -->
                                     <div class="absolute bottom-0 left-0 right-0 bg-red-600 text-white text-[8px] font-black text-center py-0.5 leading-none">
                                         @if($supProd->flash_sale_discount_type === 'percentage')
@@ -263,7 +263,7 @@
                             <!-- Mini Add to Cart Button -->
                             @if($supProd->stock_status !== 'OUT_OF_STOCK')
                             <button @click="$store.cart.addItem('{{ $supProd->id }}', '{{ addslashes($supProd->name) }} (Flash Sale)', {{ $supProd->flash_sale_effective_price }})"
-                                    type="button" 
+                                    type="button"
                                     aria-label="Beli {{ $supProd->name }}"
                                     title="Tambah ke Keranjang"
                                     class="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-brand-primary hover:bg-brand-primary-dark active:scale-90 transition-all shadow-2xs shrink-0 cursor-pointer">

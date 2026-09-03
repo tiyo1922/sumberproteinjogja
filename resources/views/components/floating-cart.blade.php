@@ -46,7 +46,7 @@
                         price: price
                     });
                 }
-                
+
                 // Visual feedback trigger
                 this.lastAddedId = String(id);
                 setTimeout(() => {
@@ -137,22 +137,24 @@
      x-transition:leave="transition ease-in duration-200 transform"
      x-transition:leave-start="opacity-100 translate-y-0 scale-100"
      x-transition:leave-end="opacity-0 translate-y-6 scale-90"
-     class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
-    
+     class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40">
+
     <button @click="$store.cart.modalOpen = true"
             type="button"
             aria-label="Lihat pesanan"
-            class="group relative inline-flex items-center gap-2.5 bg-brand-primary hover:bg-brand-primary-dark text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-full shadow-lg shadow-brand-primary/30 hover:shadow-xl hover:shadow-brand-primary/40 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-brand-primary/30 cursor-pointer">
-        
+            class="group relative inline-flex items-center justify-center bg-brand-primary hover:bg-brand-primary-dark text-white p-3 rounded-full shadow-floating hover:shadow-2xl active:scale-95 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-brand-primary/40 cursor-pointer">
+
         <!-- Cart Icon -->
-        <svg class="w-5 h-5 fill-none stroke-current stroke-2 shrink-0 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="w-6 h-6 fill-none stroke-current stroke-2 shrink-0 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="9" cy="21" r="1"></circle>
             <circle cx="20" cy="21" r="1"></circle>
             <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
         </svg>
 
-        <!-- Count Text -->
-        <span class="font-bold text-xs sm:text-sm tracking-wide" x-text="`${$store.cart.totalCount} item`"></span>
+        <!-- Item Count Badge -->
+        <span class="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white shadow-xs z-10"
+              x-text="$store.cart.totalCount > 99 ? '99+' : $store.cart.totalCount">
+        </span>
     </button>
 </div>
 
@@ -165,7 +167,7 @@
      aria-labelledby="modal-cart-title"
      @keydown.escape.window="$store.cart.modalOpen = false"
      class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-    
+
     <!-- Backdrop Overlay -->
     <div x-show="$store.cart.modalOpen"
          x-transition:enter="transition ease-out duration-250"
@@ -187,7 +189,7 @@
          x-transition:leave-end="opacity-0 scale-95 translate-y-3"
          @click.away="$store.cart.modalOpen = false"
          class="relative bg-white w-full max-w-md rounded-modern-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] z-10 border border-gray-100">
-        
+
         <!-- Modal Header -->
         <div class="px-5 py-4 sm:px-6 sm:py-5 border-b border-gray-100 flex items-center justify-between bg-brand-cream/40">
             <div>
@@ -196,8 +198,8 @@
                 </h3>
                 <p class="text-xs text-gray-500 font-medium mt-0.5" x-text="`${$store.cart.totalCount} item dipilih`"></p>
             </div>
-            
-            <button @click="$store.cart.modalOpen = false" 
+
+            <button @click="$store.cart.modalOpen = false"
                     type="button"
                     aria-label="Tutup"
                     class="p-2 rounded-full text-gray-400 hover:text-brand-dark hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary/30 cursor-pointer">
@@ -217,16 +219,16 @@
 
                     <!-- Quantity Adjusters -->
                     <div class="flex items-center gap-1.5 shrink-0 bg-gray-50 p-1 rounded-modern border border-gray-200/60">
-                        <button @click="$store.cart.decrement(item.id)" 
+                        <button @click="$store.cart.decrement(item.id)"
                                 type="button"
                                 aria-label="Kurangi jumlah"
                                 class="w-6 h-6 rounded bg-white hover:bg-gray-200 text-brand-dark flex items-center justify-center font-bold text-xs shadow-2xs transition-colors cursor-pointer">
                             −
                         </button>
-                        
+
                         <span class="font-extrabold text-xs sm:text-sm text-brand-dark min-w-[24px] text-center px-1" x-text="`x${item.quantity}`"></span>
-                        
-                        <button @click="$store.cart.increment(item.id)" 
+
+                        <button @click="$store.cart.increment(item.id)"
                                 type="button"
                                 aria-label="Tambah jumlah"
                                 class="w-6 h-6 rounded bg-brand-soft-green hover:bg-brand-primary hover:text-white text-brand-primary flex items-center justify-center font-bold text-xs shadow-2xs transition-colors cursor-pointer">

@@ -35,6 +35,8 @@ window.adminProductManager = function(initialPayload) {
         charDeleteModalOpen: false,
         isEditing: false,
         isEditingChar: false,
+        isSaving: false,
+        isDeleting: false,
 
         // Filters & Search State
         searchQuery: '',
@@ -56,17 +58,24 @@ window.adminProductManager = function(initialPayload) {
                 return this.mediaLibrary;
             }
             const q = this.mediaSearchQuery.toLowerCase().trim();
-            return this.mediaLibrary.filter(m => 
-                (m.filename && m.filename.toLowerCase().includes(q)) || 
-                (m.title && m.title.toLowerCase().includes(q)) || 
+            return this.mediaLibrary.filter(m =>
+                (m.filename && m.filename.toLowerCase().includes(q)) ||
+                (m.title && m.title.toLowerCase().includes(q)) ||
                 (m.path && m.path.toLowerCase().includes(q))
             );
         },
 
-        async deleteMedia(media) {
-            if (!confirm('Apakah Anda yakin ingin menghapus file "' + media.filename + '" secara permanen dari server?')) {
-                return;
-            }
+        mediaDeleteConfirmModalOpen: false,
+        mediaToDelete: null,
+        isDeletingMedia: false,
+
+        openDeleteMediaModal(media) {
+            this.mediaToDelete = media;
+            this.mediaDeleteConfirmModalOpen = true;
+        },
+
+        async executeDeleteMedia() {
+            if (!this.mediaToDelete) return;
             this.isDeletingMedia = true;
             try {
                 const response = await fetch(this.mediaDeleteRoute || '{{ route('admin.media.delete') }}', {
@@ -76,14 +85,18 @@ window.adminProductManager = function(initialPayload) {
                         'X-CSRF-TOKEN': this.csrfToken,
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ path: media.path })
+                    body: JSON.stringify({ path: this.mediaToDelete.path })
                 });
                 const result = await response.json();
                 if (response.ok && result.success) {
-                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== media.id && m.path !== media.path);
-                    if (this.selectedMedia && this.selectedMedia.path === media.path) {
+                    const deletedPath = this.mediaToDelete.path;
+                    const deletedId = this.mediaToDelete.id;
+                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== deletedId && m.path !== deletedPath);
+                    if (this.selectedMedia && (this.selectedMedia.path === deletedPath || this.selectedMedia.id === deletedId)) {
                         this.selectedMedia = null;
                     }
+                    this.mediaDeleteConfirmModalOpen = false;
+                    this.mediaToDelete = null;
                     this.showToast(result.message || 'File media berhasil dihapus!');
                 } else {
                     alert(result.message || 'Gagal menghapus file media.');
@@ -107,12 +120,16 @@ window.adminProductManager = function(initialPayload) {
         catalogOrderSnapshot: null,
         draggedProductId: null,
         dragOverProductId: null,
+        autoScrollRaf: null,
+        autoScrollSpeed: 0,
+        _boundWindowDragOver: null,
 
         // Flash Sale State & Persistence Flags
         isSavingFlashSaleSettings: false,
         isTogglingFlashSale: false,
         isAssigningFlashSale: false,
         isRemovingFlashSaleId: null,
+        togglingProductId: null,
         flashSaleForm: {
             product_id: '',
             discount_type: 'percentage',
@@ -156,7 +173,7 @@ window.adminProductManager = function(initialPayload) {
             unit: 'gram',
             price: 50000,
             status: 'Aktif',
-            image: 'images/prod-beef-slice.jpg',
+            image: 'storage/media/prod_beef_slice_1786890263309.jpg',
             description: '',
         },
 
@@ -172,13 +189,13 @@ window.adminProductManager = function(initialPayload) {
                 return this.products;
             }
             return this.products.filter(p => {
-                const matchCat = this.selectedCategoryFilter === 'all' || 
+                const matchCat = this.selectedCategoryFilter === 'all' ||
                     (p.category_ids && p.category_ids.map(Number).includes(Number(this.selectedCategoryFilter))) ||
-                    p.category_id == this.selectedCategoryFilter || 
+                    p.category_id == this.selectedCategoryFilter ||
                     p.category === this.selectedCategoryFilter;
                 const matchType = this.selectedTypeFilter === 'all' || (p.types && p.types.includes(this.selectedTypeFilter));
-                const matchSearch = !this.searchQuery.trim() || 
-                    p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
+                const matchSearch = !this.searchQuery.trim() ||
+                    p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
                     (p.category && p.category.toLowerCase().includes(this.searchQuery.toLowerCase())) ||
                     (p.category_names && p.category_names.some(cn => cn.toLowerCase().includes(this.searchQuery.toLowerCase())));
                 return matchCat && matchType && matchSearch;
@@ -252,7 +269,7 @@ window.adminProductManager = function(initialPayload) {
         },
 
         getImageUrl(path) {
-            if (!path) return '/images/prod-beef-slice.jpg';
+            if (!path) return '/storage/media/prod_beef_slice_1786890263309.jpg';
             if (path.startsWith('blob:') || path.startsWith('http')) return path;
             return path.startsWith('/') ? path : '/' + path;
         },
@@ -401,10 +418,10 @@ window.adminProductManager = function(initialPayload) {
             if (!this.form.category_ids || !Array.isArray(this.form.category_ids)) {
                 this.form.category_ids = [];
             }
-            
+
             // Normalize to unique integer array
             this.form.category_ids = Array.from(new Set(this.form.category_ids.map(Number)));
-            
+
             const idx = this.form.category_ids.indexOf(catId);
             if (idx > -1) {
                 if (this.form.category_ids.length > 1) {
@@ -416,7 +433,7 @@ window.adminProductManager = function(initialPayload) {
             } else {
                 this.form.category_ids.push(catId);
             }
-            
+
             this.form.category_ids.sort((a, b) => a - b);
             this.updateCategoryNames();
         },
@@ -467,7 +484,7 @@ window.adminProductManager = function(initialPayload) {
                 unit: 'gram',
                 price: 45000,
                 status: 'Aktif',
-                image: 'images/prod-beef-slice.jpg',
+                image: 'storage/media/prod_beef_slice_1786890263309.jpg',
                 description: '',
             };
             this.editorModalOpen = true;
@@ -478,7 +495,7 @@ window.adminProductManager = function(initialPayload) {
             this.deletingProduct = null;
             this.isEditing = true;
             this.form = JSON.parse(JSON.stringify(p));
-            
+
             // Strictly extract category_ids from pivot relation or product object
             if (p.category_ids && Array.isArray(p.category_ids) && p.category_ids.length > 0) {
                 this.form.category_ids = Array.from(new Set(p.category_ids.map(Number))).sort((a, b) => a - b);
@@ -496,7 +513,7 @@ window.adminProductManager = function(initialPayload) {
             this.form.price = Number(p.price || p.normal_price || 0);
             this.form.normal_price = Number(p.normal_price || p.price || 0);
             this.form.status = (p.status === 'Aktif' || p.is_active === true || p.is_active === 1) ? 'Aktif' : 'Nonaktif';
-            
+
             // Parse weight_value and unit cleanly
             if ((this.form.weight_value === undefined || this.form.weight_value === null) && this.form.weight) {
                 const match = String(this.form.weight).match(/^(\d+)\s*(g|gram|kg|pcs|pack)?/i);
@@ -548,7 +565,7 @@ window.adminProductManager = function(initialPayload) {
                 slug: this.form.slug || '',
                 category_ids: normalizedCatIds,
                 description: this.form.description || '',
-                image: this.form.image || 'images/prod-beef-slice.jpg',
+                image: this.form.image || 'storage/media/prod_beef_slice_1786890263309.jpg',
                 types: this.form.types || ['Fresh'],
                 weight_value: parseFloat(this.form.weight_value || 500),
                 unit: this.form.unit || 'gram',
@@ -636,6 +653,8 @@ window.adminProductManager = function(initialPayload) {
         },
 
         async toggleStatus(p) {
+            if (this.togglingProductId === p.id) return;
+            this.togglingProductId = p.id;
             try {
                 const response = await fetch(`/admin/produk/${p.id}/toggle`, {
                     method: 'PATCH',
@@ -659,6 +678,8 @@ window.adminProductManager = function(initialPayload) {
             } catch (err) {
                 console.error(err);
                 alert('Terjadi kesalahan saat mengubah status produk.');
+            } finally {
+                this.togglingProductId = null;
             }
         },
 
@@ -676,6 +697,7 @@ window.adminProductManager = function(initialPayload) {
         async confirmDelete() {
             if (!this.deletingProduct) return;
 
+            this.isDeleting = true;
             try {
                 const prodId = this.deletingProduct.id;
                 const prodName = this.deletingProduct.name;
@@ -701,7 +723,9 @@ window.adminProductManager = function(initialPayload) {
                 this.showToast(result.message || `Produk ${prodName} berhasil dihapus.`);
             } catch (err) {
                 console.error(err);
-                alert('Terjadi kesalahan saat menghapus produk.');
+                alert('Terjadi kesalahan jaringan saat menghapus produk.');
+            } finally {
+                this.isDeleting = false;
             }
         },
 
@@ -798,9 +822,9 @@ window.adminProductManager = function(initialPayload) {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': this.csrfToken,
                     },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         enabled: enable,
-                        end_at: this.flashSale.end_at 
+                        end_at: this.flashSale.end_at
                     }),
                 });
 
@@ -1021,6 +1045,7 @@ window.adminProductManager = function(initialPayload) {
         },
 
         cancelCatalogReorder() {
+            this.stopDragAutoScroll();
             if (this.catalogOrderSnapshot) {
                 this.products = JSON.parse(JSON.stringify(this.catalogOrderSnapshot));
             }
@@ -1037,6 +1062,7 @@ window.adminProductManager = function(initialPayload) {
         },
 
         async saveCatalogReorder() {
+            this.stopDragAutoScroll();
             if (this.isSavingCatalogOrder) return;
             this.isSavingCatalogOrder = true;
 
@@ -1078,12 +1104,96 @@ window.adminProductManager = function(initialPayload) {
             }
         },
 
+        // Auto-Scroll during Drag & Drop Reordering
+        handleDragAutoScroll(clientY) {
+            if (!this.isReorderingCatalog || !this.draggedProductId) {
+                this.stopDragAutoScroll();
+                return;
+            }
+
+            const topThreshold = 120;
+            const bottomThreshold = 120;
+            const maxSpeed = 18;
+            const minSpeed = 4;
+            const windowHeight = window.innerHeight;
+
+            let calculatedSpeed = 0;
+
+            if (clientY < topThreshold) {
+                // Pointer is in the top edge zone -> Scroll UP (negative speed)
+                const ratio = Math.max(0, Math.min(1, (topThreshold - clientY) / topThreshold));
+                calculatedSpeed = -(minSpeed + (maxSpeed - minSpeed) * ratio);
+            } else if (clientY > windowHeight - bottomThreshold) {
+                // Pointer is in the bottom edge zone -> Scroll DOWN (positive speed)
+                const ratio = Math.max(0, Math.min(1, (clientY - (windowHeight - bottomThreshold)) / bottomThreshold));
+                calculatedSpeed = minSpeed + (maxSpeed - minSpeed) * ratio;
+            } else {
+                // Pointer is in the middle neutral zone
+                calculatedSpeed = 0;
+            }
+
+            this.autoScrollSpeed = calculatedSpeed;
+
+            if (this.autoScrollSpeed !== 0) {
+                if (!this.autoScrollRaf) {
+                    const scrollLoop = () => {
+                        if (!this.isReorderingCatalog || !this.draggedProductId || this.autoScrollSpeed === 0) {
+                            this.stopDragAutoScroll();
+                            return;
+                        }
+
+                        // Bounds check: don't scroll up if at top, don't scroll down if at bottom
+                        const currentScroll = window.scrollY || document.documentElement.scrollTop;
+                        const maxScroll = (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight;
+
+                        if (this.autoScrollSpeed < 0 && currentScroll <= 0) {
+                            this.autoScrollRaf = requestAnimationFrame(scrollLoop);
+                            return;
+                        }
+
+                        if (this.autoScrollSpeed > 0 && currentScroll >= maxScroll) {
+                            this.autoScrollRaf = requestAnimationFrame(scrollLoop);
+                            return;
+                        }
+
+                        window.scrollBy(0, this.autoScrollSpeed);
+                        this.autoScrollRaf = requestAnimationFrame(scrollLoop);
+                    };
+
+                    this.autoScrollRaf = requestAnimationFrame(scrollLoop);
+                }
+            } else {
+                this.stopDragAutoScroll();
+            }
+        },
+
+        stopDragAutoScroll() {
+            if (this._boundWindowDragOver) {
+                window.removeEventListener('dragover', this._boundWindowDragOver);
+                this._boundWindowDragOver = null;
+            }
+            if (this.autoScrollRaf) {
+                cancelAnimationFrame(this.autoScrollRaf);
+                this.autoScrollRaf = null;
+            }
+            this.autoScrollSpeed = 0;
+        },
+
         // Live Insertion Drag & Drop Handlers
         onDragStart(event, prod) {
             if (!this.isReorderingCatalog) return;
             this.draggedProductId = prod.id;
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData('text/plain', String(prod.id));
+
+            if (!this._boundWindowDragOver) {
+                this._boundWindowDragOver = (e) => {
+                    if (this.isReorderingCatalog && this.draggedProductId && e.clientY !== undefined) {
+                        this.handleDragAutoScroll(e.clientY);
+                    }
+                };
+                window.addEventListener('dragover', this._boundWindowDragOver);
+            }
         },
 
         onDragOver(event, targetProd) {
@@ -1091,6 +1201,10 @@ window.adminProductManager = function(initialPayload) {
             event.preventDefault();
             if (event.dataTransfer) {
                 event.dataTransfer.dropEffect = 'move';
+            }
+
+            if (event.clientY !== undefined) {
+                this.handleDragAutoScroll(event.clientY);
             }
 
             if (this.draggedProductId === targetProd.id) return;
@@ -1111,6 +1225,7 @@ window.adminProductManager = function(initialPayload) {
         },
 
         onDrop(event) {
+            this.stopDragAutoScroll();
             if (!this.isReorderingCatalog) return;
             event.preventDefault();
             this.draggedProductId = null;
@@ -1118,6 +1233,7 @@ window.adminProductManager = function(initialPayload) {
         },
 
         onDragEnd(event) {
+            this.stopDragAutoScroll();
             this.draggedProductId = null;
             this.dragOverProductId = null;
         }
@@ -1137,7 +1253,7 @@ window.initialProductPayload = {
 
 <div class="space-y-6"
      x-data="adminProductManager(window.initialProductPayload)">
-    
+
     <!-- ======================================================= -->
     <!-- 1. HEADER HERO CARD                                     -->
     <!-- ======================================================= -->
@@ -1148,13 +1264,6 @@ window.initialProductPayload = {
                     <h2 class="text-xl sm:text-2xl font-extrabold text-brand-dark tracking-tight">
                         Katalog Produk
                     </h2>
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
-                        <span class="w-2 h-2 rounded-full bg-blue-600"></span>
-                        <span>DYNAMIC CATALOG</span>
-                    </span>
-                    <span class="text-xs text-gray-500 font-medium">
-                        • Single Source of Truth Kategori &amp; Master Badges
-                    </span>
                 </div>
                 <p class="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-3xl">
                     Kelola seluruh produk segar dan frozen. Pilihan kategori terhubung langsung dengan <strong>Category Manager</strong>, WhatsApp Destination terpusat ke <strong>Contact Settings</strong>, dan multi-badge karakteristik terintegrasi.
@@ -1164,7 +1273,7 @@ window.initialProductPayload = {
             <!-- Create Action Button -->
             <div class="flex items-center gap-2.5 shrink-0">
                 <!-- Tambah Produk Button -->
-                <button @click="openCreateModal()" 
+                <button @click="openCreateModal()"
                         type="button"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1180,11 +1289,11 @@ window.initialProductPayload = {
     <!-- 2. TAB NAVIGATION (KATALOG PRODUK vs FLASH SALE)        -->
     <!-- ======================================================= -->
     <div class="flex items-center gap-2 border-b border-gray-200 pb-3">
-        <button type="button" 
+        <button type="button"
                 @click="activeTab = 'catalog'"
                 class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-modern font-extrabold text-xs transition-all cursor-pointer shadow-2xs"
-                :class="activeTab === 'catalog' 
-                    ? 'bg-brand-primary text-white shadow-sm ring-2 ring-brand-primary/30' 
+                :class="activeTab === 'catalog'
+                    ? 'bg-brand-primary text-white shadow-sm ring-2 ring-brand-primary/30'
                     : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'">
             <span class="text-base">📦</span>
             <span>Katalog Produk</span>
@@ -1193,11 +1302,11 @@ window.initialProductPayload = {
                   x-text="products.length + ' Produk'"></span>
         </button>
 
-        <button type="button" 
+        <button type="button"
                 @click="activeTab = 'flash_sale'"
                 class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-modern font-extrabold text-xs transition-all cursor-pointer shadow-2xs"
-                :class="activeTab === 'flash_sale' 
-                    ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-600/30' 
+                :class="activeTab === 'flash_sale'
+                    ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-600/30'
                     : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'">
             <span class="text-base">⚡</span>
             <span>Flash Sale &amp; Countdown</span>
@@ -1211,10 +1320,10 @@ window.initialProductPayload = {
     <!-- TAB 1: KATALOG PRODUK CONTENT                           -->
     <!-- ======================================================= -->
     <div x-show="activeTab === 'catalog'" class="space-y-6">
-        
+
         <!-- PENGATURAN SECTION KATALOG & MASTER BADGE -->
         <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-7 shadow-2xs space-y-6">
-            
+
             <!-- PENGATURAN SECTION KATALOG PRODUK -->
             <div class="space-y-4">
                 <div class="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
@@ -1230,8 +1339,8 @@ window.initialProductPayload = {
                         </div>
                     </div>
 
-                    <button @click="saveSectionSettings()" 
-                            type="button" 
+                    <button @click="saveSectionSettings()"
+                            type="button"
                             :disabled="isSavingHeader"
                             class="px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
                         <svg x-show="isSavingHeader" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
@@ -1248,8 +1357,8 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Label Badge Section
                         </label>
-                        <input type="text" 
-                               x-model="catalogSection.label" 
+                        <input type="text"
+                               x-model="catalogSection.label"
                                placeholder="Contoh: Katalog Lengkap"
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold text-brand-primary focus:ring-2 focus:ring-brand-primary/30">
                     </div>
@@ -1259,8 +1368,8 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Judul Utama / Heading
                         </label>
-                        <input type="text" 
-                               x-model="catalogSection.title" 
+                        <input type="text"
+                               x-model="catalogSection.title"
                                placeholder="Contoh: Produk Pilihan"
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-extrabold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
                     </div>
@@ -1270,8 +1379,8 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Deskripsi Pengantar
                         </label>
-                        <textarea x-model="catalogSection.subtitle" 
-                                  rows="2" 
+                        <textarea x-model="catalogSection.subtitle"
+                                  rows="2"
                                   placeholder="Pilih bahan masak sesuai kebutuhanmu. Tersedia skala retail rumah tangga maupun pembelian curah."
                                   class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white leading-relaxed focus:ring-2 focus:ring-brand-primary/30"></textarea>
                     </div>
@@ -1308,7 +1417,7 @@ window.initialProductPayload = {
                 <!-- Badges Grid -->
                 <div class="flex items-center gap-2.5 flex-wrap pt-1">
                     <template x-for="char in availableCharacteristics" :key="char.id">
-                        <button type="button" 
+                        <button type="button"
                                 @click="openEditCharModal(char)"
                                 class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer"
                                 :style="hexToBadgeStyle(char.color)"
@@ -1320,7 +1429,7 @@ window.initialProductPayload = {
                     </template>
 
                     <!-- + Tambah Badge Item -->
-                    <button type="button" 
+                    <button type="button"
                             @click="openCreateCharModal()"
                             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border-2 border-dashed border-gray-300 text-gray-600 bg-gray-50 hover:bg-gray-100 hover:border-brand-primary hover:text-brand-primary transition-all cursor-pointer">
                         <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1345,15 +1454,15 @@ window.initialProductPayload = {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </span>
-                    <input type="text" 
+                    <input type="text"
                            x-model="searchQuery"
-                           placeholder="Cari nama produk..." 
+                           placeholder="Cari nama produk..."
                            class="w-full pl-9 pr-4 py-2 rounded-modern text-xs border border-gray-300 focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary bg-gray-50/50">
                 </div>
 
                 <!-- Category Filter -->
                 <div class="w-full sm:w-48 shrink-0">
-                    <select x-model="selectedCategoryFilter" 
+                    <select x-model="selectedCategoryFilter"
                             class="w-full py-2 px-3 rounded-modern text-xs border border-gray-300 bg-white font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
                         <option value="all">Semua Kategori</option>
                         <template x-for="cat in activeCategories" :key="cat.id">
@@ -1364,7 +1473,7 @@ window.initialProductPayload = {
 
                 <!-- Characteristic Filter -->
                 <div class="w-full sm:w-48 shrink-0">
-                    <select x-model="selectedTypeFilter" 
+                    <select x-model="selectedTypeFilter"
                             class="w-full py-2 px-3 rounded-modern text-xs border border-gray-300 bg-white font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
                         <option value="all">Semua Karakteristik</option>
                         <template x-for="char in availableCharacteristics" :key="char.id">
@@ -1386,8 +1495,8 @@ window.initialProductPayload = {
             </div>
 
             <!-- Right: Edit Posisi Button -->
-            <button type="button" 
-                    @click="startCatalogReorder()" 
+            <button type="button"
+                    @click="startCatalogReorder()"
                     class="inline-flex items-center gap-1.5 px-4 py-2 rounded-modern font-bold text-xs text-brand-dark bg-amber-50 hover:bg-amber-100 border border-amber-300 shadow-2xs hover:shadow transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto">
                 <span class="text-sm leading-none">⇅</span>
                 <span>Edit Posisi</span>
@@ -1401,13 +1510,13 @@ window.initialProductPayload = {
                 <span>Mode Edit Posisi Aktif: Drag & drop kartu produk untuk mengatur urutan tampilan katalog.</span>
             </div>
             <div class="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
-                <button type="button" 
-                        @click="cancelCatalogReorder()" 
+                <button type="button"
+                        @click="cancelCatalogReorder()"
                         class="px-4 py-2 rounded-modern font-bold text-xs text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 shadow-2xs transition-colors cursor-pointer whitespace-nowrap">
                     Batal
                 </button>
-                <button type="button" 
-                        @click="openConfirmReorderModal()" 
+                <button type="button"
+                        @click="openConfirmReorderModal()"
                         class="inline-flex items-center gap-1.5 px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer whitespace-nowrap">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -1431,7 +1540,7 @@ window.initialProductPayload = {
                 <p class="text-xs text-gray-500 max-w-sm mx-auto">
                     Coba sesuaikan kata kunci pencarian atau reset filter kategori / karakteristik di atas.
                 </p>
-                <button type="button" 
+                <button type="button"
                         @click="searchQuery = ''; selectedCategoryFilter = 'all'; selectedTypeFilter = 'all';"
                         class="px-4 py-2 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
                     Reset Filter
@@ -1447,9 +1556,9 @@ window.initialProductPayload = {
                      @drop.prevent="onDrop($event)"
                      @dragend="onDragEnd($event)"
                      class="transition-all duration-150 relative">
-                    
+
                     <!-- 1. EMPTY SPACE / PLACEHOLDER DROPZONE (Tampil sebagai Ruang Kosong pada posisi yang sedang di-drag) -->
-                    <div x-show="isReorderingCatalog && draggedProductId === prod.id" 
+                    <div x-show="isReorderingCatalog && draggedProductId === prod.id"
                          class="h-full min-h-[380px] rounded-modern-xl border-2 border-dashed border-brand-primary bg-emerald-50/60 p-6 flex flex-col items-center justify-center text-center space-y-3 shadow-inner select-none pointer-events-none transition-all">
                         <div class="w-12 h-12 rounded-full bg-brand-primary/10 border border-brand-primary/30 text-brand-primary flex items-center justify-center font-black text-base shadow-xs">
                             <span x-text="'#' + (idx + 1)"></span>
@@ -1471,16 +1580,16 @@ window.initialProductPayload = {
                     <div x-show="!isReorderingCatalog || draggedProductId !== prod.id"
                          class="bg-white rounded-modern-xl border overflow-hidden transition-all flex flex-col justify-between relative group h-full"
                          :class="{
-                             'opacity-70 bg-gray-50/80': prod.status === 'Nonaktif' && !isReorderingCatalog,
                              'cursor-grab active:cursor-grabbing hover:shadow-xl border-brand-primary/40 ring-1 ring-brand-primary/20': isReorderingCatalog,
                              'border-gray-200/80 shadow-2xs hover:shadow-card': !isReorderingCatalog
                          }">
-                        
-                        <div>
+
+                        <!-- Content Body with visual distinction when Inactive -->
+                        <div :class="prod.status === 'Nonaktif' && !isReorderingCatalog ? 'opacity-60 bg-gray-50/50' : ''" class="transition-opacity">
                             <!-- 4:3 Aspect Ratio Thumbnail Container -->
                             <div class="relative aspect-[4/3] w-full bg-brand-dark overflow-hidden">
                                 <img :src="getImageUrl(prod.image)" :alt="prod.name" class="w-full h-full object-cover pointer-events-none">
-                                
+
                                 <!-- Reorder Mode Position Badge & Drag Grip Handle -->
                                 <div x-show="isReorderingCatalog" class="absolute top-2.5 right-2.5 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-dark/90 text-white backdrop-blur-xs text-xs font-black shadow-md border border-white/20">
                                     <svg class="w-3.5 h-3.5 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -1523,7 +1632,7 @@ window.initialProductPayload = {
                             <div class="p-4 space-y-2">
                                 <h4 class="font-extrabold text-brand-dark text-xs sm:text-sm line-clamp-2 leading-snug" x-text="prod.name"></h4>
                                 <p class="text-[11px] text-gray-500 line-clamp-2 leading-relaxed" x-text="prod.description || 'Bahan masakan bermutu tinggi dan higienis.'"></p>
-                                
+
                                 <div class="pt-2 flex items-center justify-between border-t border-gray-100">
                                     <div>
                                         <span class="text-[10px] text-gray-400 block leading-tight">Harga:</span>
@@ -1531,7 +1640,7 @@ window.initialProductPayload = {
                                     </div>
                                     <div class="text-right">
                                         <span class="text-[9px] text-gray-400 block leading-tight">Status Stok:</span>
-                                        <span class="text-[10px] font-bold uppercase" 
+                                        <span class="text-[10px] font-bold uppercase"
                                               :class="prod.stock_status === 'OUT_OF_STOCK' ? 'text-rose-600' : (prod.stock_status === 'PRE_ORDER' ? 'text-amber-600' : 'text-emerald-700')"
                                               x-text="prod.stock_status === 'OUT_OF_STOCK' ? 'HABIS' : (prod.stock_status === 'PRE_ORDER' ? 'PRE-ORDER' : 'READY')"></span>
                                     </div>
@@ -1539,19 +1648,25 @@ window.initialProductPayload = {
                             </div>
                         </div>
 
-                        <!-- Footer Actions -->
+                        <!-- Footer Actions (Always Full Opacity) -->
                         <div class="p-3 bg-gray-50/80 border-t border-gray-100">
                             <!-- Normal Mode Actions -->
                             <div x-show="!isReorderingCatalog" class="flex items-center justify-between gap-1.5">
-                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1.5"
-                                      :class="prod.status === 'Aktif' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-gray-100 text-gray-600 border-gray-300'">
+                                <button @click.stop="toggleStatus(prod)"
+                                        :disabled="togglingProductId === prod.id"
+                                        type="button"
+                                        class="px-2.5 py-1 rounded-modern text-xs font-bold border inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                                        :class="prod.status === 'Aktif'
+                                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400'
+                                            : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200 hover:border-gray-400 hover:text-brand-dark'"
+                                        :title="prod.status === 'Aktif' ? 'Klik untuk Nonaktifkan Produk' : 'Klik untuk Aktifkan Produk'">
                                     <span class="w-1.5 h-1.5 rounded-full shrink-0"
                                           :class="prod.status === 'Aktif' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'"></span>
-                                    <span x-text="prod.status"></span>
-                                </span>
+                                    <span x-text="togglingProductId === prod.id ? 'Memproses...' : prod.status"></span>
+                                </button>
 
                                 <div class="flex items-center gap-1">
-                                    <button @click.stop="openEditModal(prod)" 
+                                    <button @click.stop="openEditModal(prod)"
                                             type="button"
                                             class="inline-flex items-center gap-1 px-2.5 py-1 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 transition-colors cursor-pointer">
                                         <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1559,17 +1674,9 @@ window.initialProductPayload = {
                                         </svg>
                                         <span>Edit</span>
                                     </button>
-                                    <button @click.stop="toggleStatus(prod)" 
+                                    <button @click.stop="openDelete(prod)"
                                             type="button"
-                                            class="inline-flex items-center gap-1 px-2 py-1 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
-                                            :title="prod.status === 'Aktif' ? 'Nonaktifkan Produk' : 'Aktifkan Produk'">
-                                        <span class="w-2 h-2 rounded-full shrink-0"
-                                              :class="prod.status === 'Aktif' ? 'bg-emerald-500' : 'bg-gray-400'"></span>
-                                        <span class="text-[10px]" x-text="prod.status === 'Aktif' ? 'On' : 'Off'"></span>
-                                    </button>
-                                    <button @click.stop="openDelete(prod)" 
-                                            type="button"
-                                            class="p-1.5 rounded-modern text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer inline-flex items-center justify-center" 
+                                            class="p-1.5 rounded-modern text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer inline-flex items-center justify-center shrink-0"
                                             title="Hapus Produk">
                                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1597,7 +1704,7 @@ window.initialProductPayload = {
     <!-- TAB 2: FLASH SALE & COUNTDOWN CONTENT                   -->
     <!-- ======================================================= -->
     <div x-show="activeTab === 'flash_sale'" class="space-y-6">
-        
+
         <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-7 shadow-2xs space-y-6">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
                 <div class="space-y-1">
@@ -1617,7 +1724,7 @@ window.initialProductPayload = {
 
                 <!-- Global ON/OFF Toggle Button with Loading State -->
                 <div class="flex items-center gap-3 shrink-0">
-                    <button type="button" 
+                    <button type="button"
                             @click="toggleFlashSale(!flashSale.enabled)"
                             :disabled="isTogglingFlashSale"
                             class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-extrabold text-xs text-white transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1656,9 +1763,9 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Judul Flash Sale <span class="text-rose-500">*</span>
                         </label>
-                        <input type="text" 
-                               x-model="flashSale.title" 
-                               placeholder="Flash Sale Terbatas!" 
+                        <input type="text"
+                               x-model="flashSale.title"
+                               placeholder="Flash Sale Terbatas!"
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-brand-dark focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                     </div>
 
@@ -1667,8 +1774,8 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Waktu Berakhir (Countdown End) <span class="text-rose-500">*</span>
                         </label>
-                        <input type="datetime-local" 
-                               x-model="flashSale.end_at" 
+                        <input type="datetime-local"
+                               x-model="flashSale.end_at"
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-mono font-bold text-red-600 focus:ring-2 focus:ring-red-500/30 focus:border-red-500">
                     </div>
 
@@ -1677,16 +1784,16 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Subtitle / Deskripsi Pengantar Flash Sale
                         </label>
-                        <textarea x-model="flashSale.subtitle" 
-                                  rows="2" 
-                                  placeholder="Dapatkan potongan harga spesial untuk produk protein pilihan hari ini. Stok terbatas!" 
+                        <textarea x-model="flashSale.subtitle"
+                                  rows="2"
+                                  placeholder="Dapatkan potongan harga spesial untuk produk protein pilihan hari ini. Stok terbatas!"
                                   class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"></textarea>
                     </div>
                 </div>
 
                 <div class="flex items-center justify-end pt-2">
-                    <button type="button" 
-                            @click="saveFlashSaleSettings()" 
+                    <button type="button"
+                            @click="saveFlashSaleSettings()"
                             :disabled="isSavingFlashSaleSettings"
                             class="px-5 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark transition-all cursor-pointer shadow-2xs inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                         <svg x-show="isSavingFlashSaleSettings" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
@@ -1704,8 +1811,8 @@ window.initialProductPayload = {
                     <h4 class="text-xs font-extrabold text-brand-dark uppercase tracking-wider">
                         Daftar Produk Flash Sale (<span x-text="flashSaleProductsList.length"></span>)
                     </h4>
-                    <button type="button" 
-                            @click="openAssignFlashSaleModal()" 
+                    <button type="button"
+                            @click="openAssignFlashSaleModal()"
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern font-bold text-xs text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-all cursor-pointer">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                         <span>Tambah Produk ke Flash Sale</span>
@@ -1740,11 +1847,11 @@ window.initialProductPayload = {
                                             <span class="w-6 h-6 rounded-full flex items-center justify-center font-mono font-black text-xs shrink-0"
                                                   :class="index === 0 ? 'bg-red-600 text-white shadow-2xs' : 'bg-gray-200 text-gray-700'"
                                                   x-text="'#' + (index + 1)"></span>
-                                            
+
                                             <div class="inline-flex items-center gap-1.5">
                                                 <!-- Move Up Button -->
-                                                <button type="button" 
-                                                        @click="moveFlashSaleOrder(p, 'up')" 
+                                                <button type="button"
+                                                        @click="moveFlashSaleOrder(p, 'up')"
                                                         :disabled="index === 0"
                                                         class="w-7 h-7 rounded-modern-sm border border-gray-200 flex items-center justify-center transition-all cursor-pointer"
                                                         :class="index === 0 ? 'opacity-30 cursor-not-allowed bg-gray-50 text-gray-400' : 'bg-white hover:bg-brand-primary/10 text-brand-dark hover:text-brand-primary hover:border-brand-primary/30 shadow-2xs'"
@@ -1755,8 +1862,8 @@ window.initialProductPayload = {
                                                 </button>
 
                                                 <!-- Move Down Button -->
-                                                <button type="button" 
-                                                        @click="moveFlashSaleOrder(p, 'down')" 
+                                                <button type="button"
+                                                        @click="moveFlashSaleOrder(p, 'down')"
                                                         :disabled="index === flashSaleProductsList.length - 1"
                                                         class="w-7 h-7 rounded-modern-sm border border-gray-200 flex items-center justify-center transition-all cursor-pointer"
                                                         :class="index === flashSaleProductsList.length - 1 ? 'opacity-30 cursor-not-allowed bg-gray-50 text-gray-400' : 'bg-white hover:bg-brand-primary/10 text-brand-dark hover:text-brand-primary hover:border-brand-primary/30 shadow-2xs'"
@@ -1778,7 +1885,7 @@ window.initialProductPayload = {
                                             <div>
                                                 <div class="font-bold text-brand-dark flex items-center gap-1.5">
                                                     <span x-text="p.name"></span>
-                                                    <span x-show="index === 0" 
+                                                    <span x-show="index === 0"
                                                           class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-red-600 text-white tracking-wider uppercase shadow-2xs">
                                                         ⭐ FEATURED HERO
                                                     </span>
@@ -1794,8 +1901,8 @@ window.initialProductPayload = {
 
                                     <!-- Delete Action -->
                                     <td class="p-3 text-right">
-                                        <button type="button" 
-                                                @click="removeProductFromFlashSale(p)" 
+                                        <button type="button"
+                                                @click="removeProductFromFlashSale(p)"
                                                 :disabled="isRemovingFlashSaleId === p.id"
                                                 class="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                                             <svg x-show="isRemovingFlashSaleId === p.id" class="animate-spin h-3 w-3 text-red-600" fill="none" viewBox="0 0 24 24">
@@ -1818,17 +1925,17 @@ window.initialProductPayload = {
     <!-- ======================================================= -->
     <!-- 5. MODAL TAMBAH / EDIT BADGE KARAKTERISTIK              -->
     <!-- ======================================================= -->
-    <div x-show="charModalOpen" 
+    <div x-show="charModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="charModalOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
             <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 overflow-hidden my-6 space-y-5">
-                
+
                 <div class="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div>
                         <h3 class="text-base font-extrabold text-brand-dark"
@@ -1836,8 +1943,8 @@ window.initialProductPayload = {
                         </h3>
                         <p class="text-xs text-gray-500">Badge informasi visual yang tampil pada kartu produk.</p>
                     </div>
-                    <button @click="charModalOpen = false" 
-                            type="button" 
+                    <button @click="charModalOpen = false"
+                            type="button"
                             class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1846,14 +1953,14 @@ window.initialProductPayload = {
                 </div>
 
                 <form @submit.prevent="saveChar()" class="space-y-4">
-                    
+
                     <!-- Nama Badge -->
                     <div>
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Nama Badge <span class="text-rose-500">*</span>
                         </label>
-                        <input type="text" 
-                               x-model="charForm.name" 
+                        <input type="text"
+                               x-model="charForm.name"
                                required
                                placeholder="Contoh: Frozen, Ready to Cook, Organik..."
                                class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white font-semibold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
@@ -1864,8 +1971,8 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Deskripsi Singkat / Informasi
                         </label>
-                        <textarea x-model="charForm.desc" 
-                                  rows="2" 
+                        <textarea x-model="charForm.desc"
+                                  rows="2"
                                   placeholder="Contoh: Dibekukan cepat standar cold-chain..."
                                   class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white leading-relaxed"></textarea>
                     </div>
@@ -1884,11 +1991,11 @@ window.initialProductPayload = {
 
                         <!-- Color Input & Hex Code -->
                         <div class="flex items-center gap-3">
-                            <input type="color" 
-                                   x-model="charForm.color" 
+                            <input type="color"
+                                   x-model="charForm.color"
                                    class="w-10 h-10 rounded-modern border border-gray-300 p-0.5 cursor-pointer shrink-0 bg-white">
-                            <input type="text" 
-                                   x-model="charForm.color" 
+                            <input type="text"
+                                   x-model="charForm.color"
                                    placeholder="#059669"
                                    maxlength="7"
                                    class="w-28 text-xs font-mono font-bold uppercase rounded-modern border border-gray-300 p-2 bg-white">
@@ -1913,7 +2020,7 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Status Badge
                         </label>
-                        <select x-model="charForm.status" 
+                        <select x-model="charForm.status"
                                 class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold">
                             <option value="Aktif">Aktif (Dapat Dipilih pada Produk)</option>
                             <option value="Nonaktif">Nonaktif (Disembunyikan dari Pilihan)</option>
@@ -1925,7 +2032,7 @@ window.initialProductPayload = {
                         <!-- Hapus Button (Only in Edit Mode) -->
                         <div>
                             <template x-if="isEditingChar">
-                                <button type="button" 
+                                <button type="button"
                                         @click="openDeleteCharFromEdit()"
                                         class="px-3 py-2 rounded-modern text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer">
                                     Hapus Badge
@@ -1934,12 +2041,12 @@ window.initialProductPayload = {
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <button @click="charModalOpen = false" 
-                                    type="button" 
+                            <button @click="charModalOpen = false"
+                                    type="button"
                                     class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-100 cursor-pointer">
                                 Batal
                             </button>
-                            <button type="submit" 
+                            <button type="submit"
                                     class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm cursor-pointer"
                                     x-text="isEditingChar ? 'Simpan Perubahan' : 'Tambah Badge'">
                             </button>
@@ -1955,21 +2062,21 @@ window.initialProductPayload = {
     <!-- ======================================================= -->
     <!-- 6. MODAL DELETE BADGE CONFIRMATION                      -->
     <!-- ======================================================= -->
-    <div x-show="charDeleteModalOpen" 
+    <div x-show="charDeleteModalOpen"
          x-cloak
          class="fixed inset-0 z-[60] overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="charDeleteModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 space-y-4 text-center">
-                
+
                 <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                 </div>
-                
+
                 <div class="space-y-1">
                     <h3 class="text-base font-bold text-brand-dark">Hapus Karakteristik ini?</h3>
                     <p class="text-xs text-gray-500 leading-relaxed">
@@ -1986,13 +2093,13 @@ window.initialProductPayload = {
                 </div>
 
                 <div class="pt-3 flex items-center justify-center gap-3">
-                    <button @click="charDeleteModalOpen = false" 
-                            type="button" 
+                    <button @click="charDeleteModalOpen = false"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button @click="confirmDeleteChar()" 
-                            type="button" 
+                    <button @click="confirmDeleteChar()"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
                         Tetap Hapus
                     </button>
@@ -2004,27 +2111,27 @@ window.initialProductPayload = {
     <!-- ======================================================= -->
     <!-- 7. MODAL EDITOR PRODUK (Form + PREVIEW)                 -->
     <!-- ======================================================= -->
-    <div x-show="editorModalOpen" 
+    <div x-show="editorModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="editorModalOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
             <div class="relative bg-white rounded-modern-xl max-w-5xl w-full flex flex-col shadow-2xl border border-gray-200 max-h-[90vh] my-6 overflow-hidden">
-                
+
                 <!-- 1. MODAL HEADER (Fixed Top) -->
                 <div class="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-gray-100 shrink-0 bg-white">
                     <div>
                         <h3 class="text-base sm:text-lg font-extrabold text-brand-dark"
                             x-text="isEditing ? 'Edit Produk: ' + form.name : 'Tambah Produk Baru'">
                         </h3>
-                        <p class="text-xs text-gray-500">Kategori produk terhubung dengan Category Manager sebagai Single Source of Truth.</p>
+                        <p class="text-xs text-gray-500">Kelola detail informasi produk, kategori, harga, dan tampilan produk.</p>
                     </div>
-                    <button @click="editorModalOpen = false" 
-                            type="button" 
+                    <button @click="editorModalOpen = false"
+                            type="button"
                             class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2034,19 +2141,19 @@ window.initialProductPayload = {
 
                 <!-- 2. MODAL CONTENT (Scrollable 2-Column Grid) -->
                 <form id="productEditForm" @submit.prevent="saveProduct()" class="flex-1 overflow-y-auto p-6 sm:p-8">
-                    
+
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                        
+
                         <!-- Left Form (7 cols on lg) -->
                         <div class="lg:col-span-7 space-y-4">
-                            
+
                             <!-- Nama Produk -->
                             <div>
                                 <label class="block text-xs font-bold text-brand-dark mb-1">
                                     Nama Produk <span class="text-rose-500">*</span>
                                 </label>
-                                <input type="text" 
-                                       x-model="form.name" 
+                                <input type="text"
+                                       x-model="form.name"
                                        required
                                        placeholder="Contoh: Daging Sapi Shortplate Slice Premium"
                                        class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary font-medium">
@@ -2060,47 +2167,47 @@ window.initialProductPayload = {
                                         <label class="block text-xs font-bold text-brand-dark">
                                             Kategori Produk (Pilih Minimal 1) <span class="text-rose-500">*</span>
                                         </label>
-                                        <span class="text-[10px] text-emerald-600 font-semibold" 
+                                        <span class="text-[10px] text-emerald-600 font-semibold"
                                               x-text="(form.category_ids || []).length + ' Terpilih'"></span>
                                     </div>
 
                                     <!-- Trigger Button / Summary Display -->
-                                    <button type="button" 
+                                    <button type="button"
                                             @click="openCatDropdown = !openCatDropdown"
                                             class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium text-left flex items-center justify-between shadow-2xs focus:ring-2 focus:ring-brand-primary/30 cursor-pointer">
-                                        <span class="truncate text-brand-dark font-semibold" 
+                                        <span class="truncate text-brand-dark font-semibold"
                                               x-text="getSelectedCategoriesSummary()"></span>
-                                        <svg class="w-4 h-4 text-gray-400 shrink-0 transition-transform" 
-                                             :class="openCatDropdown ? 'rotate-180' : ''" 
+                                        <svg class="w-4 h-4 text-gray-400 shrink-0 transition-transform"
+                                             :class="openCatDropdown ? 'rotate-180' : ''"
                                              fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                         </svg>
                                     </button>
 
                                     <!-- Checklist Dropdown Panel -->
-                                    <div x-show="openCatDropdown" 
+                                    <div x-show="openCatDropdown"
                                          x-cloak
                                          x-transition:enter="transition ease-out duration-100"
                                          x-transition:enter-start="opacity-0 scale-95"
                                          x-transition:enter-end="opacity-100 scale-100"
                                          class="absolute z-40 mt-1 w-full bg-white rounded-modern-lg shadow-xl border border-gray-200 p-2 space-y-1 max-h-56 overflow-y-auto">
                                         <template x-for="cat in activeCategories" :key="cat.id">
-                                            <button type="button" 
+                                            <button type="button"
                                                     @click.stop="toggleCategorySelection(cat.id)"
                                                     class="w-full flex items-center justify-between p-2 rounded-modern border text-xs font-semibold transition-all cursor-pointer text-left select-none"
-                                                    :class="(form.category_ids || []).includes(Number(cat.id)) 
-                                                        ? 'bg-brand-soft-green text-brand-primary border-brand-primary/30 ring-1 ring-brand-primary/20 font-bold' 
+                                                    :class="(form.category_ids || []).includes(Number(cat.id))
+                                                        ? 'bg-brand-soft-green text-brand-primary border-brand-primary/30 ring-1 ring-brand-primary/20 font-bold'
                                                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'">
                                                 <div class="flex items-center gap-2.5 min-w-0">
                                                     <span class="w-4 h-4 rounded flex items-center justify-center text-[10px] font-black border shrink-0 transition-colors"
-                                                          :class="(form.category_ids || []).includes(Number(cat.id)) 
-                                                              ? 'bg-brand-primary text-white border-transparent' 
+                                                          :class="(form.category_ids || []).includes(Number(cat.id))
+                                                              ? 'bg-brand-primary text-white border-transparent'
                                                               : 'bg-gray-100 text-transparent border-gray-300'">
                                                         ✓
                                                     </span>
                                                     <span class="truncate" x-text="cat.name"></span>
                                                 </div>
-                                                <span class="text-[10px] text-emerald-700 font-bold shrink-0 ml-2" 
+                                                <span class="text-[10px] text-emerald-700 font-bold shrink-0 ml-2"
                                                       x-show="(form.category_ids || []).includes(Number(cat.id))">
                                                     Terpilih
                                                 </span>
@@ -2113,7 +2220,7 @@ window.initialProductPayload = {
                                     <label class="block text-xs font-bold text-brand-dark mb-1">
                                         Status Produk
                                     </label>
-                                    <select x-model="form.status" 
+                                    <select x-model="form.status"
                                             class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-semibold">
                                         <option value="Aktif">Aktif (Tampil di Landing Page)</option>
                                         <option value="Nonaktif">Nonaktif (Disembunyikan)</option>
@@ -2135,12 +2242,12 @@ window.initialProductPayload = {
 
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
                                     <template x-for="char in availableCharacteristics.filter(c => c.status === 'Aktif' || form.types.includes(c.id) || form.types.includes(c.name))" :key="char.id">
-                                        <button type="button" 
+                                        <button type="button"
                                                 @click="toggleTypeSelection(char.name || char.id)"
                                                 class="flex items-center gap-2 p-2 rounded-modern border text-xs font-bold transition-all cursor-pointer text-left"
                                                 :style="form.types.includes(char.name || char.id) ? hexToBadgeStyle(char.color) : ''"
-                                                :class="form.types.includes(char.name || char.id) 
-                                                    ? 'ring-1 ring-black/10' 
+                                                :class="form.types.includes(char.name || char.id)
+                                                    ? 'ring-1 ring-black/10'
                                                     : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'">
                                             <span class="w-4 h-4 rounded flex items-center justify-center text-[10px] font-black border shrink-0"
                                                   :class="form.types.includes(char.name || char.id) ? 'bg-current text-white border-transparent' : 'bg-gray-100 text-transparent border-gray-300'">
@@ -2160,8 +2267,8 @@ window.initialProductPayload = {
                                     </label>
                                     <div class="relative">
                                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-xs font-bold text-gray-400">Rp</span>
-                                        <input type="number" 
-                                               x-model.number="form.price" 
+                                        <input type="number"
+                                               x-model.number="form.price"
                                                step="500"
                                                required
                                                class="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-modern border border-gray-300 bg-white font-bold text-brand-primary">
@@ -2173,11 +2280,11 @@ window.initialProductPayload = {
                                         Berat Kemasan Default
                                     </label>
                                     <div class="flex items-center gap-2">
-                                        <input type="number" 
-                                               x-model.number="form.weight_value" 
+                                        <input type="number"
+                                               x-model.number="form.weight_value"
                                                @input="form.weight = form.weight_value + (form.unit === 'gram' ? 'g' : (form.unit === 'kg' ? 'kg' : ' ' + form.unit))"
                                                class="w-2/3 p-2 text-xs rounded-modern border border-gray-300 bg-white font-medium">
-                                        <select x-model="form.unit" 
+                                        <select x-model="form.unit"
                                                 @change="form.weight = form.weight_value + (form.unit === 'gram' ? 'g' : (form.unit === 'kg' ? 'kg' : ' ' + form.unit))"
                                                 class="w-1/3 p-2 text-xs rounded-modern border border-gray-300 bg-white">
                                             <option value="gram">gram (g)</option>
@@ -2194,8 +2301,8 @@ window.initialProductPayload = {
                                 <label class="block text-xs font-bold text-brand-dark mb-1">
                                     Deskripsi Produk
                                 </label>
-                                <textarea x-model="form.description" 
-                                          rows="2" 
+                                <textarea x-model="form.description"
+                                          rows="2"
                                           placeholder="Penjelasan potongan daging, saran masakan, atau resep..."
                                           class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white"></textarea>
                             </div>
@@ -2214,8 +2321,8 @@ window.initialProductPayload = {
                                         <img :src="getImageUrl(form.image)" alt="Product Thumbnail" class="w-full h-full object-cover">
                                     </div>
                                     <div class="space-y-2">
-                                        <button @click="openMediaPicker()" 
-                                                type="button" 
+                                        <button @click="openMediaPicker()"
+                                                type="button"
                                                 class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-2xs transition-all cursor-pointer inline-flex items-center gap-1.5">
                                             <span>🖼️</span>
                                             <span>Pilih dari Media Picker</span>
@@ -2234,13 +2341,13 @@ window.initialProductPayload = {
 
                         <!-- Right: PRODUCT CARD PREVIEW (5 cols on lg) -->
                         <div class="lg:col-span-5 space-y-3 lg:sticky lg:top-0">
-                            
+
                             <div class="flex items-center justify-between">
                                 <label class="block text-xs font-extrabold text-brand-dark uppercase tracking-wider">
                                     Preview
                                 </label>
                                 <div class="flex items-center bg-gray-100 p-0.5 rounded text-[10px]">
-                                    <button @click="previewDevice = 'desktop'" type="button" 
+                                    <button @click="previewDevice = 'desktop'" type="button"
                                             :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-all">
                                         <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -2248,7 +2355,7 @@ window.initialProductPayload = {
                                         </svg>
                                         <span>Desk</span>
                                     </button>
-                                    <button @click="previewDevice = 'mobile'" type="button" 
+                                    <button @click="previewDevice = 'mobile'" type="button"
                                             :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-all">
                                         <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -2263,7 +2370,7 @@ window.initialProductPayload = {
                             <div class="bg-gray-50 p-4 rounded-modern-xl border border-gray-200 flex flex-col items-center">
                                 <div class="w-full transition-all duration-200"
                                      :class="previewDevice === 'mobile' ? 'max-w-[220px]' : 'max-w-[280px]'">
-                                    
+
                                     <!-- SHARED COMPONENT (100% Shared Markup with Landing Page) -->
                                     @include('components.product-card-item', ['isLivePreview' => true])
 
@@ -2283,21 +2390,21 @@ window.initialProductPayload = {
 
                 <!-- 3. MODAL FOOTER (Fixed Bottom, Right Aligned) -->
                 <div class="px-6 sm:px-8 py-4 border-t border-gray-100 bg-gray-50/90 shrink-0 flex items-center justify-end gap-3">
-                    <button @click="editorModalOpen = false" 
-                            type="button" 
+                    <button @click="editorModalOpen = false"
+                            type="button"
                             :disabled="isSaving"
                             class="px-4 py-2.5 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-200/70 transition-colors cursor-pointer disabled:opacity-50">
                         Batal
                     </button>
                     <button form="productEditForm"
-                            type="submit" 
+                            type="submit"
                             :disabled="isSaving"
-                            class="px-6 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
-                        <svg x-show="isSaving" class="animate-spin -ml-1 mr-1.5 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                        <svg x-show="isSaving" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                         </svg>
-                        <span x-text="isSaving ? 'Menyimpan...' : 'Simpan Produk'"></span>
+                        <span x-text="isSaving ? 'Menyimpan...' : 'Simpan Produk'">Simpan Produk</span>
                     </button>
                 </div>
 
@@ -2308,17 +2415,17 @@ window.initialProductPayload = {
     <!-- ======================================================= -->
     <!-- 8. GLOBAL MEDIA PICKER MODAL                            -->
     <!-- ======================================================= -->
-    <div x-show="mediaPickerOpen" 
+    <div x-show="mediaPickerOpen"
          x-cloak
          class="fixed inset-0 z-[80] overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/75 backdrop-blur-xs" @click="mediaPickerOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
             <div class="relative bg-white rounded-modern-xl max-w-3xl w-full p-6 shadow-2xl border border-gray-200 overflow-hidden my-6 space-y-5">
-                
+
                 <div class="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div class="flex items-center gap-2">
                         <span class="text-lg">🖼️</span>
@@ -2327,8 +2434,8 @@ window.initialProductPayload = {
                             <p class="text-xs text-gray-500">Pilih dari pustaka media atau unggah gambar produk baru.</p>
                         </div>
                     </div>
-                    <button @click="mediaPickerOpen = false" 
-                            type="button" 
+                    <button @click="mediaPickerOpen = false"
+                            type="button"
                             class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2337,12 +2444,12 @@ window.initialProductPayload = {
                 </div>
 
                 <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
-                    <button @click="mediaTab = 'library'" type="button" 
+                    <button @click="mediaTab = 'library'" type="button"
                             :class="mediaTab === 'library' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                             class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
                         Media Library (<span x-text="mediaLibrary.length"></span>)
                     </button>
-                    <button @click="mediaTab = 'upload'" type="button" 
+                    <button @click="mediaTab = 'upload'" type="button"
                             :class="mediaTab === 'upload' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                             class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
                         Upload Gambar Baru
@@ -2357,13 +2464,13 @@ window.initialProductPayload = {
                             <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 text-xs">
                                 🔍
                             </span>
-                            <input type="text" 
-                                   x-model="mediaSearchQuery" 
-                                   placeholder="Cari gambar berdasarkan nama file..." 
+                            <input type="text"
+                                   x-model="mediaSearchQuery"
+                                   placeholder="Cari gambar berdasarkan nama file..."
                                    class="w-full pl-8 pr-8 py-2 text-xs rounded-modern border border-gray-200 bg-gray-50 focus:bg-white focus:border-brand-primary focus:outline-none transition-all">
-                            <button x-show="mediaSearchQuery" 
-                                    @click="mediaSearchQuery = ''" 
-                                    type="button" 
+                            <button x-show="mediaSearchQuery"
+                                    @click="mediaSearchQuery = ''"
+                                    type="button"
                                     class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 text-xs cursor-pointer">
                                 ✕
                             </button>
@@ -2383,23 +2490,28 @@ window.initialProductPayload = {
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-between">
                                     <div class="flex items-center justify-between w-full">
                                         <div>
-                                            <template x-if="media.is_deletable">
-                                                <button @click.stop="deleteMedia(media)" 
-                                                        type="button" 
-                                                        title="Hapus media dari server" 
-                                                        class="p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center">
-                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                </button>
-                                            </template>
-                                        </div>
-                                        <div x-show="selectedMedia?.id === media.id">
-                                            <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
-                                                <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                            <button @click.stop="openDeleteMediaModal(media)"
+                                                    type="button"
+                                                    :title="media.is_in_use ? 'Media sedang digunakan (Klik untuk opsi hapus)' : 'Hapus media dari server'"
+                                                    class="p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                 </svg>
-                                            </span>
+                                            </button>
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <template x-if="media.is_in_use">
+                                                <span class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/90 text-white shadow-xs" :title="'Digunakan di: ' + (media.usage_locations || []).join(', ')">
+                                                    Pakai (<span x-text="media.usage_count"></span>)
+                                                </span>
+                                            </template>
+                                            <div x-show="selectedMedia?.id === media.id">
+                                                <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                                                    <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div>
@@ -2421,9 +2533,9 @@ window.initialProductPayload = {
                             <span class="text-gray-500">Terpilih: </span>
                             <strong class="text-brand-dark" x-text="selectedMedia ? selectedMedia.filename : 'Belum ada'"></strong>
                         </div>
-                        <button @click="confirmMediaSelection()" 
+                        <button @click="confirmMediaSelection()"
                                 :disabled="!selectedMedia"
-                                type="button" 
+                                type="button"
                                 class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark disabled:opacity-40 transition-all cursor-pointer">
                             Pilih Gambar Produk
                         </button>
@@ -2433,7 +2545,7 @@ window.initialProductPayload = {
                 <!-- Tab 2: Upload -->
                 <div x-show="mediaTab === 'upload'" class="space-y-4">
                     <label class="block border-2 border-dashed border-gray-300 rounded-modern-xl p-8 text-center hover:border-brand-primary hover:bg-brand-soft-green/30 transition-all cursor-pointer"
-                           @dragover.prevent="" 
+                           @dragover.prevent=""
                            @drop.prevent="handleFileUpload($event)">
                         <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleFileUpload($event)">
                         <div class="space-y-2 flex flex-col items-center">
@@ -2458,8 +2570,8 @@ window.initialProductPayload = {
                                     <p class="text-[10px] text-gray-500" x-text="uploadedFile?.size + ' • ' + uploadedFile?.type"></p>
                                 </div>
                             </div>
-                            <button @click="confirmMediaSelection()" 
-                                    type="button" 
+                            <button @click="confirmMediaSelection()"
+                                    type="button"
                                     class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm cursor-pointer">
                                 Gunakan Gambar Ini
                             </button>
@@ -2471,18 +2583,107 @@ window.initialProductPayload = {
         </div>
     </div>
 
+    <!-- Modal Konfirmasi / Warning Hapus Media -->
+    <div x-show="mediaDeleteConfirmModalOpen"
+         x-cloak
+         class="fixed inset-0 z-[120] overflow-y-auto"
+         role="dialog"
+         aria-modal="true">
+
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+             @click="if (!isDeletingMedia) { mediaDeleteConfirmModalOpen = false; mediaToDelete = null; }"></div>
+
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-lg shadow-2xl border border-gray-100 w-full max-w-md overflow-hidden p-6 space-y-4 text-left">
+
+                <!-- Header Warning / Info -->
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                         :class="mediaToDelete?.is_in_use ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'">
+                        <template x-if="mediaToDelete?.is_in_use">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </template>
+                        <template x-if="!mediaToDelete?.is_in_use">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </template>
+                    </div>
+                    <div class="space-y-1">
+                        <h4 class="text-sm font-bold text-gray-900"
+                            x-text="mediaToDelete?.is_in_use ? 'Media Sedang Digunakan' : 'Hapus Media?'"></h4>
+                        <p class="text-xs text-gray-500 break-all font-mono bg-gray-50 px-2 py-1 rounded border border-gray-200"
+                           x-text="mediaToDelete?.filename"></p>
+                    </div>
+                </div>
+
+                <!-- Body Section: In-Use Details or Unused Info -->
+                <template x-if="mediaToDelete?.is_in_use">
+                    <div class="space-y-3">
+                        <div class="bg-amber-50 border border-amber-200 rounded-modern p-3 text-xs text-amber-900 space-y-1.5">
+                            <p class="font-semibold text-amber-950">Media ini sedang aktif digunakan oleh:</p>
+                            <ul class="max-h-28 overflow-y-auto space-y-1 pl-1 text-[11px] no-scrollbar">
+                                <template x-for="loc in (mediaToDelete?.usage_locations || [])" :key="loc">
+                                    <li class="flex items-center gap-1.5">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                        <span x-text="loc"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+
+                        <p class="text-[11px] text-rose-600 font-medium leading-relaxed">
+                            ⚠️ <strong>Peringatan Risiko:</strong> Jika media ini dihapus, gambar pada bagian terkait di atas tidak akan dapat ditampilkan lagi dan dapat menyebabkan <strong>BROKEN IMAGE</strong>. Tindakan ini tidak dapat dibatalkan.
+                        </p>
+                    </div>
+                </template>
+
+                <template x-if="!mediaToDelete?.is_in_use">
+                    <p class="text-xs text-gray-600 leading-relaxed">
+                        File ini tidak sedang digunakan oleh produk, kategori, artikel, maupun pengaturan situs. Tindakan ini tidak dapat dibatalkan.
+                    </p>
+                </template>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                    <button @click="mediaDeleteConfirmModalOpen = false; mediaToDelete = null;"
+                            type="button"
+                            :disabled="isDeletingMedia"
+                            class="px-3.5 py-1.5 rounded-modern border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="executeDeleteMedia()"
+                            type="button"
+                            :disabled="isDeletingMedia"
+                            class="px-4 py-1.5 rounded-modern bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                        <template x-if="isDeletingMedia">
+                            <svg class="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </template>
+                        <span x-text="isDeletingMedia ? 'Menghapus...' : (mediaToDelete?.is_in_use ? 'Ya, Hapus Media' : 'Ya, Hapus')"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ======================================================= -->
     <!-- 9. DELETE PRODUCT CONFIRMATION MODAL                    -->
     <!-- ======================================================= -->
-    <div x-show="deleteModalOpen" 
+    <div x-show="deleteModalOpen"
          x-cloak
          class="fixed inset-0 z-[60] overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="closeDeleteModal()"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
-                
+
                 <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -2495,15 +2696,20 @@ window.initialProductPayload = {
                 </div>
 
                 <div class="pt-3 flex items-center justify-center gap-3">
-                    <button @click="closeDeleteModal()" 
-                            type="button" 
+                    <button @click="closeDeleteModal()"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button @click="confirmDelete()" 
-                            type="button" 
-                            class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
-                        Hapus Produk
+                    <button @click="confirmDelete()"
+                            :disabled="isDeleting"
+                            type="button"
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                        <svg x-show="isDeleting" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span x-text="isDeleting ? 'Menghapus...' : 'Ya, Hapus Produk'">Ya, Hapus Produk</span>
                     </button>
                 </div>
 
@@ -2514,15 +2720,15 @@ window.initialProductPayload = {
     <!-- ======================================================= -->
     <!-- FLASH SALE ASSIGN PRODUCT MODAL                         -->
     <!-- ======================================================= -->
-    <div x-show="flashSaleModalOpen" 
+    <div x-show="flashSaleModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="flashSaleModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 space-y-4">
-                
+
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                     <div class="flex items-center gap-2">
                         <span class="text-base">⚡</span>
@@ -2539,36 +2745,36 @@ window.initialProductPayload = {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Pilih Produk Katalog <span class="text-rose-500">*</span>
                         </label>
-                        
+
                         <div class="relative" x-data="{ openProdDropdown: false }" @click.outside="openProdDropdown = false">
                             <!-- Trigger Button -->
-                            <button type="button" 
+                            <button type="button"
                                     @click="openProdDropdown = !openProdDropdown"
                                     class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium text-left flex items-center justify-between shadow-2xs focus:ring-2 focus:ring-brand-primary/30 cursor-pointer">
-                                <span class="truncate font-bold text-brand-dark" 
-                                      x-text="products.find(p => p.id == flashSaleForm.product_id)?.name 
-                                          ? (products.find(p => p.id == flashSaleForm.product_id).name + ' (' + formatRupiah(products.find(p => p.id == flashSaleForm.product_id).normal_price || products.find(p => p.id == flashSaleForm.product_id).price) + ')') 
+                                <span class="truncate font-bold text-brand-dark"
+                                      x-text="products.find(p => p.id == flashSaleForm.product_id)?.name
+                                          ? (products.find(p => p.id == flashSaleForm.product_id).name + ' (' + formatRupiah(products.find(p => p.id == flashSaleForm.product_id).normal_price || products.find(p => p.id == flashSaleForm.product_id).price) + ')')
                                           : '-- Pilih Produk Katalog --'"></span>
-                                <svg class="w-4 h-4 text-gray-400 shrink-0 transition-transform" 
-                                     :class="openProdDropdown ? 'rotate-180' : ''" 
+                                <svg class="w-4 h-4 text-gray-400 shrink-0 transition-transform"
+                                     :class="openProdDropdown ? 'rotate-180' : ''"
                                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                 </svg>
                             </button>
 
                             <!-- Dropdown List -->
-                            <div x-show="openProdDropdown" 
+                            <div x-show="openProdDropdown"
                                  x-cloak
                                  x-transition:enter="transition ease-out duration-100"
                                  x-transition:enter-start="opacity-0 scale-95"
                                  x-transition:enter-end="opacity-100 scale-100"
                                  class="absolute z-50 mt-1 w-full bg-white rounded-modern-lg shadow-xl border border-gray-200 p-2 space-y-1 max-h-56 overflow-y-auto">
                                 <template x-for="p in availableFlashSaleProducts" :key="p.id">
-                                    <button type="button" 
+                                    <button type="button"
                                             @click="flashSaleForm.product_id = p.id; openProdDropdown = false;"
                                             class="w-full flex items-center justify-between p-2 rounded-modern border text-xs font-semibold transition-all cursor-pointer text-left select-none"
-                                            :class="flashSaleForm.product_id == p.id 
-                                                ? 'bg-red-50 text-red-700 border-red-300 ring-1 ring-red-200 font-bold' 
+                                            :class="flashSaleForm.product_id == p.id
+                                                ? 'bg-red-50 text-red-700 border-red-300 ring-1 ring-red-200 font-bold'
                                                 : 'bg-white text-gray-700 border-gray-100 hover:bg-gray-50'">
                                         <div class="flex items-center gap-2.5 min-w-0">
                                             <div class="w-8 h-6 rounded overflow-hidden bg-brand-dark shrink-0 border border-gray-200">
@@ -2579,7 +2785,7 @@ window.initialProductPayload = {
                                                 <span class="text-[10px] text-gray-500 font-normal" x-text="(p.category || 'Kategori') + ' • ' + formatRupiah(p.normal_price || p.price)"></span>
                                             </div>
                                         </div>
-                                        <span class="text-[10px] text-red-700 font-bold shrink-0 ml-2" 
+                                        <span class="text-[10px] text-red-700 font-bold shrink-0 ml-2"
                                               x-show="flashSaleForm.product_id == p.id">
                                             ✓ Terpilih
                                         </span>
@@ -2631,13 +2837,13 @@ window.initialProductPayload = {
                 </div>
 
                 <div class="pt-3 flex items-center justify-end gap-3 border-t border-gray-100">
-                    <button @click="flashSaleModalOpen = false" 
-                            type="button" 
+                    <button @click="flashSaleModalOpen = false"
+                            type="button"
                             class="px-4 py-2.5 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button @click="assignProductToFlashSale()" 
-                            type="button" 
+                    <button @click="assignProductToFlashSale()"
+                            type="button"
                             :disabled="isAssigningFlashSale || !flashSaleForm.product_id"
                             class="px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
                         <svg x-show="isAssigningFlashSale" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
@@ -2655,17 +2861,17 @@ window.initialProductPayload = {
     <!-- ======================================================= -->
     <!-- 9B. MODAL KONFIRMASI PERUBAHAN POSISI KATALOG           -->
     <!-- ======================================================= -->
-    <div x-show="confirmReorderModalOpen" 
+    <div x-show="confirmReorderModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="confirmReorderModalOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-2xl border border-gray-200 space-y-4">
-                
+
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center text-lg font-bold shrink-0">
                         ⇅
@@ -2681,14 +2887,14 @@ window.initialProductPayload = {
                 </div>
 
                 <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
-                    <button type="button" 
-                            @click="confirmReorderModalOpen = false" 
+                    <button type="button"
+                            @click="confirmReorderModalOpen = false"
                             :disabled="isSavingCatalogOrder"
                             class="px-4 py-2 rounded-modern text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer disabled:opacity-50">
                         Batal
                     </button>
-                    <button type="button" 
-                            @click="saveCatalogReorder()" 
+                    <button type="button"
+                            @click="saveCatalogReorder()"
                             :disabled="isSavingCatalogOrder"
                             class="inline-flex items-center gap-2 px-5 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed">
                         <svg x-show="isSavingCatalogOrder" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
@@ -2706,7 +2912,7 @@ window.initialProductPayload = {
     <!-- ======================================================= -->
     <!-- 10. TOAST NOTIFICATION                                  -->
     <!-- ======================================================= -->
-    <div x-show="toastVisible" 
+    <div x-show="toastVisible"
          x-cloak
          x-transition
          class="fixed bottom-6 right-6 z-50 bg-brand-dark text-white px-4 py-3 rounded-modern-lg shadow-xl border border-white/10 flex items-center gap-2.5 text-xs font-semibold">

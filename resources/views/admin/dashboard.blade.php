@@ -9,344 +9,45 @@ window.analyticsInitialPayload = {!! json_encode($analytics, JSON_UNESCAPED_UNIC
 
 window.salesAnalyticsDashboard = function(initialPayload) {
     const payload = initialPayload || window.analyticsInitialPayload || {};
-    // Chart.js instances are class objects with their own mutable internal state.
-    // Keep it outside Alpine's reactive proxy so Chart.js always receives its
-    // original instance when the selected period updates.
     let chartInstance = null;
-    
-    // =========================================================================
-    // ANALYTICS ENGINE (Adopted from trafik_line_chart_v2.html logic)
-    // Continuous multi-year deterministic daily generator with seasonal curves & noise
-    // =========================================================================
-    const monthNamesID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    const fullMonthNamesID = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    
-    // Anchor timeline from 2019-01-01 to end of 2026
-    const startDate = new Date('2019-01-01T00:00:00');
-    const endDate = new Date('2026-12-31T23:59:59');
-    const dayCount = Math.floor((endDate - startDate) / 86400000) + 1;
 
-    function seededRandom(seed) {
-        let x = Math.sin(seed) * 10000;
-        return x - Math.floor(x);
-    }
-
-    function genSeries(base, amp, seedOffset, growthPerYear) {
-        const arr = [];
-        for (let i = 0; i < dayCount; i++) {
-            const years = i / 365;
-            const growth = base * growthPerYear * years;
-            const noise = (seededRandom(i * 12.9898 + seedOffset) - 0.5) * amp;
-            const seasonal = Math.sin((i % 365) / 365 * Math.PI * 2 + seedOffset) * amp * 0.3;
-            const val = Math.max(0, base + growth + noise + seasonal);
-            arr.push(Math.round(val));
-        }
-        return arr;
-    }
-
-    // Generate continuous raw series from 2019
-    const rawAdmin = genSeries(30, 20, 1, 0.35);
-    const rawOrder = genSeries(45, 28, 2, 0.45);
-    const rawVisit = genSeries(220, 120, 3, 0.5);
-
-    // Build timeline dates array
-    const timelineDates = [];
-    for (let i = 0; i < dayCount; i++) {
-        const d = new Date(startDate);
-        d.setDate(d.getDate() + i);
-        timelineDates.push(d);
-    }
-
-    function getDayIndex(d) {
-        return Math.floor((d - startDate) / 86400000);
-    }
-
-    function sliceStats(fromIdx, toIdxExclusive) {
-        return { 
-            fromIdx: Math.max(0, fromIdx), 
-            toIdx: Math.min(dayCount, toIdxExclusive) 
-        };
-    }
-
-    function avg(arr) {
-        if (!arr.length) return 0;
-        return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
-    }
-
-    function sum(arr) {
-        if (!arr.length) return 0;
-        return arr.reduce((a, b) => a + b, 0);
-    }
-
-    // Exact Verified High-Contrast User Datasets for 2026 Q3
-    const explicitMonths2026 = {
-        7: { // Juli 2026 (Peak 142)
-            v: [60, 72, 55, 81, 67, 92, 74, 88, 63, 79, 95, 71, 86, 102, 77, 91, 108, 82, 97, 115, 89, 104, 118, 94, 123, 101, 129, 110, 136, 116, 142],
-            c: [14, 17, 13, 20, 16, 22, 18, 21, 15, 19, 23, 17, 21, 25, 19, 22, 27, 20, 24, 29, 22, 26, 30, 23, 31, 25, 32, 27, 34, 29, 36],
-            o: [6, 8, 5, 10, 7, 11, 9, 10, 7, 9, 12, 8, 11, 13, 9, 11, 14, 10, 12, 15, 11, 13, 16, 12, 17, 14, 18, 15, 19, 16, 20]
-        },
-        8: { // Agustus 2026 (Peak 310)
-            v: [120, 138, 151, 142, 165, 178, 192, 155, 149, 171, 183, 176, 194, 205, 188, 213, 221, 198, 207, 225, 241, 230, 218, 252, 267, 248, 274, 289, 271, 295, 310],
-            c: [34, 39, 42, 40, 47, 51, 56, 45, 43, 49, 53, 50, 57, 61, 54, 63, 66, 59, 62, 68, 73, 69, 65, 76, 81, 74, 83, 88, 82, 91, 96],
-            o: [18, 21, 24, 22, 26, 29, 32, 25, 24, 28, 30, 28, 32, 35, 31, 36, 38, 34, 36, 39, 43, 41, 38, 45, 48, 44, 50, 53, 48, 55, 58]
-        },
-        9: { // September 2026 (Peak 420)
-            v: [180, 205, 190, 220, 235, 210, 248, 225, 260, 242, 275, 290, 268, 301, 280, 315, 298, 325, 310, 342, 330, 350, 365, 340, 378, 355, 390, 372, 405, 420],
-            c: [48, 55, 51, 59, 63, 57, 68, 61, 72, 65, 77, 82, 74, 85, 79, 88, 83, 91, 87, 96, 92, 99, 103, 95, 108, 101, 112, 106, 116, 121],
-            o: [24, 28, 26, 30, 33, 29, 35, 32, 38, 34, 41, 44, 39, 46, 42, 48, 45, 51, 48, 54, 52, 56, 59, 53, 62, 57, 65, 61, 68, 72]
-        }
-    };
-
-    // Splice explicit datasets into continuous timeline
-    Object.keys(explicitMonths2026).forEach(mStr => {
-        const m = parseInt(mStr, 10);
-        const firstDay = new Date(2026, m - 1, 1);
-        const startIdx = getDayIndex(firstDay);
-        const data = explicitMonths2026[m];
-        for (let j = 0; j < data.v.length; j++) {
-            if (startIdx + j < dayCount) {
-                rawVisit[startIdx + j] = data.v[j];
-                rawAdmin[startIdx + j] = data.c[j];
-                rawOrder[startIdx + j] = data.o[j];
-            }
-        }
-    });
-
-    const sourceRatiosMap = {
-        all: { ratio: 1.0, chat_ratio: 0.310, order_ratio: 0.170, repeat_ratio: 0.028, label: 'Semua Traffic' },
-        meta_ads: { ratio: 0.52, chat_ratio: 0.365, order_ratio: 0.205, repeat_ratio: 0.026, label: 'Meta Ads' },
-        google_organic: { ratio: 0.31, chat_ratio: 0.285, order_ratio: 0.128, repeat_ratio: 0.032, label: 'Google Organic' },
-        direct: { ratio: 0.12, chat_ratio: 0.270, order_ratio: 0.120, repeat_ratio: 0.040, label: 'Direct' },
-        referral: { ratio: 0.05, chat_ratio: 0.260, order_ratio: 0.115, repeat_ratio: 0.020, label: 'Referral / Other' }
+    const sourceLabels = {
+        all: 'Semua Traffic',
+        meta_ads: 'Meta Ads',
+        google_organic: 'Google Organic',
+        direct: 'Direct',
+        referral: 'Referral / Other'
     };
 
     return {
-        // Active Selection State (Default: Bulanan, Agustus 2026, Harian, Semua Traffic)
+        // Active Selection State initialized directly from backend real payload
         activePeriod: payload.initial_period || 'bulanan',
         activeSource: payload.initial_source || 'all',
         activeGranularity: payload.initial_granularity || 'harian',
-        
+
         // Navigation States
         weekOffset: 0,
-        selectedYear: 2026,
-        selectedMonth: 8, // 1 to 12
+        selectedYear: new Date().getFullYear(),
+        selectedMonth: new Date().getMonth() + 1,
 
-        // Slicing Logic from trafik_line_chart_v2.html
-        getDailySlice(year, month) {
-            const first = new Date(year, month - 1, 1);
-            const last = new Date(year, month, 0);
-            const fromIdx = Math.max(0, getDayIndex(first));
-            const toIdx = Math.min(dayCount, getDayIndex(last) + 1);
-
-            const labels = [];
-            const admin = [];
-            const order = [];
-            const visit = [];
-
-            for (let i = fromIdx; i < toIdx; i++) {
-                labels.push(timelineDates[i].getDate() + '');
-                admin.push(rawAdmin[i]);
-                order.push(rawOrder[i]);
-                visit.push(rawVisit[i]);
-            }
-            return { labels, admin, order, visit };
-        },
-
-        getWeeklySlice(weekOff) {
-            // Anchor reference week (Offset 0 = 18–24 Aug 2026)
-            const anchorEnd = new Date(2026, 7, 24);
-            const targetEnd = new Date(anchorEnd);
-            targetEnd.setDate(anchorEnd.getDate() + (weekOff * 7));
-            const targetStart = new Date(targetEnd);
-            targetStart.setDate(targetEnd.getDate() - 6);
-
-            const fromIdx = Math.max(0, getDayIndex(targetStart));
-            const toIdx = Math.min(dayCount, getDayIndex(targetEnd) + 1);
-
-            const labels = [];
-            const admin = [];
-            const order = [];
-            const visit = [];
-
-            for (let i = fromIdx; i < toIdx; i++) {
-                labels.push(timelineDates[i].getDate() + '');
-                admin.push(rawAdmin[i]);
-                order.push(rawOrder[i]);
-                visit.push(rawVisit[i]);
-            }
-
-            const rangeStr = `${targetStart.getDate()} – ${targetEnd.getDate()} ${fullMonthNamesID[targetEnd.getMonth() + 1]} ${targetEnd.getFullYear()}`;
-            return { range: rangeStr, labels, admin, order, visit };
-        },
-
-        getMonthlySlice(year) {
-            const labels = [];
-            const admin = [];
-            const order = [];
-            const visit = [];
-
-            for (let m = 0; m < 12; m++) {
-                const first = new Date(year, m, 1);
-                const last = new Date(year, m + 1, 0);
-                const fromIdx = getDayIndex(first);
-                const toIdx = getDayIndex(last) + 1;
-                const { fromIdx: f, toIdx: t } = sliceStats(fromIdx, toIdx);
-
-                labels.push(monthNamesID[m]);
-                admin.push(t > f ? sum(rawAdmin.slice(f, t)) : 0);
-                order.push(t > f ? sum(rawOrder.slice(f, t)) : 0);
-                visit.push(t > f ? sum(rawVisit.slice(f, t)) : 0);
-            }
-            return { labels, admin, order, visit };
-        },
-
-        getYearlySlice(fromYear, toYear) {
-            const labels = [];
-            const admin = [];
-            const order = [];
-            const visit = [];
-
-            for (let y = fromYear; y <= toYear; y++) {
-                const first = new Date(y, 0, 1);
-                const last = new Date(y, 11, 31);
-                const fromIdx = getDayIndex(first);
-                const toIdx = getDayIndex(last) + 1;
-                const { fromIdx: f, toIdx: t } = sliceStats(fromIdx, toIdx);
-
-                labels.push(y + '');
-                admin.push(t > f ? sum(rawAdmin.slice(f, t)) : 0);
-                order.push(t > f ? sum(rawOrder.slice(f, t)) : 0);
-                visit.push(t > f ? sum(rawVisit.slice(f, t)) : 0);
-            }
-            return { labels, admin, order, visit };
-        },
-
-        // Computed Properties for Current Selection
+        // Master Trend & KPI Data from Real Backend Payload
         get currentTrendData() {
-            const sourceConfig = sourceRatiosMap[this.activeSource] || sourceRatiosMap.all;
-            const ratio = sourceConfig.ratio;
-            let labels = [];
-            let pengunjung = [];
-            let chat_admin = [];
-            let pesan_order_wa = [];
-            let rangeLabel = '';
-
-            if (this.activePeriod === 'mingguan') {
-                const weekData = this.getWeeklySlice(this.weekOffset);
-                rangeLabel = weekData.range;
-                labels = weekData.labels;
-
-                pengunjung = weekData.visit.map(v => Math.round(v * ratio));
-                chat_admin = weekData.admin.map(c => Math.round(c * (this.activeSource === 'all' ? 1 : (sourceConfig.chat_ratio / 0.310 * ratio))));
-                pesan_order_wa = weekData.order.map(o => Math.round(o * (this.activeSource === 'all' ? 1 : (sourceConfig.order_ratio / 0.170 * ratio))));
-            }
-            else if (this.activePeriod === 'bulanan') {
-                const monthData = this.getDailySlice(this.selectedYear, this.selectedMonth);
-                const mName = fullMonthNamesID[this.selectedMonth];
-                rangeLabel = `${mName} ${this.selectedYear}`;
-
-                const dailyV = monthData.visit.map(v => Math.round(v * ratio));
-                const dailyC = monthData.admin.map(c => Math.round(c * (this.activeSource === 'all' ? 1 : (sourceConfig.chat_ratio / 0.310 * ratio))));
-                const dailyO = monthData.order.map(o => Math.round(o * (this.activeSource === 'all' ? 1 : (sourceConfig.order_ratio / 0.170 * ratio))));
-
-                if (this.activeGranularity === 'mingguan') {
-                    const daysCount = dailyV.length;
-                    labels = ['M1 (1–7)', 'M2 (8–14)', 'M3 (15–21)', 'M4 (22–28)'];
-                    pengunjung = [
-                        dailyV.slice(0, 7).reduce((a, b) => a + b, 0),
-                        dailyV.slice(7, 14).reduce((a, b) => a + b, 0),
-                        dailyV.slice(14, 21).reduce((a, b) => a + b, 0),
-                        dailyV.slice(21, 28).reduce((a, b) => a + b, 0)
-                    ];
-                    chat_admin = [
-                        dailyC.slice(0, 7).reduce((a, b) => a + b, 0),
-                        dailyC.slice(7, 14).reduce((a, b) => a + b, 0),
-                        dailyC.slice(14, 21).reduce((a, b) => a + b, 0),
-                        dailyC.slice(21, 28).reduce((a, b) => a + b, 0)
-                    ];
-                    pesan_order_wa = [
-                        dailyO.slice(0, 7).reduce((a, b) => a + b, 0),
-                        dailyO.slice(7, 14).reduce((a, b) => a + b, 0),
-                        dailyO.slice(14, 21).reduce((a, b) => a + b, 0),
-                        dailyO.slice(21, 28).reduce((a, b) => a + b, 0)
-                    ];
-
-                    if (daysCount > 28) {
-                        labels.push(`M5 (29–${daysCount})`);
-                        pengunjung.push(dailyV.slice(28, daysCount).reduce((a, b) => a + b, 0));
-                        chat_admin.push(dailyC.slice(28, daysCount).reduce((a, b) => a + b, 0));
-                        pesan_order_wa.push(dailyO.slice(28, daysCount).reduce((a, b) => a + b, 0));
-                    }
-                } else {
-                    labels = monthData.labels;
-                    pengunjung = dailyV;
-                    chat_admin = dailyC;
-                    pesan_order_wa = dailyO;
-                }
-            }
-            else if (this.activePeriod === 'tahunan') {
-                rangeLabel = `Tahun ${this.selectedYear}`;
-                const yrData = this.getMonthlySlice(this.selectedYear);
-                labels = yrData.labels;
-
-                pengunjung = yrData.visit.map(v => Math.round(v * ratio));
-                chat_admin = yrData.admin.map(c => Math.round(c * (this.activeSource === 'all' ? 1 : (sourceConfig.chat_ratio / 0.310 * ratio))));
-                pesan_order_wa = yrData.order.map(o => Math.round(o * (this.activeSource === 'all' ? 1 : (sourceConfig.order_ratio / 0.170 * ratio))));
-            }
-            else if (this.activePeriod === 'semua_tahun') {
-                rangeLabel = '2023 – 2026 (Semua Periode Tercatat)';
-                const allYrData = this.getYearlySlice(2023, 2026);
-                labels = allYrData.labels;
-
-                pengunjung = allYrData.visit.map(v => Math.round(v * ratio));
-                chat_admin = allYrData.admin.map(c => Math.round(c * (this.activeSource === 'all' ? 1 : (sourceConfig.chat_ratio / 0.310 * ratio))));
-                pesan_order_wa = allYrData.order.map(o => Math.round(o * (this.activeSource === 'all' ? 1 : (sourceConfig.order_ratio / 0.170 * ratio))));
-            }
-
-            // Summary Totals calculated from active dataset
-            const totalV = pengunjung.reduce((a, b) => a + b, 0);
-            const totalC = chat_admin.reduce((a, b) => a + b, 0);
-            const totalO = pesan_order_wa.reduce((a, b) => a + b, 0);
-            const totalR = Math.max(1, Math.round(totalV * (sourceConfig.repeat_ratio || 0.028)));
-
-            const chatPct = totalV > 0 ? ((totalC / totalV) * 100).toFixed(1).replace('.', ',') : '0,0';
-            const orderPct = totalV > 0 ? ((totalO / totalV) * 100).toFixed(1).replace('.', ',') : '0,0';
-
-            const compV = this.activePeriod === 'tahunan' ? '+22,4% vs tahun lalu' : 
-                         (this.activePeriod === 'semua_tahun' ? '+89,1% pertumbuhan total' : '+18,4% vs periode sebelumnya');
-            const compR = this.activePeriod === 'tahunan' ? '+25,2% vs tahun lalu' : 
-                         (this.activePeriod === 'semua_tahun' ? '+114% akumulasi pembeli loyal' : '+15,2% vs periode sebelumnya');
+            const trend = payload.initial_trend || {};
+            const chartData = payload.chart_data || trend.chart_data || { pengunjung: [], chat_admin: [], pesan_order_wa: [] };
+            const labels = payload.chart_labels || trend.labels || [];
+            const rangeLabel = payload.range_label || trend.range_label || '';
+            const kpis = payload.kpis || trend.kpis || {
+                pengunjung: { value: '0', raw_value: 0, subtext: 'Belum ada data periode sebelumnya' },
+                chat_admin: { value: '0', raw_value: 0, subtext: '0% dari visitor' },
+                pesan_order_wa: { value: '0', raw_value: 0, subtext: '0% dari visitor' },
+                repeat_order: { value: '0', raw_value: 0, subtext: 'Data belum tersedia' }
+            };
 
             return {
                 rangeLabel: rangeLabel,
                 labels: labels,
-                chart_data: {
-                    pengunjung: pengunjung,
-                    chat_admin: chat_admin,
-                    pesan_order_wa: pesan_order_wa
-                },
-                kpis: {
-                    pengunjung: {
-                        value: new Intl.NumberFormat('id-ID').format(totalV),
-                        raw_value: totalV,
-                        subtext: compV
-                    },
-                    chat_admin: {
-                        value: new Intl.NumberFormat('id-ID').format(totalC),
-                        raw_value: totalC,
-                        subtext: `${chatPct}% dari visitor`
-                    },
-                    pesan_order_wa: {
-                        value: new Intl.NumberFormat('id-ID').format(totalO),
-                        raw_value: totalO,
-                        subtext: `${orderPct}% dari visitor`
-                    },
-                    repeat_order: {
-                        value: new Intl.NumberFormat('id-ID').format(totalR),
-                        raw_value: totalR,
-                        subtext: compR
-                    }
-                }
+                chart_data: chartData,
+                kpis: kpis
             };
         },
 
@@ -355,50 +56,20 @@ window.salesAnalyticsDashboard = function(initialPayload) {
         },
 
         get trafficSources() {
-            const totalVisitors = this.currentTrendData.kpis.pengunjung.raw_value;
-
-            const metaV = Math.round(totalVisitors * 0.52);
-            const googleV = Math.round(totalVisitors * 0.31);
-            const directV = Math.round(totalVisitors * 0.12);
-            const referralV = totalVisitors - metaV - googleV - directV;
-
-            return [
-                { name: 'Meta Ads', percentage: 52, visitors: new Intl.NumberFormat('id-ID').format(metaV), color: '#1F6B45' },
-                { name: 'Google Organic', percentage: 31, visitors: new Intl.NumberFormat('id-ID').format(googleV), color: '#2563EB' },
-                { name: 'Direct', percentage: 12, visitors: new Intl.NumberFormat('id-ID').format(directV), color: '#D97706' },
-                { name: 'Referral / Other', percentage: 5, visitors: new Intl.NumberFormat('id-ID').format(referralV), color: '#7C3AED' }
-            ];
+            return payload.traffic_sources || [];
         },
 
         get topArticles() {
-            const totalVisitors = this.currentTrendData.kpis.pengunjung.raw_value;
-            const m = Math.max(0.5, totalVisitors / 1500);
-
-            const baseArticles = [
-                { rank: 1, title: 'Cara Memilih Ayam Segar', base: 824, category: 'Edukasi Ayam' },
-                { rank: 2, title: 'Manfaat Protein Ayam', base: 617, category: 'Nutrisi & Gizi' },
-                { rank: 3, title: 'Cara Menyimpan Daging', base: 491, category: 'Cold Chain Storage' },
-                { rank: 4, title: 'Protein untuk Diet', base: 386, category: 'Kesehatan' },
-                { rank: 5, title: 'Tips Memasak Ayam', base: 244, category: 'Tips Kuliner' }
-            ];
-
-            return baseArticles.map(a => {
-                const count = Math.round(a.base * m);
-                return {
-                    rank: a.rank,
-                    title: a.title,
-                    category: a.category,
-                    unique_readers_formatted: new Intl.NumberFormat('id-ID').format(count)
-                };
-            });
+            return payload.top_articles || [];
         },
 
         getSourceLabel(s) {
-            return (sourceRatiosMap[s] || sourceRatiosMap.all).label;
+            return sourceLabels[s] || sourceLabels.all;
         },
 
         getMonthName(m) {
-            return fullMonthNamesID[m] || 'Agustus';
+            const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            return monthNames[m] || '';
         },
 
         init() {
@@ -456,7 +127,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
                 this.selectedMonth++;
             } else {
                 this.selectedMonth = 1;
-                if (this.selectedYear < 2026) this.selectedYear++;
+                if (this.selectedYear < 2030) this.selectedYear++;
             }
             this.scheduleChartUpdate();
         },
@@ -469,7 +140,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
         },
 
         nextYear() {
-            if (this.selectedYear < 2026) {
+            if (this.selectedYear < 2030) {
                 this.selectedYear++;
                 this.scheduleChartUpdate();
             }
@@ -508,21 +179,21 @@ window.salesAnalyticsDashboard = function(initialPayload) {
                     datasets: [
                         {
                             label: 'Pengunjung',
-                            data: chartData.pengunjung,
-                            borderColor: '#1F6B45',
-                            backgroundColor: 'rgba(31, 107, 69, 0.08)',
+                            data: chartData.pengunjung || [],
+                            borderColor: '#003F22',
+                            backgroundColor: 'rgba(0, 63, 34, 0.08)',
                             fill: true,
                             tension: 0.35,
                             borderWidth: 2.5,
                             pointRadius: labels.length > 15 ? 2 : 4,
                             pointHoverRadius: 6,
-                            pointBackgroundColor: '#1F6B45',
+                            pointBackgroundColor: '#003F22',
                             pointBorderColor: '#FFFFFF',
                             pointBorderWidth: 1.5,
                         },
                         {
                             label: 'Chat Admin',
-                            data: chartData.chat_admin,
+                            data: chartData.chat_admin || [],
                             borderColor: '#D97706',
                             backgroundColor: 'transparent',
                             fill: false,
@@ -536,7 +207,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
                         },
                         {
                             label: 'Pesan Order WhatsApp',
-                            data: chartData.pesan_order_wa,
+                            data: chartData.pesan_order_wa || [],
                             borderColor: '#0D9488',
                             backgroundColor: 'transparent',
                             fill: false,
@@ -577,18 +248,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
                                 title: (tooltipItems) => {
                                     if (!tooltipItems.length) return '';
                                     const rawLabel = tooltipItems[0].label;
-                                    if (this.activePeriod === 'mingguan') {
-                                        return `${rawLabel} Agustus 2026`;
-                                    } else if (this.activePeriod === 'bulanan') {
-                                        if (this.activeGranularity === 'mingguan') {
-                                            return `${rawLabel} (${this.getMonthName(this.selectedMonth)} ${this.selectedYear})`;
-                                        }
-                                        return `${rawLabel} ${this.getMonthName(this.selectedMonth)} ${this.selectedYear}`;
-                                    } else if (this.activePeriod === 'tahunan') {
-                                        return `Bulan ${rawLabel} ${this.selectedYear}`;
-                                    } else {
-                                        return `Tahun ${rawLabel}`;
-                                    }
+                                    return `${rawLabel} ${this.currentTrendData.rangeLabel}`;
                                 },
                                 label: function(context) {
                                     let label = context.dataset.label || '';
@@ -648,11 +308,11 @@ window.salesAnalyticsDashboard = function(initialPayload) {
 
             chartInstance.data.labels = labels;
             if (chartInstance.data.datasets && chartInstance.data.datasets.length >= 3) {
-                chartInstance.data.datasets[0].data = chartData.pengunjung;
+                chartInstance.data.datasets[0].data = chartData.pengunjung || [];
                 chartInstance.data.datasets[0].pointRadius = labels.length > 15 ? 2 : 4;
-                chartInstance.data.datasets[1].data = chartData.chat_admin;
+                chartInstance.data.datasets[1].data = chartData.chat_admin || [];
                 chartInstance.data.datasets[1].pointRadius = labels.length > 15 ? 2 : 3.5;
-                chartInstance.data.datasets[2].data = chartData.pesan_order_wa;
+                chartInstance.data.datasets[2].data = chartData.pesan_order_wa || [];
                 chartInstance.data.datasets[2].pointRadius = labels.length > 15 ? 2 : 3.5;
             }
 
@@ -664,7 +324,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
 };
 </script>
 
-<div x-data="window.salesAnalyticsDashboard(window.analyticsInitialPayload)" 
+<div x-data="window.salesAnalyticsDashboard(window.analyticsInitialPayload)"
      class="space-y-6">
 
     <!-- ======================================================= -->
@@ -720,7 +380,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
     <!-- Focus: Unique Visitors, Unique Chat, Unique Order, Repeat-->
     <!-- ======================================================= -->
     <div class="grid grid-cols-4 gap-5">
-        
+
         <!-- KPI 1: PENGUNJUNG (Unique Visitors) -->
         <div class="bg-white p-5 rounded-modern-xl border border-gray-200/80 shadow-2xs hover:border-brand-primary/40 transition-colors">
             <div class="flex items-center justify-between mb-3">
@@ -821,7 +481,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
     <!-- 3. MAIN ANALYTICS GRAPH: TRAFFIC & SALES INTENT         -->
     <!-- ======================================================= -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 shadow-2xs space-y-5">
-        
+
         <!-- Graph Header & Source Filters -->
         <div class="flex items-center justify-between flex-wrap gap-4 pb-4 border-b border-gray-100">
             <div>
@@ -870,23 +530,23 @@ window.salesAnalyticsDashboard = function(initialPayload) {
 
         <!-- Dynamic Contextual Navigation & Granularity Bar -->
         <div class="flex items-center justify-between p-2.5 bg-gray-50/80 rounded-modern border border-gray-200/60 text-xs">
-            
+
             <!-- Left: Range Navigator based on active period -->
             <div class="flex items-center gap-2.5">
-                
+
                 <!-- Mingguan Navigation -->
                 <template x-if="activePeriod === 'mingguan'">
                     <div class="flex items-center gap-2">
-                        <button type="button" 
-                                @click="prevWeek()" 
+                        <button type="button"
+                                @click="prevWeek()"
                                 :disabled="weekOffset <= -2"
                                 :class="weekOffset <= -2 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white hover:text-brand-dark cursor-pointer'"
                                 class="w-7 h-7 rounded-modern-sm border border-gray-200 bg-white/70 flex items-center justify-center font-bold text-gray-600 transition-colors">
                             ‹
                         </button>
                         <span class="font-extrabold text-brand-dark px-2" x-text="currentTrendData.rangeLabel"></span>
-                        <button type="button" 
-                                @click="nextWeek()" 
+                        <button type="button"
+                                @click="nextWeek()"
                                 :disabled="weekOffset >= 1"
                                 :class="weekOffset >= 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white hover:text-brand-dark cursor-pointer'"
                                 class="w-7 h-7 rounded-modern-sm border border-gray-200 bg-white/70 flex items-center justify-center font-bold text-gray-600 transition-colors">
@@ -898,14 +558,14 @@ window.salesAnalyticsDashboard = function(initialPayload) {
                 <!-- Bulanan Navigation -->
                 <template x-if="activePeriod === 'bulanan'">
                     <div class="flex items-center gap-2">
-                        <button type="button" 
-                                @click="prevMonth()" 
+                        <button type="button"
+                                @click="prevMonth()"
                                 class="w-7 h-7 rounded-modern-sm border border-gray-200 bg-white/70 hover:bg-white hover:text-brand-dark flex items-center justify-center font-bold text-gray-600 transition-colors cursor-pointer">
                             ‹
                         </button>
                         <span class="font-extrabold text-brand-dark px-2" x-text="currentTrendData.rangeLabel"></span>
-                        <button type="button" 
-                                @click="nextMonth()" 
+                        <button type="button"
+                                @click="nextMonth()"
                                 class="w-7 h-7 rounded-modern-sm border border-gray-200 bg-white/70 hover:bg-white hover:text-brand-dark flex items-center justify-center font-bold text-gray-600 transition-colors cursor-pointer">
                             ›
                         </button>
@@ -915,16 +575,16 @@ window.salesAnalyticsDashboard = function(initialPayload) {
                 <!-- Tahunan Navigation -->
                 <template x-if="activePeriod === 'tahunan'">
                     <div class="flex items-center gap-2">
-                        <button type="button" 
-                                @click="prevYear()" 
+                        <button type="button"
+                                @click="prevYear()"
                                 :disabled="selectedYear <= 2023"
                                 :class="selectedYear <= 2023 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white hover:text-brand-dark cursor-pointer'"
                                 class="w-7 h-7 rounded-modern-sm border border-gray-200 bg-white/70 flex items-center justify-center font-bold text-gray-600 transition-colors">
                             ‹
                         </button>
                         <span class="font-extrabold text-brand-dark px-2" x-text="currentTrendData.rangeLabel"></span>
-                        <button type="button" 
-                                @click="nextYear()" 
+                        <button type="button"
+                                @click="nextYear()"
                                 :disabled="selectedYear >= 2026"
                                 :class="selectedYear >= 2026 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white hover:text-brand-dark cursor-pointer'"
                                 class="w-7 h-7 rounded-modern-sm border border-gray-200 bg-white/70 flex items-center justify-center font-bold text-gray-600 transition-colors">
@@ -976,7 +636,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
             <div class="flex items-center gap-6">
                 <!-- 1. Pengunjung -->
                 <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-[#1F6B45]"></span>
+                    <span class="w-3 h-3 rounded-full bg-[#003F22]"></span>
                     <span class="font-bold text-gray-700">Pengunjung</span>
                     <span class="text-gray-400 font-normal">(Website dikunjungi)</span>
                 </div>
@@ -1012,7 +672,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
     <!-- Left: Sumber Traffic | Right: Artikel Favorit           -->
     <!-- ======================================================= -->
     <div class="grid grid-cols-2 gap-6">
-        
+
         <!-- Column 1: Sumber Traffic -->
         <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 shadow-2xs space-y-4 flex flex-col justify-between">
             <div>
@@ -1056,8 +716,8 @@ window.salesAnalyticsDashboard = function(initialPayload) {
 
             <!-- Footer summary note -->
             <div class="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                <span>Dominasi traffic dari iklan digital berbayar</span>
-                <span class="font-bold text-brand-primary">Meta Ads 52%</span>
+                <span>Distribusi kanal traffic website</span>
+                <span class="font-bold text-brand-primary" x-text="trafficSources.length > 0 ? `${trafficSources[0].name} ${trafficSources[0].percentage}%` : 'Direct 0%'"></span>
             </div>
         </div>
 
@@ -1087,7 +747,7 @@ window.salesAnalyticsDashboard = function(initialPayload) {
                                     <div class="text-[10px] text-gray-400 truncate" x-text="article.category"></div>
                                 </div>
                             </div>
-                            
+
                             <div class="flex items-center gap-2 shrink-0">
                                 <div class="text-right">
                                     <span class="text-xs font-extrabold text-brand-dark" x-text="article.unique_readers_formatted"></span>

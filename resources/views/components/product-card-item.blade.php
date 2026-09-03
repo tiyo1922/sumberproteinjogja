@@ -3,14 +3,14 @@
 @endphp
 
 <div class="h-full group bg-white rounded-modern border border-gray-100/90 shadow-sm hover:shadow-card-hover transition-all duration-300 flex flex-col justify-between overflow-hidden text-left">
-    
+
     <!-- Card Top: Image & Badges Container (4:3 Aspect Ratio) -->
     <div class="relative">
         <div class="aspect-[4/3] w-full overflow-hidden bg-gray-50">
-            <img @if($isLive) :src="getImageUrl(form.image)" :alt="form.name" @else src="{{ asset($prod['image'] ?? 'images/prod-beef-slice.jpg') }}" alt="{{ $prod['name'] ?? 'Produk' }} - Sumber Protein Jogja" width="400" height="300" loading="lazy" @endif 
+            <img @if($isLive) :src="getImageUrl(form.image)" :alt="form.name" @else src="{{ asset($prod['image'] ?? 'storage/media/prod_beef_slice_1786890263309.jpg') }}" alt="{{ $prod['name'] ?? 'Produk' }} - Sumber Protein Jogja" width="400" height="300" loading="lazy" @endif
                  class="w-full h-full object-cover object-center group-hover:scale-106 transition-transform duration-500 ease-out">
         </div>
-        
+
         <!-- Type Badges Container: 1-2 primary badges on LP / all selected badges in Live Preview -->
         <div class="absolute top-2 left-2 sm:top-2.5 sm:left-2.5 flex flex-wrap gap-1 max-w-[85%] z-10">
             @if($isLive)
@@ -83,7 +83,7 @@
 
             @if($stockStatus === 'OUT_OF_STOCK')
                 <!-- Locked Out of Stock Button -->
-                <button type="button" 
+                <button type="button"
                         disabled
                         aria-label="Stok Habis"
                         title="Stok Habis"
@@ -93,7 +93,7 @@
             @elseif($stockStatus === 'PRE_ORDER')
                 <!-- Pre-Order Action Button -->
                 <button @if(!$isLive) @click="$store.cart.addItem('{{ $prod['id'] }}', '{{ addslashes($prod['name']) }}', {{ $prod['effective_price'] ?? ($prod['price'] ?? 0) }}, 'PRE_ORDER')" @endif
-                        type="button" 
+                        type="button"
                         aria-label="Pesan Pre-Order"
                         title="Pesan Pre-Order"
                         class="px-2.5 py-1 rounded-modern-sm text-[10px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors shrink-0 cursor-pointer shadow-2xs">
@@ -102,15 +102,15 @@
             @else
                 <!-- Standard Add to Cart Action Button -->
                 <button @if(!$isLive) @click="$store.cart.addItem('{{ $prod['id'] }}', '{{ addslashes($prod['name']) }}', {{ $prod['effective_price'] ?? ($prod['price'] ?? 0) }})" @endif
-                        type="button" 
+                        type="button"
                         aria-label="Tambahkan ke pesanan"
                         title="Tambahkan ke pesanan"
                         class="relative w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] rounded-modern-sm flex items-center justify-center text-white bg-brand-primary hover:bg-brand-primary-dark active:scale-90 transition-all duration-200 shadow-2xs hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/40 shrink-0 cursor-pointer after:absolute after:-inset-1.5 after:content-['']"
                         @if(!$isLive) :class="$store.cart.lastAddedId === '{{ $prod['id'] }}' ? 'scale-110 bg-emerald-600 ring-2 ring-emerald-400' : ''" @endif>
-                    
+
                     <!-- Clean Shopping Cart SVG Icon -->
-                    <svg @if(!$isLive) x-show="$store.cart.lastAddedId !== '{{ $prod['id'] }}'" @endif 
-                         class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-none stroke-current stroke-2" 
+                    <svg @if(!$isLive) x-show="$store.cart.lastAddedId !== '{{ $prod['id'] }}'" @endif
+                         class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-none stroke-current stroke-2"
                          viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="9" cy="21" r="1"></circle>
                         <circle cx="20" cy="21" r="1"></circle>
@@ -119,8 +119,8 @@
 
                     @if(!$isLive)
                     <!-- Brief Check Feedback Icon -->
-                    <svg x-show="$store.cart.lastAddedId === '{{ $prod['id'] }}'" x-cloak 
-                         class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-none stroke-current stroke-2 text-white animate-bounce" 
+                    <svg x-show="$store.cart.lastAddedId === '{{ $prod['id'] }}'" x-cloak
+                         class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-none stroke-current stroke-2 text-white animate-bounce"
                          viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>

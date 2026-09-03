@@ -17,6 +17,8 @@ window.adminSettingsManager = function(initialPayload) {
         nameUpdateRoute: payload.nameUpdateRoute || '',
         mediaUploadRoute: payload.mediaUploadRoute || '{{ route('admin.media.upload') }}',
         isSaving: false,
+        isSavingContact: false,
+        isDeletingContact: false,
         isSavingAvatar: false,
         avatarSuccessMsg: '',
         avatarErrorMsg: '',
@@ -48,7 +50,7 @@ window.adminSettingsManager = function(initialPayload) {
         mediaLibrary: window.__initialMediaLibrary || [],
         mediaPickerOpen: false,
         targetField: 'logo', // 'logo' | 'favicon' | 'avatar'
-        activeTab: 'contact', // 'contact' | 'website' | 'profile'
+        activeTab: 'contact', // 'contact' | 'website' | 'media' | 'profile'
         toastMessage: '',
         toastVisible: false,
         mediaTab: 'library', // 'library' | 'upload'
@@ -64,17 +66,24 @@ window.adminSettingsManager = function(initialPayload) {
                 return this.mediaLibrary;
             }
             const q = this.mediaSearchQuery.toLowerCase().trim();
-            return this.mediaLibrary.filter(m => 
-                (m.filename && m.filename.toLowerCase().includes(q)) || 
-                (m.title && m.title.toLowerCase().includes(q)) || 
+            return this.mediaLibrary.filter(m =>
+                (m.filename && m.filename.toLowerCase().includes(q)) ||
+                (m.title && m.title.toLowerCase().includes(q)) ||
                 (m.path && m.path.toLowerCase().includes(q))
             );
         },
 
-        async deleteMedia(media) {
-            if (!confirm('Apakah Anda yakin ingin menghapus file "' + media.filename + '" secara permanen dari server?')) {
-                return;
-            }
+        mediaDeleteConfirmModalOpen: false,
+        mediaToDelete: null,
+        isDeletingMedia: false,
+
+        openDeleteMediaModal(media) {
+            this.mediaToDelete = media;
+            this.mediaDeleteConfirmModalOpen = true;
+        },
+
+        async executeDeleteMedia() {
+            if (!this.mediaToDelete) return;
             this.isDeletingMedia = true;
             try {
                 const response = await fetch(this.mediaDeleteRoute || '{{ route('admin.media.delete') }}', {
@@ -84,14 +93,18 @@ window.adminSettingsManager = function(initialPayload) {
                         'X-CSRF-TOKEN': this.csrfToken || '{{ csrf_token() }}',
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ path: media.path })
+                    body: JSON.stringify({ path: this.mediaToDelete.path })
                 });
                 const result = await response.json();
                 if (response.ok && result.success) {
-                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== media.id && m.path !== media.path);
-                    if (this.selectedMedia && this.selectedMedia.path === media.path) {
+                    const deletedPath = this.mediaToDelete.path;
+                    const deletedId = this.mediaToDelete.id;
+                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== deletedId && m.path !== deletedPath);
+                    if (this.selectedMedia && (this.selectedMedia.path === deletedPath || this.selectedMedia.id === deletedId)) {
                         this.selectedMedia = null;
                     }
+                    this.mediaDeleteConfirmModalOpen = false;
+                    this.mediaToDelete = null;
                     this.showToast(result.message || 'File media berhasil dihapus dari server!');
                 } else {
                     alert(result.message || 'Gagal menghapus file media.');
@@ -118,7 +131,7 @@ window.adminSettingsManager = function(initialPayload) {
             active: true,
             is_system: false,
         },
-        
+
         showToast(msg) {
             this.toastMessage = msg;
             this.toastVisible = true;
@@ -158,7 +171,7 @@ window.adminSettingsManager = function(initialPayload) {
             this.contactModalOpen = true;
         },
 
-        saveContactFromModal() {
+        async saveContactFromModal() {
             if (!this.contactForm.name.trim()) {
                 alert('Nama kontak wajib diisi!');
                 return;
@@ -167,31 +180,41 @@ window.adminSettingsManager = function(initialPayload) {
                 alert('Nomor / nilai kontak wajib diisi!');
                 return;
             }
-            if (!this.contactForm.key.trim()) {
-                this.contactForm.key = this.contactForm.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-            }
+            this.isSavingContact = true;
+            try {
+                if (!this.contactForm.key.trim()) {
+                    this.contactForm.key = this.contactForm.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+                }
 
-            if (!this.settings.contacts) this.settings.contacts = [];
+                if (!this.settings.contacts) this.settings.contacts = [];
 
-            if (this.contactEditingIndex !== null) {
-                this.settings.contacts[this.contactEditingIndex] = { ...this.contactForm };
-                this.showToast('Kontak berhasil diperbarui.');
-            } else {
-                this.settings.contacts.push({ ...this.contactForm });
-                this.showToast('Kontak baru berhasil ditambahkan.');
+                if (this.contactEditingIndex !== null) {
+                    this.settings.contacts[this.contactEditingIndex] = { ...this.contactForm };
+                    this.showToast('Kontak berhasil diperbarui.');
+                } else {
+                    this.settings.contacts.push({ ...this.contactForm });
+                    this.showToast('Kontak baru berhasil ditambahkan.');
+                }
+                this.contactModalOpen = false;
+            } finally {
+                this.isSavingContact = false;
             }
-            this.contactModalOpen = false;
         },
 
-        deleteContact(index) {
+        async deleteContact(index) {
             const item = this.settings.contacts[index];
             if (item.is_system) {
                 alert('Kontak sistem default tidak dapat dihapus, namun dapat dinonaktifkan.');
                 return;
             }
             if (confirm('Hapus kontak "' + item.name + '" dari registry?')) {
-                this.settings.contacts.splice(index, 1);
-                this.showToast('Kontak berhasil dihapus.');
+                this.isDeletingContact = true;
+                try {
+                    this.settings.contacts.splice(index, 1);
+                    this.showToast('Kontak berhasil dihapus.');
+                } finally {
+                    this.isDeletingContact = false;
+                }
             }
         },
 
@@ -201,7 +224,7 @@ window.adminSettingsManager = function(initialPayload) {
                 this.showToast('Status kontak diubah menjadi ' + (this.settings.contacts[index].active ? 'Aktif' : 'Nonaktif'));
             }
         },
-        
+
         openMediaPicker(field) {
             this.targetField = field;
             this.mediaTab = 'library';
@@ -209,18 +232,18 @@ window.adminSettingsManager = function(initialPayload) {
             if (field === 'logo') currentPath = this.settings.brand ? this.settings.brand.logo_url : '';
             else if (field === 'favicon') currentPath = this.settings.brand ? this.settings.brand.favicon_url : '';
             else if (field === 'avatar') currentPath = this.settings.admin_user ? this.settings.admin_user.avatar_image : '';
-            
+
             this.selectedMedia = this.mediaLibrary.find(m => m.path === currentPath) || this.mediaLibrary[0] || null;
             this.uploadedFile = null;
             this.uploadedPreviewUrl = null;
             this.isUploadingMedia = false;
             this.mediaPickerOpen = true;
         },
-        
+
         selectMedia(media) {
             this.selectedMedia = media;
         },
-        
+
         confirmMediaSelection() {
             let chosenUrl = '';
             if (this.mediaTab === 'library' && this.selectedMedia) {
@@ -235,7 +258,7 @@ window.adminSettingsManager = function(initialPayload) {
                 this.showToast('Silakan pilih atau tunggu proses unggah file selesai.');
                 return;
             }
-            
+
             if (this.targetField === 'logo') {
                 if (!this.settings.brand) this.settings.brand = {};
                 this.settings.brand.logo_url = chosenUrl;
@@ -251,7 +274,7 @@ window.adminSettingsManager = function(initialPayload) {
             }
             this.mediaPickerOpen = false;
         },
-        
+
         async handleFileUpload(e) {
             const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
             if (!file) return;
@@ -293,9 +316,10 @@ window.adminSettingsManager = function(initialPayload) {
                 this.showToast('Terjadi kesalahan koneksi saat mengunggah file.');
             } finally {
                 this.isUploadingMedia = false;
+                if (e.target && e.target.value) e.target.value = '';
             }
         },
-        
+
         async saveSettings() {
             if (this.isSaving) return;
             this.isSaving = true;
@@ -328,8 +352,8 @@ window.adminSettingsManager = function(initialPayload) {
                 }
 
                 if (!response.ok || !result.success) {
-                    const errorMsg = result.errors 
-                        ? Object.values(result.errors).flat().join('\n') 
+                    const errorMsg = result.errors
+                        ? Object.values(result.errors).flat().join('\n')
                         : (result.message || 'Gagal menyimpan pengaturan Site & Contact.');
                     alert(errorMsg);
                     return;
@@ -431,8 +455,8 @@ window.adminSettingsManager = function(initialPayload) {
                         el.innerText = result.name;
                     });
                 } else {
-                    const err = result.errors 
-                        ? Object.values(result.errors).flat().join('\n') 
+                    const err = result.errors
+                        ? Object.values(result.errors).flat().join('\n')
                         : (result.message || 'Gagal menyimpan nama administrator.');
                     this.nameErrorMsg = err;
                     this.showToast(err);
@@ -482,8 +506,8 @@ window.adminSettingsManager = function(initialPayload) {
                         this.settings.admin_user.email = result.email;
                     }
                 } else {
-                    const err = result.errors 
-                        ? Object.values(result.errors).flat().join('\n') 
+                    const err = result.errors
+                        ? Object.values(result.errors).flat().join('\n')
                         : (result.message || 'Gagal menyimpan email administrator.');
                     this.emailErrorMsg = err;
                     this.showToast(err);
@@ -545,8 +569,8 @@ window.adminSettingsManager = function(initialPayload) {
                     this.passwordForm.password = '';
                     this.passwordForm.password_confirmation = '';
                 } else {
-                    const err = result.errors 
-                        ? Object.values(result.errors).flat().join('\n') 
+                    const err = result.errors
+                        ? Object.values(result.errors).flat().join('\n')
                         : (result.message || 'Gagal memperbarui sandi administrator.');
                     this.passwordErrorMsg = err;
                     this.showToast(err);
@@ -559,9 +583,9 @@ window.adminSettingsManager = function(initialPayload) {
                 this.isSavingPassword = false;
             }
         },
-        
+
         getImageUrl(path) {
-            if (!path) return '/images/hero-1.jpg';
+            if (!path) return '/storage/media/hero_meat_poultry_1786889302143.jpg';
             if (path.startsWith('blob:') || path.startsWith('http')) return path;
             return path.startsWith('/') ? path : '/' + path;
         }
@@ -579,7 +603,7 @@ window.adminSettingsManager = function(initialPayload) {
          passwordUpdateRoute: '{{ route('admin.profile.password.update') }}',
          mediaUploadRoute: '{{ route('admin.media.upload') }}'
      })">
-    
+
     <!-- 1. Header Card -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -601,9 +625,9 @@ window.adminSettingsManager = function(initialPayload) {
                 </p>
             </div>
 
-            <!-- Save Action Button (Hidden on Profile Tab as each section has its own save button) -->
-            <div x-show="activeTab !== 'profile'" class="flex items-center gap-3 shrink-0">
-                <button @click="saveSettings()" 
+            <!-- Save Action Button (Only on Contact & Website Tabs) -->
+            <div x-show="activeTab === 'contact' || activeTab === 'website'" class="flex items-center gap-3 shrink-0">
+                <button @click="saveSettings()"
                         :disabled="isSaving"
                         type="button"
                         class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
@@ -618,36 +642,42 @@ window.adminSettingsManager = function(initialPayload) {
     </div>
 
     <!-- 2. Navigation Tabs -->
-    <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
-        <button @click="activeTab = 'contact'" 
+    <div class="flex items-center gap-2 border-b border-gray-200 pb-2 overflow-x-auto no-scrollbar">
+        <button @click="activeTab = 'contact'"
                 type="button"
                 :class="activeTab === 'contact' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
-                class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
+                class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer whitespace-nowrap">
             💬 Pusat WhatsApp & Kontak
         </button>
-        <button @click="activeTab = 'website'" 
+        <button @click="activeTab = 'website'"
                 type="button"
                 :class="activeTab === 'website' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
-                class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
+                class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer whitespace-nowrap">
             🌐 Identitas Brand
         </button>
-        <button @click="activeTab = 'profile'" 
+        <button @click="activeTab = 'media'"
+                type="button"
+                :class="activeTab === 'media' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
+                class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer whitespace-nowrap">
+            🖼️ Media
+        </button>
+        <button @click="activeTab = 'profile'"
                 type="button"
                 :class="activeTab === 'profile' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
-                class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
+                class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer whitespace-nowrap">
             👤 Profil Administrator
         </button>
     </div>
 
     <!-- 3. Tab Contents Grid (For Contact & Brand Website) -->
-    <div x-show="activeTab !== 'profile'" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
+    <div x-show="activeTab === 'contact' || activeTab === 'website'" x-cloak class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
         <!-- Left: Form Fields (7 cols on lg) -->
         <div class="lg:col-span-7 space-y-6">
-            
+
             <!-- Tab 1: CONTACT REGISTRY (CENTRALIZED MASTER SOURCE) -->
-            <div x-show="activeTab === 'contact'" class="bg-white rounded-modern-xl border border-gray-200/80 p-6 shadow-2xs space-y-6">
-                
+            <div x-show="activeTab === 'contact'" x-cloak class="bg-white rounded-modern-xl border border-gray-200/80 p-6 shadow-2xs space-y-6">
+
                 <!-- Contact Registry Section Header -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
                     <div>
@@ -656,15 +686,12 @@ window.adminSettingsManager = function(initialPayload) {
                             <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">
                                 Master Contact Registry
                             </h3>
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                Single Source of Truth
-                            </span>
                         </div>
                         <p class="text-xs text-gray-500 mt-1 leading-relaxed">
                             Definisikan nomor & kontak satu kali di sini. Section lain (Hero, Knowledge, Mutu, dsb) cukup memilih nama divisi melalui dropdown reference.
                         </p>
                     </div>
-                    
+
                     <button @click="openCreateContactModal()"
                             type="button"
                             class="inline-flex items-center gap-1.5 px-4 py-2 rounded-modern text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow transition-all cursor-pointer shrink-0">
@@ -680,9 +707,9 @@ window.adminSettingsManager = function(initialPayload) {
                     <template x-for="(contact, cIdx) in (settings.contacts || [])" :key="contact.id || contact.key">
                         <div class="p-4 rounded-modern border transition-all duration-150"
                              :class="contact.active === false ? 'bg-gray-50/80 border-gray-200 opacity-75' : 'bg-white border-gray-200 hover:border-emerald-300 shadow-2xs'">
-                            
+
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                
+
                                 <!-- Contact Details Left -->
                                 <div class="space-y-1 flex-1">
                                     <div class="flex items-center gap-2 flex-wrap">
@@ -692,7 +719,7 @@ window.adminSettingsManager = function(initialPayload) {
                                             <span x-show="contact.type === 'email'">✉️</span>
                                         </span>
                                         <span class="font-bold text-xs text-brand-dark" x-text="contact.name || 'Kontak Tanpa Nama'"></span>
-                                        
+
                                         <!-- Channel Type Badge -->
                                         <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider"
                                               :class="{
@@ -702,7 +729,7 @@ window.adminSettingsManager = function(initialPayload) {
                                                   'bg-gray-100 text-gray-700 border border-gray-200': !['whatsapp','phone','email'].includes(contact.type)
                                               }"
                                               x-text="contact.type"></span>
-                                        
+
                                         <!-- Core Key Marker (System Sync) -->
                                         <template x-if="contact.key">
                                             <span class="px-1.5 py-0.2 text-[9px] font-mono text-amber-800 bg-amber-50 border border-amber-200 rounded"
@@ -715,10 +742,10 @@ window.adminSettingsManager = function(initialPayload) {
                                             <span class="text-[10px] text-gray-500 font-medium" x-text="'• Divisi ' + contact.division"></span>
                                         </template>
                                     </div>
-                                    
+
                                     <!-- Value / Number with formatted copy -->
                                     <div class="flex items-center gap-2 pt-0.5">
-                                        <span class="font-mono text-xs font-semibold text-gray-800 bg-gray-50 px-2 py-0.5 rounded border border-gray-200/80" 
+                                        <span class="font-mono text-xs font-semibold text-gray-800 bg-gray-50 px-2 py-0.5 rounded border border-gray-200/80"
                                               x-text="contact.value"></span>
                                         <template x-if="contact.note">
                                             <span class="text-[10px] text-gray-400 italic" x-text="'— ' + contact.note"></span>
@@ -729,23 +756,23 @@ window.adminSettingsManager = function(initialPayload) {
                                 <!-- Action Buttons Right -->
                                 <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                                     <!-- Toggle Active -->
-                                    <button @click="toggleContactActive(cIdx)" 
-                                            type="button" 
+                                    <button @click="toggleContactActive(cIdx)"
+                                            type="button"
                                             :class="contact.active === false ? 'text-gray-500 bg-gray-100 hover:bg-gray-200 border-gray-300' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'"
                                             class="px-2.5 py-1 rounded text-xs font-bold border shadow-2xs transition-all cursor-pointer">
                                         <span x-text="contact.active === false ? 'Nonaktif' : 'Aktif'"></span>
                                     </button>
 
                                     <!-- Edit Button -->
-                                    <button @click="openEditContactModal(contact, cIdx)" 
-                                            type="button" 
+                                    <button @click="openEditContactModal(contact, cIdx)"
+                                            type="button"
                                             class="px-2.5 py-1 rounded text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 shadow-2xs transition-all cursor-pointer">
                                         Edit
                                     </button>
 
                                     <!-- Delete Button -->
-                                    <button @click="deleteContact(cIdx)" 
-                                            type="button" 
+                                    <button @click="deleteContact(cIdx)"
+                                            type="button"
                                             :disabled="contact.is_system"
                                             :class="contact.is_system ? 'opacity-30 cursor-not-allowed text-gray-400 border-gray-200' : 'text-rose-600 hover:bg-rose-50 border-rose-200 hover:border-rose-300 cursor-pointer'"
                                             class="px-2.5 py-1 rounded text-xs font-bold bg-white border shadow-2xs transition-all">
@@ -772,7 +799,7 @@ window.adminSettingsManager = function(initialPayload) {
             </div>
 
             <!-- Tab 2: Brand Identity -->
-            <div x-show="activeTab === 'website'" class="bg-white rounded-modern-xl border border-gray-200/80 p-6 shadow-2xs space-y-5">
+            <div x-show="activeTab === 'website'" x-cloak class="bg-white rounded-modern-xl border border-gray-200/80 p-6 shadow-2xs space-y-5">
                 <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider border-b border-gray-100 pb-2">
                     Identitas Brand Utama
                 </h3>
@@ -782,18 +809,18 @@ window.adminSettingsManager = function(initialPayload) {
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Nama Brand Utama <span class="text-rose-500">*</span>
                         </label>
-                        <input type="text" 
-                               x-model="settings.brand.name" 
-                               placeholder="Sumber Protein Jogja" 
+                        <input type="text"
+                               x-model="settings.brand.name"
+                               placeholder="Sumber Protein Jogja"
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-brand-dark mb-1">
                             Tagline / Slogan Brand
                         </label>
-                        <input type="text" 
-                               x-model="settings.brand.tagline" 
-                               placeholder="Bahan Masak Siap Olah, Tinggal Masak." 
+                        <input type="text"
+                               x-model="settings.brand.tagline"
+                               placeholder="Bahan Masak Siap Olah, Tinggal Masak."
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium">
                     </div>
                 </div>
@@ -808,8 +835,8 @@ window.adminSettingsManager = function(initialPayload) {
                             <div class="w-12 h-12 rounded bg-brand-dark flex items-center justify-center overflow-hidden border border-gray-300 shrink-0">
                                 <img :src="getImageUrl(settings.brand.logo_url)" alt="Logo" class="w-full h-full object-cover">
                             </div>
-                            <button @click="openMediaPicker('logo')" 
-                                    type="button" 
+                            <button @click="openMediaPicker('logo')"
+                                    type="button"
                                     class="px-3 py-1.5 rounded-modern text-xs font-bold text-brand-dark bg-white border border-gray-300 hover:bg-gray-100 shadow-2xs transition-all cursor-pointer">
                                 🖼️ Ganti Logo
                             </button>
@@ -824,8 +851,8 @@ window.adminSettingsManager = function(initialPayload) {
                             <div class="w-12 h-12 rounded bg-white flex items-center justify-center overflow-hidden border border-gray-300 shrink-0 shadow-2xs">
                                 <img :src="getImageUrl(settings.brand.favicon_url)" alt="Favicon" class="w-7 h-7 object-contain">
                             </div>
-                            <button @click="openMediaPicker('favicon')" 
-                                    type="button" 
+                            <button @click="openMediaPicker('favicon')"
+                                    type="button"
                                     class="px-3 py-1.5 rounded-modern text-xs font-bold text-brand-dark bg-white border border-gray-300 hover:bg-gray-100 shadow-2xs transition-all cursor-pointer">
                                 🖼️ Ganti Favicon
                             </button>
@@ -844,7 +871,7 @@ window.adminSettingsManager = function(initialPayload) {
 
             <!-- Brand Summary Card Replica -->
             <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 shadow-2xs space-y-4">
-                
+
                 <!-- Mock Header Branding -->
                 <div class="p-4 rounded-modern bg-brand-dark text-white flex items-center gap-3">
                     <div class="w-10 h-10 flex items-center justify-center shrink-0">
@@ -879,7 +906,7 @@ window.adminSettingsManager = function(initialPayload) {
                                         <p class="text-[9px] text-gray-400 font-mono" x-text="contact.division || 'Umum'"></p>
                                     </div>
                                 </div>
-                                <span class="font-mono font-bold text-[11px]" 
+                                <span class="font-mono font-bold text-[11px]"
                                       :class="contact.type === 'whatsapp' ? 'text-emerald-700' : (contact.type === 'phone' ? 'text-blue-700' : 'text-purple-700')"
                                       x-text="contact.value"></span>
                             </div>
@@ -901,8 +928,210 @@ window.adminSettingsManager = function(initialPayload) {
 
     </div>
 
-    <!-- Tab 3: Administrator Profile (Dedicated Single-Column Container) -->
-    <div x-show="activeTab === 'profile'" class="max-w-4xl space-y-6">
+    <!-- ======================================================= -->
+    <!-- TAB 3: CENTRAL MEDIA MANAGEMENT PANEL                   -->
+    <!-- ======================================================= -->
+    <div x-show="activeTab === 'media'" x-cloak class="space-y-6">
+        <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs space-y-6">
+
+            <!-- Header Section with Title, Description & Upload Button -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <span class="text-xl">🖼️</span>
+                        <h3 class="text-base sm:text-lg font-extrabold text-brand-dark tracking-tight">
+                            Central Media Library
+                        </h3>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-soft-green text-brand-primary border border-brand-soft-green-border">
+                            <span x-text="mediaLibrary.length"></span> Total File
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span x-text="mediaLibrary.filter(m => m.is_in_use).length"></span> Digunakan
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-gray-100 text-gray-600 border border-gray-200">
+                            <span x-text="mediaLibrary.filter(m => !m.is_in_use).length"></span> Belum Dipakai
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-500 leading-relaxed max-w-3xl">
+                        Pusat pengelolaan seluruh aset media gambar pada aplikasi (<code class="text-[11px] font-mono text-gray-700 font-bold bg-gray-100 px-1 py-0.5 rounded">storage/app/public/media/</code>). File yang dihapus akan terhapus permanen dari server.
+                    </p>
+                </div>
+
+                <!-- Action Toolbar: Upload Button -->
+                <div class="flex items-center gap-2 shrink-0">
+                    <label class="inline-flex items-center gap-2 px-4 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer"
+                           :class="{ 'opacity-60 cursor-not-allowed pointer-events-none': isUploadingMedia }">
+                        <input type="file"
+                               accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon"
+                               class="hidden"
+                               @change="handleFileUpload($event)">
+                        <template x-if="isUploadingMedia">
+                            <svg class="animate-spin -ml-1 mr-1.5 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </template>
+                        <template x-if="!isUploadingMedia">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                        </template>
+                        <span x-text="isUploadingMedia ? 'Mengunggah...' : '+ Tambah Media'"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Search & Drag-Drop Box -->
+            <div class="space-y-3">
+                <!-- Search & Filters -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div class="relative flex-1 max-w-md">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 text-xs">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input type="text"
+                               x-model="mediaSearchQuery"
+                               placeholder="Cari file media berdasarkan nama file atau judul..."
+                               class="w-full text-xs rounded-modern border border-gray-300 pl-9 pr-8 py-2 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all">
+                        <button x-show="mediaSearchQuery"
+                                @click="mediaSearchQuery = ''"
+                                type="button"
+                                class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer">
+                            ✕
+                        </button>
+                    </div>
+
+                    <div class="text-[11px] text-gray-500 font-medium">
+                        Menampilkan <strong class="text-brand-dark font-bold" x-text="filteredMediaLibrary.length"></strong> dari <strong class="text-brand-dark font-bold" x-text="mediaLibrary.length"></strong> file
+                    </div>
+                </div>
+
+                <!-- Drag and drop inline dropzone area (accessible on click or drop) -->
+                <div class="border-2 border-dashed border-gray-300 hover:border-brand-primary hover:bg-brand-soft-green/20 rounded-modern-lg p-4 sm:p-6 text-center transition-all cursor-pointer relative group"
+                     @dragover.prevent=""
+                     @drop.prevent="handleFileUpload($event)">
+                    <input type="file"
+                           accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon"
+                           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                           @change="handleFileUpload($event)">
+                    <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-brand-soft-green text-brand-primary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                        </div>
+                        <div class="text-center sm:text-left">
+                            <p class="text-xs font-bold text-brand-dark">Tarik & lepaskan file media ke sini, atau <span class="text-brand-primary underline">klik untuk memilih</span></p>
+                            <p class="text-[11px] text-gray-400">Mendukung format JPG, PNG, WebP, SVG, ICO (Maksimal 5 MB per file)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Media Grid Section -->
+            <div class="space-y-4">
+
+                <!-- Grid of Media Cards -->
+                <div x-show="filteredMediaLibrary.length > 0"
+                     class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+
+                    <template x-for="media in filteredMediaLibrary" :key="media.id || media.path">
+                        <div class="group relative bg-white rounded-modern-lg border border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-md hover:border-brand-primary/40 transition-all duration-200 flex flex-col justify-between">
+
+                            <!-- Thumbnail & Overlay Badges -->
+                            <div class="relative aspect-[4/3] bg-gray-100 overflow-hidden border-b border-gray-100 flex items-center justify-center">
+                                <img :src="getImageUrl(media.path)"
+                                     :alt="media.title || media.filename"
+                                     loading="lazy"
+                                     class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105">
+
+                                <!-- In-Use Badge (Top-Left) -->
+                                <div class="absolute top-2 left-2 z-10">
+                                    <template x-if="media.is_in_use">
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white shadow-xs"
+                                              :title="'Digunakan di: ' + (media.usage_locations || []).join(', ')">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                            <span x-text="'Pakai (' + (media.usage_count || 1) + ')'"></span>
+                                        </span>
+                                    </template>
+                                    <template x-if="!media.is_in_use">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-black/60 text-white backdrop-blur-xs">
+                                            Belum Digunakan
+                                        </span>
+                                    </template>
+                                </div>
+
+                                <!-- Delete Action Button (Top-Right) -->
+                                <div class="absolute top-2 right-2 z-10">
+                                    <button @click.stop="openDeleteMediaModal(media)"
+                                            type="button"
+                                            title="Hapus Media"
+                                            class="w-7 h-7 rounded-full bg-white/90 hover:bg-rose-600 text-gray-500 hover:text-white shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Metadata Info & Usage Locations -->
+                            <div class="p-3 space-y-1.5 flex-1 flex flex-col justify-between text-left">
+                                <div class="space-y-0.5">
+                                    <p class="text-xs font-bold text-gray-900 truncate"
+                                       :title="media.title || media.filename"
+                                       x-text="media.title || media.filename"></p>
+                                    <p class="text-[10px] font-mono text-gray-500 truncate"
+                                       :title="media.filename"
+                                       x-text="media.filename"></p>
+                                </div>
+
+                                <div class="pt-1.5 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                                    <span x-text="media.size || '-'"></span>
+                                    <span class="font-mono text-gray-400" x-text="media.resolution || ''"></span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Empty State -->
+                <div x-show="filteredMediaLibrary.length === 0"
+                     class="p-12 text-center bg-gray-50 rounded-modern-xl border-2 border-dashed border-gray-200 space-y-3">
+                    <div class="w-12 h-12 rounded-full bg-gray-100 text-gray-400 mx-auto flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <div class="space-y-1">
+                        <h4 class="text-sm font-bold text-gray-700">Belum ada media ditemukan</h4>
+                        <p class="text-xs text-gray-500" x-show="mediaSearchQuery">
+                            Tidak ada file media yang sesuai dengan kata kunci "<span class="font-bold text-gray-700" x-text="mediaSearchQuery"></span>".
+                        </p>
+                        <p class="text-xs text-gray-500" x-show="!mediaSearchQuery">
+                            Pustaka media masih kosong. Unggah file gambar pertama Anda ke sistem.
+                        </p>
+                    </div>
+                    <div class="pt-2">
+                        <label class="inline-flex items-center gap-1.5 px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-xs transition-all cursor-pointer">
+                            <input type="file"
+                                   accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon"
+                                   class="hidden"
+                                   @change="handleFileUpload($event)">
+                            <span>+ Tambah Media</span>
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Tab 4: Administrator Profile (Dedicated Single-Column Container) -->
+    <div x-show="activeTab === 'profile'" x-cloak class="max-w-4xl space-y-6">
         <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs space-y-6">
             <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div>
@@ -988,8 +1217,8 @@ window.adminSettingsManager = function(initialPayload) {
                         <h4 class="text-xs font-bold text-brand-dark">Foto Profil Super Admin</h4>
                         <p class="text-[11px] text-gray-500">Pilih atau unggah foto avatar baru untuk identitas administrator.</p>
                         <div class="flex items-center gap-2 pt-1">
-                            <button @click="openMediaPicker('avatar')" 
-                                    type="button" 
+                            <button @click="openMediaPicker('avatar')"
+                                    type="button"
                                     class="px-3 py-1.5 rounded-modern text-xs font-bold text-brand-dark bg-white border border-gray-300 hover:bg-gray-100 shadow-2xs transition-all cursor-pointer">
                                 🖼️ Pilih Foto Avatar
                             </button>
@@ -999,13 +1228,13 @@ window.adminSettingsManager = function(initialPayload) {
 
                 <!-- Dedicated Save Avatar Button -->
                 <div class="shrink-0 self-end sm:self-auto">
-                    <button @click="saveAvatar()" 
-                            type="button" 
+                    <button @click="saveAvatar()"
+                            type="button"
                             :disabled="isSavingAvatar"
-                            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg x-show="isSavingAvatar" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                        <svg x-show="isSavingAvatar" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                         </svg>
                         <span x-text="isSavingAvatar ? 'Menyimpan...' : 'Simpan Avatar'">Simpan Avatar</span>
                     </button>
@@ -1020,19 +1249,19 @@ window.adminSettingsManager = function(initialPayload) {
                             Nama Lengkap Administrator <span class="text-rose-500">*</span>
                         </label>
                         <p class="text-[11px] text-gray-500">Nama ini disimpan langsung ke tabel akun (<code>users.name</code>) dan ditampilkan pada Sidebar panel admin.</p>
-                        <input type="text" 
-                               x-model="adminName" 
+                        <input type="text"
+                               x-model="adminName"
                                placeholder="Contoh: Admin Sumber Protein"
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                     </div>
                     <div class="shrink-0 self-end sm:self-auto">
-                        <button @click="saveName()" 
-                                type="button" 
+                        <button @click="saveName()"
+                                type="button"
                                 :disabled="isSavingName"
-                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                            <svg x-show="isSavingName" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                            <svg x-show="isSavingName" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                             </svg>
                             <span x-text="isSavingName ? 'Menyimpan...' : 'Simpan Nama'">Simpan Nama</span>
                         </button>
@@ -1048,19 +1277,19 @@ window.adminSettingsManager = function(initialPayload) {
                             Email Login Administrator <span class="text-rose-500">*</span>
                         </label>
                         <p class="text-[11px] text-gray-500">Email ini digunakan sebagai kredensial login utama (<code>users.email</code>) ke panel admin.</p>
-                        <input type="email" 
-                               x-model="adminEmail" 
+                        <input type="email"
+                               x-model="adminEmail"
                                placeholder="admin@sumberproteinjogja.com"
                                class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                     </div>
                     <div class="shrink-0 self-end sm:self-auto">
-                        <button @click="saveEmail()" 
-                                type="button" 
+                        <button @click="saveEmail()"
+                                type="button"
                                 :disabled="isSavingEmail"
-                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                            <svg x-show="isSavingEmail" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                            <svg x-show="isSavingEmail" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                             </svg>
                             <span x-text="isSavingEmail ? 'Menyimpan...' : 'Simpan Email'">Simpan Email</span>
                         </button>
@@ -1087,12 +1316,12 @@ window.adminSettingsManager = function(initialPayload) {
                             Password Lama <span class="text-rose-500">*</span>
                         </label>
                         <div class="relative">
-                            <input :type="showPasswords.current ? 'text' : 'password'" 
-                                   x-model="passwordForm.current_password" 
+                            <input :type="showPasswords.current ? 'text' : 'password'"
+                                   x-model="passwordForm.current_password"
                                    placeholder="Password saat ini"
                                    autocomplete="current-password"
                                    class="w-full text-xs rounded-modern border border-gray-300 p-2.5 pr-9 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
-                            <button type="button" 
+                            <button type="button"
                                     @click="showPasswords.current = !showPasswords.current"
                                     :aria-label="showPasswords.current ? 'Sembunyikan password' : 'Tampilkan password'"
                                     class="absolute inset-y-0 right-0 w-9 flex items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-hidden focus:text-brand-primary cursor-pointer transition-colors">
@@ -1113,12 +1342,12 @@ window.adminSettingsManager = function(initialPayload) {
                             Password Baru <span class="text-rose-500">*</span>
                         </label>
                         <div class="relative">
-                            <input :type="showPasswords.new ? 'text' : 'password'" 
-                                   x-model="passwordForm.password" 
+                            <input :type="showPasswords.new ? 'text' : 'password'"
+                                   x-model="passwordForm.password"
                                    placeholder="Min. 8 karakter"
                                    autocomplete="new-password"
                                    class="w-full text-xs rounded-modern border border-gray-300 p-2.5 pr-9 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
-                            <button type="button" 
+                            <button type="button"
                                     @click="showPasswords.new = !showPasswords.new"
                                     :aria-label="showPasswords.new ? 'Sembunyikan password' : 'Tampilkan password'"
                                     class="absolute inset-y-0 right-0 w-9 flex items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-hidden focus:text-brand-primary cursor-pointer transition-colors">
@@ -1139,12 +1368,12 @@ window.adminSettingsManager = function(initialPayload) {
                             Konfirmasi Password Baru <span class="text-rose-500">*</span>
                         </label>
                         <div class="relative">
-                            <input :type="showPasswords.confirm ? 'text' : 'password'" 
-                                   x-model="passwordForm.password_confirmation" 
+                            <input :type="showPasswords.confirm ? 'text' : 'password'"
+                                   x-model="passwordForm.password_confirmation"
                                    placeholder="Ulangi password baru"
                                    autocomplete="new-password"
                                    class="w-full text-xs rounded-modern border border-gray-300 p-2.5 pr-9 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
-                            <button type="button" 
+                            <button type="button"
                                     @click="showPasswords.confirm = !showPasswords.confirm"
                                     :aria-label="showPasswords.confirm ? 'Sembunyikan password' : 'Tampilkan password'"
                                     class="absolute inset-y-0 right-0 w-9 flex items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-hidden focus:text-brand-primary cursor-pointer transition-colors">
@@ -1161,13 +1390,13 @@ window.adminSettingsManager = function(initialPayload) {
                 </div>
 
                 <div class="flex items-center justify-end pt-1">
-                    <button @click="savePassword()" 
-                            type="button" 
+                    <button @click="savePassword()"
+                            type="button"
                             :disabled="isSavingPassword"
-                            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg x-show="isSavingPassword" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                        <svg x-show="isSavingPassword" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                         </svg>
                         <span x-text="isSavingPassword ? 'Menyimpan...' : 'Simpan Sandi'">Simpan Sandi</span>
                     </button>
@@ -1179,17 +1408,17 @@ window.adminSettingsManager = function(initialPayload) {
     <!-- ======================================================= -->
     <!-- 4. GLOBAL MEDIA PICKER MODAL                            -->
     <!-- ======================================================= -->
-    <div x-show="mediaPickerOpen" 
+    <div x-show="mediaPickerOpen"
          x-cloak
          class="fixed inset-0 z-[80] overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/75 backdrop-blur-xs" @click="mediaPickerOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
             <div class="relative bg-white rounded-modern-xl max-w-3xl w-full p-6 shadow-2xl border border-gray-200 overflow-hidden my-6 space-y-5">
-                
+
                 <div class="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div class="flex items-center gap-2">
                         <span class="text-lg">🖼️</span>
@@ -1198,8 +1427,8 @@ window.adminSettingsManager = function(initialPayload) {
                             <p class="text-xs text-gray-500">Pilih dari pustaka media atau unggah file logo/ikon baru.</p>
                         </div>
                     </div>
-                    <button @click="mediaPickerOpen = false" 
-                            type="button" 
+                    <button @click="mediaPickerOpen = false"
+                            type="button"
                             class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1208,12 +1437,12 @@ window.adminSettingsManager = function(initialPayload) {
                 </div>
 
                 <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
-                    <button @click="mediaTab = 'library'" type="button" 
+                    <button @click="mediaTab = 'library'" type="button"
                             :class="mediaTab === 'library' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                             class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
                         Media Library (<span x-text="mediaLibrary.length"></span>)
                     </button>
-                    <button @click="mediaTab = 'upload'" type="button" 
+                    <button @click="mediaTab = 'upload'" type="button"
                             :class="mediaTab === 'upload' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                             class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
                         Upload File Baru
@@ -1228,13 +1457,13 @@ window.adminSettingsManager = function(initialPayload) {
                             <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 text-xs">
                                 🔍
                             </span>
-                            <input type="text" 
-                                   x-model="mediaSearchQuery" 
-                                   placeholder="Cari gambar berdasarkan nama file..." 
+                            <input type="text"
+                                   x-model="mediaSearchQuery"
+                                   placeholder="Cari gambar berdasarkan nama file..."
                                    class="w-full pl-8 pr-8 py-2 text-xs rounded-modern border border-gray-200 bg-gray-50 focus:bg-white focus:border-brand-primary focus:outline-none transition-all">
-                            <button x-show="mediaSearchQuery" 
-                                    @click="mediaSearchQuery = ''" 
-                                    type="button" 
+                            <button x-show="mediaSearchQuery"
+                                    @click="mediaSearchQuery = ''"
+                                    type="button"
                                     class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 text-xs cursor-pointer">
                                 ✕
                             </button>
@@ -1254,23 +1483,28 @@ window.adminSettingsManager = function(initialPayload) {
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-2 flex flex-col justify-between">
                                     <div class="flex items-center justify-between w-full">
                                         <div>
-                                            <template x-if="media.is_deletable">
-                                                <button @click.stop="deleteMedia(media)" 
-                                                        type="button" 
-                                                        title="Hapus media dari server" 
-                                                        class="p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center">
-                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                </button>
-                                            </template>
-                                        </div>
-                                        <div x-show="selectedMedia?.id === media.id">
-                                            <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
-                                                <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                            <button @click.stop="openDeleteMediaModal(media)"
+                                                    type="button"
+                                                    :title="media.is_in_use ? 'Media sedang digunakan (Klik untuk opsi hapus)' : 'Hapus media dari server'"
+                                                    class="p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                 </svg>
-                                            </span>
+                                            </button>
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <template x-if="media.is_in_use">
+                                                <span class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/90 text-white shadow-xs" :title="'Digunakan di: ' + (media.usage_locations || []).join(', ')">
+                                                    Pakai (<span x-text="media.usage_count"></span>)
+                                                </span>
+                                            </template>
+                                            <div x-show="selectedMedia?.id === media.id">
+                                                <span class="w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                                                    <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div>
@@ -1292,9 +1526,9 @@ window.adminSettingsManager = function(initialPayload) {
                             <span class="text-gray-500">Terpilih: </span>
                             <strong class="text-brand-dark" x-text="selectedMedia ? selectedMedia.filename : 'Belum ada'"></strong>
                         </div>
-                        <button @click="confirmMediaSelection()" 
+                        <button @click="confirmMediaSelection()"
                                 :disabled="!selectedMedia"
-                                type="button" 
+                                type="button"
                                 class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark disabled:opacity-40 transition-all cursor-pointer">
                             Pilih Aset Ini
                         </button>
@@ -1304,7 +1538,7 @@ window.adminSettingsManager = function(initialPayload) {
                 <!-- Tab 2: Upload -->
                 <div x-show="mediaTab === 'upload'" class="space-y-4">
                     <label class="block border-2 border-dashed border-gray-300 rounded-modern-xl p-8 text-center hover:border-brand-primary hover:bg-brand-soft-green/30 transition-all cursor-pointer"
-                           @dragover.prevent="" 
+                           @dragover.prevent=""
                            @drop.prevent="handleFileUpload($event)">
                         <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon" class="hidden" @change="handleFileUpload($event)">
                         <div class="space-y-2 flex flex-col items-center">
@@ -1339,8 +1573,8 @@ window.adminSettingsManager = function(initialPayload) {
                                     <p class="text-[10px] text-gray-500" x-text="uploadedFile?.size + ' • ' + uploadedFile?.type"></p>
                                 </div>
                             </div>
-                            <button @click="confirmMediaSelection()" 
-                                    type="button" 
+                            <button @click="confirmMediaSelection()"
+                                    type="button"
                                     class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm cursor-pointer">
                                 Gunakan File Ini
                             </button>
@@ -1352,20 +1586,109 @@ window.adminSettingsManager = function(initialPayload) {
         </div>
     </div>
 
+    <!-- Modal Konfirmasi / Warning Hapus Media -->
+    <div x-show="mediaDeleteConfirmModalOpen"
+         x-cloak
+         class="fixed inset-0 z-[120] overflow-y-auto"
+         role="dialog"
+         aria-modal="true">
+
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+             @click="if (!isDeletingMedia) { mediaDeleteConfirmModalOpen = false; mediaToDelete = null; }"></div>
+
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-lg shadow-2xl border border-gray-100 w-full max-w-md overflow-hidden p-6 space-y-4 text-left">
+
+                <!-- Header Warning / Info -->
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                         :class="mediaToDelete?.is_in_use ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'">
+                        <template x-if="mediaToDelete?.is_in_use">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </template>
+                        <template x-if="!mediaToDelete?.is_in_use">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </template>
+                    </div>
+                    <div class="space-y-1">
+                        <h4 class="text-sm font-bold text-gray-900"
+                            x-text="mediaToDelete?.is_in_use ? 'Media Sedang Digunakan' : 'Hapus Media?'"></h4>
+                        <p class="text-xs text-gray-500 break-all font-mono bg-gray-50 px-2 py-1 rounded border border-gray-200"
+                           x-text="mediaToDelete?.filename"></p>
+                    </div>
+                </div>
+
+                <!-- Body Section: In-Use Details or Unused Info -->
+                <template x-if="mediaToDelete?.is_in_use">
+                    <div class="space-y-3">
+                        <div class="bg-amber-50 border border-amber-200 rounded-modern p-3 text-xs text-amber-900 space-y-1.5">
+                            <p class="font-semibold text-amber-950">Media ini sedang aktif digunakan oleh:</p>
+                            <ul class="max-h-28 overflow-y-auto space-y-1 pl-1 text-[11px] no-scrollbar">
+                                <template x-for="loc in (mediaToDelete?.usage_locations || [])" :key="loc">
+                                    <li class="flex items-center gap-1.5">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                        <span x-text="loc"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+
+                        <p class="text-[11px] text-rose-600 font-medium leading-relaxed">
+                            ⚠️ <strong>Peringatan Risiko:</strong> Jika media ini dihapus, gambar pada bagian terkait di atas tidak akan dapat ditampilkan lagi dan dapat menyebabkan <strong>BROKEN IMAGE</strong>. Tindakan ini tidak dapat dibatalkan.
+                        </p>
+                    </div>
+                </template>
+
+                <template x-if="!mediaToDelete?.is_in_use">
+                    <p class="text-xs text-gray-600 leading-relaxed">
+                        File ini tidak sedang digunakan oleh produk, kategori, artikel, maupun pengaturan situs. Tindakan ini tidak dapat dibatalkan.
+                    </p>
+                </template>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                    <button @click="mediaDeleteConfirmModalOpen = false; mediaToDelete = null;"
+                            type="button"
+                            :disabled="isDeletingMedia"
+                            class="px-3.5 py-1.5 rounded-modern border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="executeDeleteMedia()"
+                            type="button"
+                            :disabled="isDeletingMedia"
+                            class="px-4 py-1.5 rounded-modern bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                        <template x-if="isDeletingMedia">
+                            <svg class="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </template>
+                        <span x-text="isDeletingMedia ? 'Menghapus...' : (mediaToDelete?.is_in_use ? 'Ya, Hapus Media' : 'Ya, Hapus')"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ======================================================= -->
     <!-- 5. CONTACT REGISTRY ADD / EDIT MODAL                     -->
     <!-- ======================================================= -->
-    <div x-show="contactModalOpen" 
+    <div x-show="contactModalOpen"
          x-cloak
          class="fixed inset-0 z-[80] overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/75 backdrop-blur-xs" @click="contactModalOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-3 sm:p-6">
             <div class="relative bg-white rounded-modern-xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 overflow-hidden my-6 space-y-5">
-                
+
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div class="flex items-center gap-2">
@@ -1375,8 +1698,8 @@ window.adminSettingsManager = function(initialPayload) {
                             <p class="text-xs text-gray-500">Kelola rincian channel komunikasi dan pemilik divisi.</p>
                         </div>
                     </div>
-                    <button @click="contactModalOpen = false" 
-                            type="button" 
+                    <button @click="contactModalOpen = false"
+                            type="button"
                             class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1386,15 +1709,15 @@ window.adminSettingsManager = function(initialPayload) {
 
                 <!-- Modal Body Form -->
                 <div class="space-y-4 text-xs">
-                    
+
                     <!-- Label / Nama Kontak -->
                     <div>
                         <label class="block font-bold text-brand-dark mb-1">
                             Nama / Label Kontak <span class="text-rose-500">*</span>
                         </label>
-                        <input type="text" 
-                               x-model="contactForm.name" 
-                               placeholder="Contoh: Customer Service & Konsultasi Admin" 
+                        <input type="text"
+                               x-model="contactForm.name"
+                               placeholder="Contoh: Customer Service & Konsultasi Admin"
                                class="w-full rounded-modern border border-gray-300 p-2.5 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                     </div>
 
@@ -1404,19 +1727,19 @@ window.adminSettingsManager = function(initialPayload) {
                             <label class="block font-bold text-brand-dark mb-1">
                                 Divisi / Pemilik Kontak <span class="text-rose-500">*</span>
                             </label>
-                            <input type="text" 
-                                   x-model="contactForm.division" 
-                                   placeholder="Contoh: Customer Care / Pemesanan" 
+                            <input type="text"
+                                   x-model="contactForm.division"
+                                   placeholder="Contoh: Customer Care / Pemesanan"
                                    class="w-full rounded-modern border border-gray-300 p-2.5 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                         </div>
                         <div>
                             <label class="block font-bold text-brand-dark mb-1">
                                 Reference Key (ID) <span class="text-rose-500">*</span>
                             </label>
-                            <input type="text" 
-                                   x-model="contactForm.key" 
+                            <input type="text"
+                                   x-model="contactForm.key"
                                    :disabled="contactForm.is_system"
-                                   placeholder="customer_service" 
+                                   placeholder="customer_service"
                                    class="w-full rounded-modern border border-gray-300 p-2.5 font-mono font-bold text-brand-dark focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
                                    :class="contactForm.is_system ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'">
                         </div>
@@ -1428,7 +1751,7 @@ window.adminSettingsManager = function(initialPayload) {
                             <label class="block font-bold text-brand-dark mb-1">
                                 Tipe Saluran <span class="text-rose-500">*</span>
                             </label>
-                            <select x-model="contactForm.type" 
+                            <select x-model="contactForm.type"
                                     class="w-full rounded-modern border border-gray-300 p-2.5 bg-white font-medium focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                                 <option value="whatsapp">💬 WhatsApp</option>
                                 <option value="phone">📞 Telepon / Hotline</option>
@@ -1439,9 +1762,9 @@ window.adminSettingsManager = function(initialPayload) {
                             <label class="block font-bold text-brand-dark mb-1">
                                 Nilai Kontak / Nomor / Email <span class="text-rose-500">*</span>
                             </label>
-                            <input type="text" 
-                                   x-model="contactForm.value" 
-                                   placeholder="6281234567890" 
+                            <input type="text"
+                                   x-model="contactForm.value"
+                                   placeholder="6281234567890"
                                    class="w-full rounded-modern border border-gray-300 p-2.5 bg-white font-mono font-bold text-brand-dark focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                         </div>
                     </div>
@@ -1451,9 +1774,9 @@ window.adminSettingsManager = function(initialPayload) {
                         <label class="block font-bold text-brand-dark mb-1">
                             Keterangan / Deskripsi Penggunaan
                         </label>
-                        <input type="text" 
-                               x-model="contactForm.description" 
-                               placeholder="Contoh: Kanal WhatsApp konsultasi produk dan tanya stok." 
+                        <input type="text"
+                               x-model="contactForm.description"
+                               placeholder="Contoh: Kanal WhatsApp konsultasi produk dan tanya stok."
                                class="w-full rounded-modern border border-gray-300 p-2.5 bg-white">
                     </div>
 
@@ -1473,15 +1796,20 @@ window.adminSettingsManager = function(initialPayload) {
 
                 <!-- Modal Footer Actions -->
                 <div class="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
-                    <button @click="contactModalOpen = false" 
-                            type="button" 
+                    <button @click="contactModalOpen = false"
+                            type="button"
                             class="px-4 py-2 rounded-modern font-bold text-xs text-gray-600 hover:bg-gray-100 transition-all cursor-pointer">
                         Batal
                     </button>
-                    <button @click="saveContactFromModal()" 
-                            type="button" 
-                            class="px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
-                        Simpan Kontak
+                    <button @click="saveContactFromModal()"
+                            :disabled="isSavingContact"
+                            type="button"
+                            class="inline-flex items-center gap-2 px-5 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                        <svg x-show="isSavingContact" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span x-text="isSavingContact ? 'Menyimpan...' : 'Simpan Kontak'">Simpan Kontak</span>
                     </button>
                 </div>
 
@@ -1490,7 +1818,7 @@ window.adminSettingsManager = function(initialPayload) {
     </div>
 
     <!-- Toast Notification -->
-    <div x-show="toastVisible" 
+    <div x-show="toastVisible"
          x-cloak
          x-transition
          class="fixed bottom-6 right-6 z-50 bg-brand-dark text-white px-4 py-3 rounded-modern-lg shadow-xl border border-white/10 flex items-center gap-2.5 text-xs font-semibold">

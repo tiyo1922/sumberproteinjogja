@@ -10,18 +10,18 @@ export default {
         extend: {
             colors: {
                 brand: {
-                    primary: '#1F6B45',      // Primary Green
-                    'primary-dark': '#165034', // Darker Green for hover
-                    'primary-light': '#2a8b5b', // Lighter Green
+                    primary: '#003F22',      // Official Brand Green
+                    'primary-dark': '#002D18', // Darker Green for hover
+                    'primary-light': '#165034', // Supporting UI Green
                     dark: '#17231D',         // Dark / Heading & dark backgrounds
                     'dark-soft': '#22322a',  // Softer dark
                     cream: '#F7F5EF',        // Warm Cream background
                     'cream-light': '#FCFBF8', // Ultra light cream
-                    white: '#FFFFFF',
-                    accent: '#E7A93B',       // Warm Accent / Gold
-                    'accent-hover': '#cf942e',
-                    'soft-green': '#EAF3ED', // Soft green pill & tint
-                    'soft-green-border': '#c8e0d0',
+                    white: '#FFFFFF',        // Base White
+                    accent: '#F56401',       // Official Brand Orange (Minor Accent)
+                    'accent-hover': '#DC5400', // Darker Orange for hover
+                    'soft-green': '#EAF2EC', // Soft green pill & tint
+                    'soft-green-border': '#c2d6ca',
                     gray: {
                         50: '#F9FAFB',
                         100: '#F3F4F6',

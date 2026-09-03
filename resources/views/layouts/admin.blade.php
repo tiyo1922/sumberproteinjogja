@@ -1,8 +1,8 @@
 @php
     $site = $site ?? app(\App\Repositories\Contracts\SiteSettingRepositoryInterface::class)->get('site', config('site', []));
     $rawAdminLogo = trim($site['brand']['logo_url'] ?? '');
-    $hasAdminCustomLogo = !empty($rawAdminLogo) 
-        && !str_contains($rawAdminLogo, 'hero-1.jpg') 
+    $hasAdminCustomLogo = !empty($rawAdminLogo)
+        && !str_contains($rawAdminLogo, 'hero-1.jpg')
         && !str_starts_with($rawAdminLogo, 'blob:')
         && (str_starts_with($rawAdminLogo, 'http') || file_exists(public_path($rawAdminLogo)) || file_exists(public_path('storage/' . ltrim($rawAdminLogo, '/'))));
     $adminCustomLogoUrl = $hasAdminCustomLogo
@@ -16,16 +16,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title ?? 'Dashboard' }} — Admin Panel {{ $adminBrandName }}</title>
-    
+
     <!-- Google Fonts: Poppins -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
-    
+
     <!-- Local Vite Assets (Tailwind CSS + Alpine.js + Chart.js) -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
+        [x-cloak] {
+            display: none !important;
+        }
+
         /* Smooth isolated scrolling with invisible scrollbars */
         .no-scrollbar::-webkit-scrollbar {
             display: none !important;
@@ -47,7 +51,7 @@
     <!-- ======================================================= -->
     <div class="block md:hidden min-h-screen bg-white p-6 flex flex-col justify-center items-center text-center">
         <div class="max-w-sm mx-auto flex flex-col items-center">
-            
+
             <!-- Computer / Tablet Device Icon -->
             <div class="w-20 h-20 rounded-2xl bg-brand-soft-green border border-brand-soft-green-border flex items-center justify-center text-brand-primary mb-6 shadow-xs">
                 <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -67,14 +71,14 @@
             <h1 class="text-xl font-extrabold text-brand-dark mb-2 tracking-tight">
                 Gunakan Komputer / Tablet
             </h1>
-            
+
             <!-- Description -->
             <p class="text-xs text-gray-500 mb-6 leading-relaxed">
                 CMS Panel Admin dirancang khusus untuk kenyamanan desktop dan tablet layar lebar (min. 768px).
             </p>
 
             <!-- Back to Public Site -->
-            <a href="{{ route('home') }}" 
+            <a href="{{ route('home') }}"
                class="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-modern text-xs font-bold text-brand-dark bg-gray-100 hover:bg-gray-200 transition-colors">
                 <span>← Kembali ke Landing Page</span>
             </a>
@@ -92,7 +96,7 @@
         <!-- =================================================== -->
         <aside class="w-64 bg-brand-dark border-r border-brand-dark-soft flex flex-col shrink-0 fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-in-out lg:translate-x-0 h-screen overflow-hidden"
                :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
-            
+
             <!-- 1. Brand Header (Pinned Top) -->
             <div class="px-6 pt-3 pb-3.5 flex items-center justify-between border-b border-white/10 shrink-0 bg-brand-dark">
                 <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 group">
@@ -120,7 +124,7 @@
                 </a>
 
                 <!-- Close button for tablet drawer -->
-                <button @click="sidebarOpen = false" 
+                <button @click="sidebarOpen = false"
                         type="button"
                         aria-label="Tutup menu sidebar"
                         class="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
@@ -132,10 +136,10 @@
 
             <!-- 2. Navigation Links (Scrollable Independent Container with Isolated Scroll & Hidden Scrollbar) -->
             <nav class="p-4 space-y-6 flex-1 min-h-0 overflow-y-auto overscroll-contain no-scrollbar text-xs">
-                
+
                 <!-- Dashboard Main -->
                 <div class="space-y-1">
-                    <a href="{{ route('admin.dashboard') }}" 
+                    <a href="{{ route('admin.dashboard') }}"
                        class="flex items-center gap-3 px-3.5 py-2.5 rounded-modern font-semibold transition-all duration-150 {{ request()->routeIs('admin.dashboard') ? 'bg-brand-primary text-white shadow-xs font-bold' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="3" width="7" height="7" rx="1.5" />
@@ -154,7 +158,7 @@
                     </div>
 
                     <!-- 1. Hero Slider -->
-                    <a href="{{ route('admin.hero') }}" 
+                    <a href="{{ route('admin.hero') }}"
                        class="flex items-center gap-3 px-3.5 py-2 rounded-modern font-medium transition-all {{ request()->routeIs('admin.hero') ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -163,7 +167,7 @@
                     </a>
 
                     <!-- 2. Kategori Produk -->
-                    <a href="{{ route('admin.kategori') }}" 
+                    <a href="{{ route('admin.kategori') }}"
                        class="flex items-center gap-3 px-3.5 py-2 rounded-modern font-medium transition-all {{ request()->routeIs('admin.kategori') ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -172,7 +176,7 @@
                     </a>
 
                     <!-- 3. Katalog Produk -->
-                    <a href="{{ route('admin.produk') }}" 
+                    <a href="{{ route('admin.produk') }}"
                        class="flex items-center gap-3 px-3.5 py-2 rounded-modern font-medium transition-all {{ request()->routeIs('admin.produk') ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -181,7 +185,7 @@
                     </a>
 
                     <!-- 4. Keunggulan & Mutu (Kenapa Memilih Kami & Standar Mutu) -->
-                    <a href="{{ route('admin.keunggulan') }}" 
+                    <a href="{{ route('admin.keunggulan') }}"
                        class="flex items-center gap-3 px-3.5 py-2 rounded-modern font-medium transition-all {{ request()->routeIs('admin.keunggulan') ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -190,7 +194,7 @@
                     </a>
 
                     <!-- 5. Knowledge & Tips -->
-                    <a href="{{ route('admin.knowledge') }}" 
+                    <a href="{{ route('admin.knowledge') }}"
                        class="flex items-center gap-3 px-3.5 py-2 rounded-modern font-medium transition-all {{ request()->routeIs('admin.knowledge') ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -206,7 +210,7 @@
                     </div>
 
                     <!-- 6. Footer (Google Reviews & Lokasi Maps) -->
-                    <a href="{{ route('admin.footer') }}" 
+                    <a href="{{ route('admin.footer') }}"
                        class="flex items-center gap-3 px-3.5 py-2 rounded-modern font-medium transition-all {{ request()->routeIs('admin.footer') ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -215,7 +219,7 @@
                     </a>
 
                     <!-- 7. SEO & Meta -->
-                    <a href="{{ route('admin.seo') }}" 
+                    <a href="{{ route('admin.seo') }}"
                        class="flex items-center gap-3 px-3.5 py-2 rounded-modern font-medium transition-all {{ request()->routeIs('admin.seo') ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -224,7 +228,7 @@
                     </a>
 
                     <!-- 8. Site & Contact Settings -->
-                    <a href="{{ route('admin.settings') }}" 
+                    <a href="{{ route('admin.settings') }}"
                        class="flex items-center gap-3 px-3.5 py-2 rounded-modern font-medium transition-all {{ request()->routeIs('admin.settings') ? 'bg-brand-primary text-white font-bold shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -245,8 +249,8 @@
                                 $userAvatar = auth()->check() ? auth()->user()->avatar : null;
                             @endphp
                             @if(!empty($userAvatar))
-                                <img src="{{ str_starts_with($userAvatar, 'http') ? $userAvatar : asset($userAvatar) }}" 
-                                     alt="{{ auth()->user()->name ?? 'Admin' }}" 
+                                <img src="{{ str_starts_with($userAvatar, 'http') ? $userAvatar : asset($userAvatar) }}"
+                                     alt="{{ auth()->user()->name ?? 'Admin' }}"
                                      class="w-full h-full object-cover admin-user-avatar-img">
                             @else
                                 <span>SP</span>
@@ -257,12 +261,12 @@
                             <span class="text-[10px] text-gray-400 truncate">Super Admin</span>
                         </div>
                     </div>
-                    
+
                     <!-- Native Logout Button -->
                     <form method="POST" action="{{ route('logout') }}" class="inline">
                         @csrf
-                        <button type="submit" 
-                                title="Keluar / Logout" 
+                        <button type="submit"
+                                title="Keluar / Logout"
                                 aria-label="Keluar dari panel admin"
                                 class="p-1.5 text-gray-400 hover:text-red-400 hover:bg-white/10 rounded-lg transition-colors cursor-pointer flex items-center justify-center">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -277,14 +281,14 @@
 
         <!-- Main Content Area (Offset by Sidebar width on desktop with independent scroll) -->
         <div class="flex-1 flex flex-col min-w-0 lg:pl-64">
-            
+
             <!-- Topbar (Sticky Header) -->
             <header class="h-18 bg-white border-b border-gray-200/80 px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
-                
+
                 <!-- Left: Hamburger (Tablet) & Breadcrumb -->
                 <div class="flex items-center gap-4">
                     <!-- Hamburger Button on Tablet (< 1024px) -->
-                    <button @click="sidebarOpen = !sidebarOpen" 
+                    <button @click="sidebarOpen = !sidebarOpen"
                             type="button"
                             aria-label="Toggle navigasi sidebar"
                             class="lg:hidden p-2 rounded-modern border border-gray-200 text-gray-600 hover:text-brand-dark hover:bg-gray-50 focus:outline-none transition-colors">
@@ -307,10 +311,10 @@
 
                 <!-- Right: External Link & Quick Profile -->
                 <div class="flex items-center gap-3 sm:gap-4">
-                    
+
                     <!-- View Website Link -->
-                    <a href="{{ route('home') }}" 
-                       target="_blank" 
+                    <a href="{{ route('home') }}"
+                       target="_blank"
                        rel="noopener noreferrer"
                        class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-modern text-xs font-semibold text-brand-primary bg-brand-soft-green hover:bg-emerald-100/80 border border-brand-soft-green-border transition-colors">
                         <span>Lihat Website</span>
@@ -328,8 +332,8 @@
                     <!-- Profile Avatar Icon -->
                     <div class="w-8 h-8 rounded-full bg-brand-dark text-white flex items-center justify-center text-xs font-bold shadow-2xs overflow-hidden">
                         @if(!empty($userAvatar))
-                            <img src="{{ str_starts_with($userAvatar, 'http') ? $userAvatar : asset($userAvatar) }}" 
-                                 alt="{{ auth()->user()->name ?? 'Admin' }}" 
+                            <img src="{{ str_starts_with($userAvatar, 'http') ? $userAvatar : asset($userAvatar) }}"
+                                 alt="{{ auth()->user()->name ?? 'Admin' }}"
                                  class="w-full h-full object-cover admin-user-avatar-img">
                         @else
                             <span>SP</span>

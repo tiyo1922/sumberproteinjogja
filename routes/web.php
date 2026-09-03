@@ -154,3 +154,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/media/upload', [AdminController::class, 'mediaUpload'])->name('media.upload');
     Route::post('/media/delete', [AdminController::class, 'mediaDestroy'])->name('media.delete');
 });
+
+// Temporary Preview Routes for Error Pages (Local UI Testing)
+Route::get('/preview-403', fn () => abort(403));
+Route::get('/preview-404', fn () => abort(404));

@@ -14,7 +14,7 @@ window.adminKeunggulanManager = function(initialPayload) {
         benefits: window.__initialBenefitsData || { items: [] },
         quality: window.__initialQualityData || { items: [] },
         activeTab: 'benefits', // 'benefits' | 'quality'
-        
+
         // Preview Device & Virtual Viewport State
         previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
         previewBoxWidth: 1000,
@@ -22,29 +22,29 @@ window.adminKeunggulanManager = function(initialPayload) {
         previewObserver: null,
         toastMessage: '',
         toastVisible: false,
-        
+
         iconOptions: [
             { id: 'grid', label: 'Grid / Kotak (Pilihan Lengkap)' },
             { id: 'shield', label: 'Shield / Perisai (Higienis & Cold Chain)' },
             { id: 'clock', label: 'Clock / Jam (Ready to Cook Praktis)' },
             { id: 'truck', label: 'Truck / Truk (Pengiriman & Curah)' },
         ],
-        
+
         // Reference Viewport Dimensions (Laptop 14-inch 1366x768, Tablet 1024x768, Mobile 393x852)
         virtualDimensions: {
             desktop: { width: 1366, height: 768 },
             tablet:  { width: 1024, height: 768 },
             mobile:  { width: 393,  height: 852 }
         },
-        
+
         get currentVirtualWidth() {
             return this.virtualDimensions[this.previewDevice]?.width || (this.previewDevice === 'mobile' ? 393 : (this.previewDevice === 'tablet' ? 1024 : 1366));
         },
-        
+
         get currentVirtualHeight() {
             return this.virtualDimensions[this.previewDevice]?.height || (this.previewDevice === 'mobile' ? 852 : 768);
         },
-        
+
         // Scale dynamically fits BOTH available width AND fixed available height of previewBoxWrapper
         get currentScale() {
             const availableW = Math.max(200, (this.previewBoxWidth || 1000) - 24);
@@ -53,11 +53,11 @@ window.adminKeunggulanManager = function(initialPayload) {
             const scaleY = availableH / this.currentVirtualHeight;
             return Math.min(scaleX, scaleY);
         },
-        
+
         get currentFrameWidth() {
             return Math.round(this.currentVirtualWidth * this.currentScale);
         },
-        
+
         get currentFrameHeight() {
             return Math.round(this.currentVirtualHeight * this.currentScale);
         },
@@ -98,8 +98,8 @@ window.adminKeunggulanManager = function(initialPayload) {
         selectedItemName: '',
 
         addBenefitItem() {
-            const nextId = (this.benefits.items && this.benefits.items.length > 0) 
-                ? Math.max(...this.benefits.items.map(i => parseInt(i.id) || 0)) + 1 
+            const nextId = (this.benefits.items && this.benefits.items.length > 0)
+                ? Math.max(...this.benefits.items.map(i => parseInt(i.id) || 0)) + 1
                 : 1;
             this.benefits.items.push({
                 id: nextId,
@@ -127,8 +127,8 @@ window.adminKeunggulanManager = function(initialPayload) {
         },
 
         addQualityItem() {
-            const nextId = (this.quality.items && this.quality.items.length > 0) 
-                ? Math.max(...this.quality.items.map(i => parseInt(i.id) || 0)) + 1 
+            const nextId = (this.quality.items && this.quality.items.length > 0)
+                ? Math.max(...this.quality.items.map(i => parseInt(i.id) || 0)) + 1
                 : 1;
             this.quality.items.push({
                 id: nextId,
@@ -173,7 +173,7 @@ window.adminKeunggulanManager = function(initialPayload) {
             this.selectedItemIndex = null;
             this.selectedItemName = '';
         },
-        
+
         initPreviewObserver() {
             this.$nextTick(() => {
                 if (this.$refs.previewBoxWrapper) {
@@ -196,17 +196,17 @@ window.adminKeunggulanManager = function(initialPayload) {
                 }
             });
         },
-        
+
         isSaving: false,
         csrfToken: payload.csrfToken || '{{ csrf_token() }}',
         updateRoute: payload.updateRoute || '{{ route('admin.keunggulan.update') }}',
-        
+
         showToast(msg) {
             this.toastMessage = msg;
             this.toastVisible = true;
             setTimeout(() => { this.toastVisible = false; }, 3000);
         },
-        
+
         async saveSection() {
             if (this.isSaving) return;
             this.isSaving = true;
@@ -251,7 +251,7 @@ window.adminKeunggulanManager = function(initialPayload) {
          updateRoute: '{{ route('admin.keunggulan.update') }}'
      })"
      x-init="initPreviewObserver()">
-    
+
     <style>
         [x-cloak] {
             display: none !important;
@@ -278,7 +278,7 @@ window.adminKeunggulanManager = function(initialPayload) {
             border-radius: 9999px;
         }
     </style>
-    
+
     <!-- ======================================================= -->
     <!-- 1. HEADER CARD & ACTIONS                                -->
     <!-- ======================================================= -->
@@ -304,7 +304,7 @@ window.adminKeunggulanManager = function(initialPayload) {
 
             <!-- Save Action Button -->
             <div class="flex items-center gap-3 shrink-0">
-                <button @click="saveSection()" 
+                <button @click="saveSection()"
                         type="button"
                         :disabled="isSaving"
                         class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
@@ -322,15 +322,15 @@ window.adminKeunggulanManager = function(initialPayload) {
     <!-- 2. NAVIGATION TABS (TAB A / TAB B)                       -->
     <!-- ======================================================= -->
     <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
-        <button @click="activeTab = 'benefits'" 
-                type="button" 
+        <button @click="activeTab = 'benefits'"
+                type="button"
                 :class="activeTab === 'benefits' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
                 class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer flex items-center gap-1.5">
             <span>⭐</span>
             <span>A. Kenapa Memilih Kami (<span x-text="benefits.items.length"></span> Poin)</span>
         </button>
-        <button @click="activeTab = 'quality'" 
-                type="button" 
+        <button @click="activeTab = 'quality'"
+                type="button"
                 :class="activeTab === 'quality' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
                 class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer flex items-center gap-1.5">
             <span>🛡️</span>
@@ -345,7 +345,7 @@ window.adminKeunggulanManager = function(initialPayload) {
 
         <!-- TAB A: KENAPA MEMILIH KAMI -->
         <div x-show="activeTab === 'benefits'" class="space-y-6">
-            
+
             <!-- Section Header Config Card -->
             <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -353,29 +353,28 @@ window.adminKeunggulanManager = function(initialPayload) {
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-primary"></span>
                         <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">Header Section: Kenapa Memilih Kami</h3>
                     </div>
-                    <span class="text-[11px] text-gray-400 font-mono">Dynamic Section Header</span>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div class="md:col-span-4">
                         <label class="block text-xs font-bold text-gray-700 mb-1">Badge Tag</label>
-                        <input type="text" 
-                               x-model="benefits.section_badge" 
+                        <input type="text"
+                               x-model="benefits.section_badge"
                                class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary font-medium text-brand-dark"
                                placeholder="Contoh: Kenapa Memilih Kami">
                     </div>
 
                     <div class="md:col-span-8">
                         <label class="block text-xs font-bold text-gray-700 mb-1">Judul Section (H2)</label>
-                        <input type="text" 
-                               x-model="benefits.section_title" 
+                        <input type="text"
+                               x-model="benefits.section_title"
                                class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary font-extrabold text-brand-dark"
                                placeholder="Contoh: Lebih Praktis, Lebih Siap">
                     </div>
 
                     <div class="md:col-span-12">
                         <label class="block text-xs font-bold text-gray-700 mb-1">Subjudul / Deskripsi Singkat</label>
-                        <textarea x-model="benefits.section_subtitle" 
+                        <textarea x-model="benefits.section_subtitle"
                                   rows="2"
                                   class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary text-gray-700 leading-relaxed"
                                   placeholder="Penjelasan ringkas komitmen mutu..."></textarea>
@@ -392,9 +391,9 @@ window.adminKeunggulanManager = function(initialPayload) {
                             Kartu Poin Keunggulan (<span x-text="benefits.items.length"></span> Item)
                         </h3>
                     </div>
-                    
+
                     <!-- Add Item Button -->
-                    <button @click="addBenefitItem()" 
+                    <button @click="addBenefitItem()"
                             type="button"
                             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 border border-brand-soft-green-border transition-colors cursor-pointer shadow-2xs">
                         <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -407,7 +406,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <template x-for="(item, idx) in benefits.items" :key="item.id">
                         <div class="border border-gray-200 rounded-modern-lg p-4 bg-gray-50/50 hover:bg-white transition-all duration-200 space-y-3 relative group">
-                            
+
                             <!-- Card Header: Number, Title, Empty Indicator & Delete Action -->
                             <div class="flex items-center justify-between flex-wrap gap-2">
                                 <div class="flex items-center gap-2 min-w-0">
@@ -423,11 +422,11 @@ window.adminKeunggulanManager = function(initialPayload) {
                                 <div class="flex items-center gap-2 shrink-0">
                                     <span class="text-[11px] text-gray-400 font-mono" x-text="'ID: ' + item.id"></span>
                                     <!-- Delete Button -->
-                                    <button @click="openDeleteBenefit(idx, item)" 
+                                    <button @click="openDeleteBenefit(idx, item)"
                                             :disabled="benefits.items.length <= 1"
-                                            type="button" 
+                                            type="button"
                                             :title="benefits.items.length <= 1 ? 'Minimal harus ada 1 poin' : 'Hapus poin keunggulan ini'"
-                                            class="p-1.5 rounded-modern text-gray-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:bg-transparent transition-colors cursor-pointer">
+                                            class="p-1.5 rounded-modern text-rose-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:hover:text-rose-500 disabled:hover:bg-transparent transition-colors cursor-pointer">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
@@ -439,7 +438,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                                 <!-- Title -->
                                 <div class="sm:col-span-8">
                                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">Judul Poin</label>
-                                    <input type="text" 
+                                    <input type="text"
                                            x-model="item.title"
                                            class="w-full text-xs rounded-modern border border-gray-300 px-2.5 py-1.5 focus:ring-1 focus:ring-brand-primary font-bold text-brand-dark"
                                            placeholder="Judul poin keunggulan...">
@@ -448,7 +447,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                                 <!-- Icon Picker -->
                                 <div class="sm:col-span-4">
                                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">Ikon Representasi</label>
-                                    <select x-model="item.icon" 
+                                    <select x-model="item.icon"
                                             class="w-full text-xs rounded-modern border border-gray-300 px-2 py-1.5 focus:ring-1 focus:ring-brand-primary font-medium text-brand-dark bg-white">
                                         <template x-for="opt in iconOptions" :key="opt.id">
                                             <option :value="opt.id" x-text="opt.label"></option>
@@ -459,7 +458,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                                 <!-- Description -->
                                 <div class="sm:col-span-12">
                                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">Deskripsi Poin</label>
-                                    <textarea x-model="item.desc" 
+                                    <textarea x-model="item.desc"
                                               rows="2"
                                               class="w-full text-xs rounded-modern border border-gray-300 px-2.5 py-1.5 focus:ring-1 focus:ring-brand-primary text-gray-700 leading-relaxed"
                                               placeholder="Uraian komitmen atau keunggulan..."></textarea>
@@ -474,7 +473,7 @@ window.adminKeunggulanManager = function(initialPayload) {
 
         <!-- TAB B: 4 PILAR STANDAR MUTU -->
         <div x-show="activeTab === 'quality'" class="space-y-6">
-            
+
             <!-- Section Header Config Card -->
             <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -482,29 +481,28 @@ window.adminKeunggulanManager = function(initialPayload) {
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-primary"></span>
                         <h3 class="text-sm font-extrabold text-brand-dark uppercase tracking-wider">Header Section: Standar Mutu</h3>
                     </div>
-                    <span class="text-[11px] text-gray-400 font-mono">Dynamic Section Header</span>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div class="md:col-span-4">
                         <label class="block text-xs font-bold text-gray-700 mb-1">Badge Tag</label>
-                        <input type="text" 
-                               x-model="quality.section_badge" 
+                        <input type="text"
+                               x-model="quality.section_badge"
                                class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary font-medium text-brand-dark"
                                placeholder="Contoh: Standar Mutu">
                     </div>
 
                     <div class="md:col-span-8">
                         <label class="block text-xs font-bold text-gray-700 mb-1">Judul Section (H2)</label>
-                        <input type="text" 
-                               x-model="quality.section_title" 
+                        <input type="text"
+                               x-model="quality.section_title"
                                class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary font-extrabold text-brand-dark"
                                placeholder="Contoh: Mengenal Standar Produk Kami">
                     </div>
 
                     <div class="md:col-span-12">
                         <label class="block text-xs font-bold text-gray-700 mb-1">Subjudul / Deskripsi Singkat</label>
-                        <textarea x-model="quality.section_subtitle" 
+                        <textarea x-model="quality.section_subtitle"
                                   rows="2"
                                   class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary text-gray-700 leading-relaxed"
                                   placeholder="Penjelasan ringkas standar jaminan kualitas..."></textarea>
@@ -523,7 +521,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                     </div>
 
                     <!-- Add Pillar Button -->
-                    <button @click="addQualityItem()" 
+                    <button @click="addQualityItem()"
                             type="button"
                             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 border border-brand-soft-green-border transition-colors cursor-pointer shadow-2xs">
                         <span class="text-sm leading-none font-bold">＋</span>
@@ -534,7 +532,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <template x-for="(pk, idx) in quality.items" :key="pk.id">
                         <div class="border border-gray-200 rounded-modern-lg p-4 bg-gray-50/50 hover:bg-white transition-all duration-200 space-y-3 relative group">
-                            
+
                             <!-- Card Header: Number, Title, Empty Indicator & Delete Action -->
                             <div class="flex items-center justify-between flex-wrap gap-2">
                                 <div class="flex items-center gap-2 min-w-0">
@@ -550,11 +548,11 @@ window.adminKeunggulanManager = function(initialPayload) {
                                 <div class="flex items-center gap-2 shrink-0">
                                     <span class="text-[11px] text-gray-400 font-mono" x-text="'Tag: ' + pk.tag"></span>
                                     <!-- Delete Button -->
-                                    <button @click="openDeleteQuality(idx, pk)" 
+                                    <button @click="openDeleteQuality(idx, pk)"
                                             :disabled="quality.items.length <= 1"
-                                            type="button" 
+                                            type="button"
                                             :title="quality.items.length <= 1 ? 'Minimal harus ada 1 pilar' : 'Hapus pilar standar mutu ini'"
-                                            class="p-1.5 rounded-modern text-gray-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:bg-transparent transition-colors cursor-pointer">
+                                            class="p-1.5 rounded-modern text-rose-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:hover:text-rose-500 disabled:hover:bg-transparent transition-colors cursor-pointer">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
@@ -566,7 +564,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                                 <!-- Tag Badge -->
                                 <div class="sm:col-span-4">
                                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">Badge Tag</label>
-                                    <input type="text" 
+                                    <input type="text"
                                            x-model="pk.tag"
                                            class="w-full text-xs rounded-modern border border-gray-300 px-2.5 py-1.5 focus:ring-1 focus:ring-brand-primary font-bold text-brand-dark"
                                            placeholder="Contoh: Sertifikasi">
@@ -575,7 +573,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                                 <!-- Title -->
                                 <div class="sm:col-span-8">
                                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">Judul Pilar</label>
-                                    <input type="text" 
+                                    <input type="text"
                                            x-model="pk.name"
                                            class="w-full text-xs rounded-modern border border-gray-300 px-2.5 py-1.5 focus:ring-1 focus:ring-brand-primary font-bold text-brand-dark"
                                            placeholder="Nama pilar standar mutu...">
@@ -584,7 +582,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                                 <!-- Description -->
                                 <div class="sm:col-span-12">
                                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">Deskripsi Pilar Mutu</label>
-                                    <textarea x-model="pk.desc" 
+                                    <textarea x-model="pk.desc"
                                               rows="2"
                                               class="w-full text-xs rounded-modern border border-gray-300 px-2.5 py-1.5 focus:ring-1 focus:ring-brand-primary text-gray-700 leading-relaxed"
                                               placeholder="Uraian jaminan mutu produk..."></textarea>
@@ -599,7 +597,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                                                 <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                                                 </svg>
-                                                <input type="text" 
+                                                <input type="text"
                                                        x-model="pk.features[pIdx]"
                                                        class="w-full text-xs rounded-modern border border-gray-300 px-2 py-1 focus:ring-1 focus:ring-brand-primary text-gray-800"
                                                        placeholder="Poin checklist mutu...">
@@ -620,7 +618,7 @@ window.adminKeunggulanManager = function(initialPayload) {
             <div class="text-xs text-gray-500 text-center sm:text-left">
                 💡 Setiap perubahan data, penambahan, penghapusan, atau pengosongan card langsung tercermin secara realtime pada <strong>Preview</strong> di bawah.
             </div>
-            <button @click="saveSection()" 
+            <button @click="saveSection()"
                     type="button"
                     :disabled="isSaving"
                     class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -638,7 +636,7 @@ window.adminKeunggulanManager = function(initialPayload) {
     <!-- 4. PREVIEW SECTION (FULL WIDTH AT THE BOTTOM)                   -->
     <!-- =============================================================== -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs space-y-5">
-        
+
         <!-- Header Preview Bar & Device Switcher -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
             <div class="space-y-1">
@@ -660,8 +658,8 @@ window.adminKeunggulanManager = function(initialPayload) {
 
             <!-- Responsive Device Switcher (Pure Reactive Alpine Binding) -->
             <div class="flex items-center bg-gray-100 p-1 rounded-modern border border-gray-200 text-xs shrink-0 self-start sm:self-auto">
-                <button @click="previewDevice = 'desktop'" 
-                        type="button" 
+                <button @click="previewDevice = 'desktop'"
+                        type="button"
                         :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
                     <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -669,8 +667,8 @@ window.adminKeunggulanManager = function(initialPayload) {
                     </svg>
                     <span>Desktop</span>
                 </button>
-                <button @click="previewDevice = 'tablet'" 
-                        type="button" 
+                <button @click="previewDevice = 'tablet'"
+                        type="button"
                         :class="previewDevice === 'tablet' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
                     <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -678,8 +676,8 @@ window.adminKeunggulanManager = function(initialPayload) {
                     </svg>
                     <span>Tablet</span>
                 </button>
-                <button @click="previewDevice = 'mobile'" 
-                        type="button" 
+                <button @click="previewDevice = 'mobile'"
+                        type="button"
                         :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
                     <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -693,7 +691,7 @@ window.adminKeunggulanManager = function(initialPayload) {
         <!-- Preview Frame Container (STABLE FIXED HEIGHT - NO JUMPING ACROSS DEVICES) -->
         <div x-ref="previewBoxWrapper"
              class="bg-gray-950 rounded-modern-xl p-3 sm:p-6 flex justify-center items-center overflow-hidden border border-gray-800 shadow-inner h-[560px] sm:h-[600px] relative">
-            
+
             <!-- =================================================== -->
             <!-- A. DESKTOP VIEWPORT PREVIEW (Laptop 14" 1366x768)  -->
             <!-- =================================================== -->
@@ -703,7 +701,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                      width: currentFrameWidth + 'px',
                      height: currentFrameHeight + 'px'
                  }">
-                
+
                 <!-- Scaled Laptop 14" Screen Shell (1366px × 768px Virtual Viewport) -->
                 <div class="laptop-desktop-viewport absolute top-0 left-0 bg-brand-cream overflow-y-auto overflow-x-hidden text-left"
                      :style="{
@@ -713,7 +711,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                          transform: 'scale(' + currentScale + ')'
                      }"
                      style="scroll-behavior: smooth;">
-                    
+
                     <!-- Desktop Viewport: Tab A (Kenapa Memilih Kami) -->
                     <div x-show="activeTab === 'benefits'" class="w-[1366px] min-h-[768px] h-auto bg-brand-cream/80">
                         <section class="py-14 px-12 bg-brand-cream/80 w-full min-h-[768px] text-left flex flex-col justify-center">
@@ -807,7 +805,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                      width: currentFrameWidth + 'px',
                      height: currentFrameHeight + 'px'
                  }">
-                
+
                 <!-- Scaled Tablet Screen Shell (1024px × 768px Virtual Viewport) -->
                 <div class="tablet-viewport absolute top-0 left-0 bg-brand-cream overflow-y-auto overflow-x-hidden text-left"
                      :style="{
@@ -817,7 +815,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                          transform: 'scale(' + currentScale + ')'
                      }"
                      style="scroll-behavior: smooth;">
-                    
+
                     <!-- Tablet Viewport: Tab A (Kenapa Memilih Kami) -->
                     <div x-show="activeTab === 'benefits'" class="w-[1024px] min-h-[768px] h-auto bg-brand-cream/80">
                         <section class="py-12 px-8 bg-brand-cream/80 w-full min-h-[768px] text-left flex flex-col justify-center">
@@ -905,7 +903,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                      width: currentFrameWidth + 'px',
                      height: currentFrameHeight + 'px'
                  }">
-                
+
                 <!-- Mobile Outer Scaled Shell (393px × 852px scaled) -->
                 <div class="absolute top-0 left-0 rounded-[44px] border-[4px] border-slate-700 bg-slate-950 shadow-2xl overflow-hidden flex flex-col"
                      :style="{
@@ -914,7 +912,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                          transformOrigin: '0 0',
                          transform: 'scale(' + currentScale + ')'
                      }">
-                    
+
                     <!-- Dynamic Island Overlay (Top Center) -->
                     <div class="absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-30 pointer-events-none shadow-md flex items-center justify-between px-2.5">
                         <span class="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800"></span>
@@ -924,10 +922,10 @@ window.adminKeunggulanManager = function(initialPayload) {
                     <!-- Mobile Scrollable Screen (Viewport 393×852) -->
                     <div class="mobile-viewport w-full h-full overflow-y-auto overflow-x-hidden text-left bg-brand-cream"
                          style="scroll-behavior: smooth;">
-                        
+
                         <!-- Tab A: Kenapa Memilih Kami (Mobile Natural 393px Stack) -->
                         <div x-show="activeTab === 'benefits'" class="bg-brand-cream/80 min-h-full py-10 px-4 space-y-6">
-                            
+
                             <!-- Mobile Section Header -->
                             <div class="text-center max-w-xs mx-auto pt-2">
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-soft-green text-brand-primary mb-2.5 shadow-2xs"
@@ -967,7 +965,7 @@ window.adminKeunggulanManager = function(initialPayload) {
 
                         <!-- Tab B: Standar Mutu (Mobile Natural 393px Stack) -->
                         <div x-show="activeTab === 'quality'" class="bg-brand-cream/60 min-h-full py-10 px-4 space-y-6">
-                            
+
                             <!-- Mobile Section Header -->
                             <div class="text-center max-w-xs mx-auto pt-2">
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-soft-green text-brand-primary mb-2.5 shadow-2xs"
@@ -1028,17 +1026,17 @@ window.adminKeunggulanManager = function(initialPayload) {
     <!-- ======================================================= -->
     <!-- DELETE CONFIRMATION MODAL (HERO SLIDER STANDARD)        -->
     <!-- ======================================================= -->
-    <div x-show="deleteModalOpen" 
+    <div x-show="deleteModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="deleteModalOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
-                
+
                 <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1046,7 +1044,7 @@ window.adminKeunggulanManager = function(initialPayload) {
                 </div>
 
                 <div class="space-y-1">
-                    <h3 class="text-base font-bold text-brand-dark" 
+                    <h3 class="text-base font-bold text-brand-dark"
                         x-text="deleteTargetType === 'benefit' ? 'Hapus Poin Keunggulan ini?' : 'Hapus Pilar Standar Mutu ini?'">
                     </h3>
                     <p class="text-xs text-gray-500 leading-relaxed">
@@ -1055,13 +1053,13 @@ window.adminKeunggulanManager = function(initialPayload) {
                 </div>
 
                 <div class="pt-3 flex items-center justify-center gap-3">
-                    <button @click="deleteModalOpen = false" 
-                            type="button" 
+                    <button @click="deleteModalOpen = false"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button @click="confirmDelete()" 
-                            type="button" 
+                    <button @click="confirmDelete()"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
                         Hapus
                     </button>
@@ -1072,7 +1070,7 @@ window.adminKeunggulanManager = function(initialPayload) {
     </div>
 
     <!-- Toast Notification -->
-    <div x-show="toastVisible" 
+    <div x-show="toastVisible"
          x-cloak
          x-transition
          class="fixed bottom-6 right-6 z-50 bg-brand-dark text-white px-4 py-3 rounded-modern-lg shadow-xl border border-white/10 flex items-center gap-2.5 text-xs font-semibold">

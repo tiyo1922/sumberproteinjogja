@@ -7,22 +7,66 @@
 <script>
 window.adminHeroManager = function(initialPayload) {
     const payload = initialPayload || {};
+    const heroPartners = payload.heroPartners || {};
+    if (heroPartners && Array.isArray(heroPartners.partners)) {
+        heroPartners.partners.forEach(p => {
+            const raw = p.is_active !== undefined ? p.is_active : (p.active !== undefined ? p.active : true);
+            if (typeof raw === 'boolean') {
+                p.is_active = raw;
+            } else if (typeof raw === 'number') {
+                p.is_active = raw === 1;
+            } else if (typeof raw === 'string') {
+                const lower = raw.trim().toLowerCase();
+                if (['false', '0', 'nonaktif', 'nonaktif (sembunyi)', 'inactive', 'off', 'hide', 'hidden', ''].includes(lower)) {
+                    p.is_active = false;
+                } else if (['true', '1', 'aktif', 'aktif (tampil)', 'active', 'on', 'show', 'visible'].includes(lower)) {
+                    p.is_active = true;
+                } else {
+                    p.is_active = false;
+                }
+            } else {
+                p.is_active = Boolean(raw);
+            }
+        });
+    }
     return {
         drafts: payload.drafts || [],
         mediaLibrary: payload.mediaLibrary || [],
         partnerMediaLibrary: payload.partnerMediaLibrary || [],
-        heroPartners: payload.heroPartners || {},
+        heroPartners: heroPartners,
         contacts: payload.contacts || [],
         csrfToken: payload.csrfToken || '',
         updateRoute: payload.updateRoute || '',
         partnerUploadRoute: payload.partnerUploadRoute || '',
         partnerDeleteRoute: payload.partnerDeleteRoute || '',
-        
+
+        normalizePartnerActive(val) {
+            if (val === undefined || val === null) return true;
+            if (typeof val === 'boolean') return val;
+            if (typeof val === 'number') return val === 1;
+            if (typeof val === 'string') {
+                const lower = val.trim().toLowerCase();
+                if (['false', '0', 'nonaktif', 'nonaktif (sembunyi)', 'inactive', 'off', 'hide', 'hidden', ''].includes(lower)) {
+                    return false;
+                }
+                if (['true', '1', 'aktif', 'aktif (tampil)', 'active', 'on', 'show', 'visible'].includes(lower)) {
+                    return true;
+                }
+                return false;
+            }
+            return Boolean(val);
+        },
+
+        isPartnerActive(p) {
+            if (!p) return false;
+            return this.normalizePartnerActive(p.is_active !== undefined ? p.is_active : p.active);
+        },
+
         getContactByKey(key) {
             if (!key || !this.contacts) return null;
             return this.contacts.find(c => c.key === key || c.id === key) || null;
         },
-        
+
         // Modals & Panels State
         editorModalOpen: false,
         mediaPickerOpen: false,
@@ -31,7 +75,10 @@ window.adminHeroManager = function(initialPayload) {
         isDraggingPartner: false,
         activateModalOpen: false,
         deleteModalOpen: false,
-        
+        isSaving: false,
+        isDeleting: false,
+        isSavingPartner: false,
+
         // Media Picker Sub-state
         mediaPickerTab: 'library', // 'library' | 'upload'
         mediaSearchQuery: '',
@@ -48,17 +95,24 @@ window.adminHeroManager = function(initialPayload) {
                 return this.mediaLibrary;
             }
             const q = this.mediaSearchQuery.toLowerCase().trim();
-            return this.mediaLibrary.filter(m => 
-                (m.filename && m.filename.toLowerCase().includes(q)) || 
-                (m.title && m.title.toLowerCase().includes(q)) || 
+            return this.mediaLibrary.filter(m =>
+                (m.filename && m.filename.toLowerCase().includes(q)) ||
+                (m.title && m.title.toLowerCase().includes(q)) ||
                 (m.path && m.path.toLowerCase().includes(q))
             );
         },
 
-        async deleteMedia(media) {
-            if (!confirm('Apakah Anda yakin ingin menghapus file "' + media.filename + '" secara permanen dari server?')) {
-                return;
-            }
+        mediaDeleteConfirmModalOpen: false,
+        mediaToDelete: null,
+        isDeletingMedia: false,
+
+        openDeleteMediaModal(media) {
+            this.mediaToDelete = media;
+            this.mediaDeleteConfirmModalOpen = true;
+        },
+
+        async executeDeleteMedia() {
+            if (!this.mediaToDelete) return;
             this.isDeletingMedia = true;
             try {
                 const response = await fetch(this.mediaDeleteRoute || '{{ route('admin.media.delete') }}', {
@@ -68,14 +122,18 @@ window.adminHeroManager = function(initialPayload) {
                         'X-CSRF-TOKEN': this.csrfToken,
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ path: media.path })
+                    body: JSON.stringify({ path: this.mediaToDelete.path })
                 });
                 const result = await response.json();
                 if (response.ok && result.success) {
-                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== media.id && m.path !== media.path);
-                    if (this.selectedMediaItem && this.selectedMediaItem.path === media.path) {
+                    const deletedPath = this.mediaToDelete.path;
+                    const deletedId = this.mediaToDelete.id;
+                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== deletedId && m.path !== deletedPath);
+                    if (this.selectedMediaItem && (this.selectedMediaItem.path === deletedPath || this.selectedMediaItem.id === deletedId)) {
                         this.selectedMediaItem = null;
                     }
+                    this.mediaDeleteConfirmModalOpen = false;
+                    this.mediaToDelete = null;
                     this.showToast(result.message || 'File media berhasil dihapus!');
                 } else {
                     alert(result.message || 'Gagal menghapus file media.');
@@ -87,11 +145,11 @@ window.adminHeroManager = function(initialPayload) {
                 this.isDeletingMedia = false;
             }
         },
-        
+
         // Upload Simulation State (HTML5 File API + URL.createObjectURL)
         uploadedMockImage: null,
         isDragging: false,
-        
+
         // Preview & Notification State
         previewDevice: 'desktop', // 'desktop' | 'tablet' | 'mobile'
         previewBoxWidth: 640,
@@ -101,22 +159,22 @@ window.adminHeroManager = function(initialPayload) {
         toastMessage: '',
         toastVisible: false,
         isEditingDraft: false,
-        
+
         // Reference Viewport Dimensions (Landing Page Standard & iPhone 15)
         virtualDimensions: {
             desktop: { width: 1280, height: 720 },
             tablet:  { width: 1024, height: 768 },
             mobile:  { width: 393,  height: 852 }
         },
-        
+
         get currentVirtualWidth() {
             return this.virtualDimensions[this.previewDevice]?.width || (this.previewDevice === 'mobile' ? 393 : 1280);
         },
-        
+
         get currentVirtualHeight() {
             return this.virtualDimensions[this.previewDevice]?.height || (this.previewDevice === 'mobile' ? 852 : 720);
         },
-        
+
         get currentFrameWidth() {
             const available = Math.max(300, this.previewBoxWidth || 640);
             if (this.previewDevice === 'desktop') {
@@ -127,15 +185,15 @@ window.adminHeroManager = function(initialPayload) {
                 return Math.min(available, 330);
             }
         },
-        
+
         get currentFrameHeight() {
             return Math.round(this.currentFrameWidth * (this.currentVirtualHeight / this.currentVirtualWidth));
         },
-        
+
         get currentScale() {
             return this.currentFrameWidth / this.currentVirtualWidth;
         },
-        
+
         initPreviewObserver() {
             this.$nextTick(() => {
                 if (this.$refs.previewBoxWrapper) {
@@ -157,7 +215,7 @@ window.adminHeroManager = function(initialPayload) {
                 }
             });
         },
-        
+
         startAutoplay() {
             this.stopAutoplay();
             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
@@ -165,43 +223,43 @@ window.adminHeroManager = function(initialPayload) {
                 this.currentSlide = (this.currentSlide + 1) % this.draftForm.images.length;
             }, 5500);
         },
-        
+
         stopAutoplay() {
             if (this.autoplayTimer) {
                 clearInterval(this.autoplayTimer);
                 this.autoplayTimer = null;
             }
         },
-        
+
         goToSlide(index) {
             this.stopAutoplay();
             this.currentSlide = index;
             this.startAutoplay();
         },
-        
+
         nextSlide() {
             this.stopAutoplay();
             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
             this.currentSlide = (this.currentSlide + 1) % this.draftForm.images.length;
             this.startAutoplay();
         },
-        
+
         prevSlide() {
             this.stopAutoplay();
             if (!this.draftForm.images || this.draftForm.images.length <= 1) return;
             this.currentSlide = (this.currentSlide - 1 + this.draftForm.images.length) % this.draftForm.images.length;
             this.startAutoplay();
         },
-        
+
         // Helper for Image URLs (handles relative paths, blob URLs, and external links)
         getImageUrl(path) {
-            if (!path) return '/images/hero-1.jpg';
+            if (!path) return '/storage/media/hero_meat_poultry_1786889302143.jpg';
             if (path.startsWith('blob:') || path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
                 return path;
             }
             return path.startsWith('/') ? path : '/' + path;
         },
-        
+
         // Form Model for 1 Draft Hero
         draftForm: {
             id: null,
@@ -217,7 +275,7 @@ window.adminHeroManager = function(initialPayload) {
             secondary_cta_text: 'Lihat Produk',
             secondary_cta_link: '#kategori',
             secondary_cta_contact: '',
-            images: ['images/hero-1.jpg', 'images/hero-2.jpg', 'images/hero-3.jpg', 'images/cat-daging.jpg'],
+            images: ['storage/media/hero_meat_poultry_1786889302143.jpg', 'storage/media/hero_seafood_fish_1786889522926.jpg', 'storage/media/hero_ready_cook_1786889537358.jpg', 'storage/media/cat_daging_1786889601901.jpg'],
             trust_items: [
                 { id: 1, text: '100% Halal', active: true },
                 { id: 2, text: 'Cold Chain', active: true },
@@ -226,15 +284,15 @@ window.adminHeroManager = function(initialPayload) {
             status: 'Nonaktif',
             updated_at: 'Baru saja'
         },
-        
+
         selectedDraft: null,
-        
+
         showToast(msg) {
             this.toastMessage = msg;
             this.toastVisible = true;
             setTimeout(() => { this.toastVisible = false; }, 3000);
         },
-        
+
         openCreateDraftModal() {
             if (this.drafts.length >= 3) {
                 this.showToast('Maksimal 3 draft Hero.');
@@ -258,7 +316,7 @@ window.adminHeroManager = function(initialPayload) {
                 secondary_cta_text: 'Lihat Produk',
                 secondary_cta_link: '#kategori',
                 secondary_cta_contact: '',
-                images: ['images/hero-1.jpg', 'images/hero-2.jpg'],
+                images: ['storage/media/hero_meat_poultry_1786889302143.jpg', 'storage/media/hero_seafood_fish_1786889522926.jpg'],
                 trust_items: [
                     { id: 1, text: '100% Halal', active: true },
                     { id: 2, text: 'Cold Chain', active: true },
@@ -271,7 +329,7 @@ window.adminHeroManager = function(initialPayload) {
             this.startAutoplay();
             this.initPreviewObserver();
         },
-        
+
         openEditDraftModal(draft) {
             this.isEditingDraft = true;
             this.previewDevice = 'desktop';
@@ -301,20 +359,85 @@ window.adminHeroManager = function(initialPayload) {
             this.startAutoplay();
             this.initPreviewObserver();
         },
-        
+
         partnerModalOpen: false,
         isEditingPartner: false,
         partnerForm: {
             id: null,
             name: '',
             logo: '',
-            is_active: true,
+            is_active: 'true',
             sort_order: 1,
         },
 
         async saveHeroToDatabase(draftToSave) {
             try {
                 const draft = draftToSave || this.draftForm;
+                const activeDraft = (draft && draft.status === 'Aktif')
+                    ? draft
+                    : (this.drafts.find(d => d.status === 'Aktif') || this.drafts[0] || draft);
+
+                const sanitizedPartners = {
+                    badge: this.heroPartners.badge || 'Kepercayaan Mitra',
+                    title: this.heroPartners.title || '',
+                    partners: (this.heroPartners.partners || []).map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        logo: p.logo,
+                        is_active: this.normalizePartnerActive(p.is_active !== undefined ? p.is_active : p.active),
+                        sort_order: Number(p.sort_order) || 1
+                    }))
+                };
+
+                const heroPayload = {
+                    badge: activeDraft.badge || '',
+                    headline_prefix: activeDraft.headline_prefix || '',
+                    highlight: activeDraft.highlight || '',
+                    headline_suffix: activeDraft.headline_suffix || '',
+                    title: (activeDraft.headline_prefix || '') + ' ' + (activeDraft.highlight || '') + (activeDraft.headline_suffix || ''),
+                    subtitle: activeDraft.description || activeDraft.subtitle || '',
+                    description: activeDraft.description || activeDraft.subtitle || '',
+                    primary_cta_text: activeDraft.primary_cta_text || 'Belanja Sekarang',
+                    primary_cta_link: activeDraft.primary_cta_link || '#produk',
+                    secondary_cta_text: activeDraft.secondary_cta_text || 'Lihat Produk',
+                    secondary_cta_link: activeDraft.secondary_cta_link || '#kategori',
+                    images: activeDraft.images || [],
+                };
+
+                const draftsPayload = this.drafts.map((d, index) => ({
+                    id: d.id || (index + 1),
+                    name: d.name || ('Hero Draft 0' + (index + 1)),
+                    status: d.status || 'Nonaktif',
+                    badge: d.badge || '',
+                    headline_prefix: d.headline_prefix || '',
+                    highlight: d.highlight || '',
+                    headline_suffix: d.headline_suffix || '',
+                    title: d.title || ((d.headline_prefix || '') + ' ' + (d.highlight || '') + (d.headline_suffix || '')),
+                    subtitle: d.description || d.subtitle || '',
+                    description: d.description || d.subtitle || '',
+                    primary_cta_text: d.primary_cta_text || 'Belanja Sekarang',
+                    primary_cta_link: d.primary_cta_link || '#produk',
+                    primary_cta_contact: d.primary_cta_contact || 'order_wa',
+                    secondary_cta_text: d.secondary_cta_text || 'Lihat Produk',
+                    secondary_cta_link: d.secondary_cta_link || '#kategori',
+                    secondary_cta_contact: d.secondary_cta_contact || '',
+                    images: Array.isArray(d.images) ? d.images : [],
+                    trust_items: (d.trust_items || []).map((t, idx) => ({
+                        id: t.id || (idx + 1),
+                        text: t.text || '',
+                        active: t.active !== false && t.is_active !== false,
+                        sort_order: t.sort_order || (idx + 1),
+                    })),
+                    updated_at: d.updated_at || 'Baru saja',
+                }));
+
+                const trustItemsPayload = (activeDraft.trust_items || []).map((t, idx) => ({
+                    id: t.id || (idx + 1),
+                    text: t.text || '',
+                    is_active: t.active !== false && t.is_active !== false,
+                    sort_order: idx + 1,
+                }));
+
                 const response = await fetch(this.updateRoute, {
                     method: 'POST',
                     headers: {
@@ -323,27 +446,10 @@ window.adminHeroManager = function(initialPayload) {
                         'X-CSRF-TOKEN': this.csrfToken,
                     },
                     body: JSON.stringify({
-                        hero: {
-                            badge: draft.badge,
-                            headline_prefix: draft.headline_prefix,
-                            highlight: draft.highlight,
-                            headline_suffix: draft.headline_suffix,
-                            title: (draft.headline_prefix || '') + ' ' + (draft.highlight || '') + (draft.headline_suffix || ''),
-                            subtitle: draft.description,
-                            description: draft.description,
-                            primary_cta_text: draft.primary_cta_text,
-                            primary_cta_link: draft.primary_cta_link,
-                            secondary_cta_text: draft.secondary_cta_text,
-                            secondary_cta_link: draft.secondary_cta_link,
-                            images: draft.images,
-                        },
-                        trust_items: (draft.trust_items || []).map((t, idx) => ({
-                            id: t.id || (idx + 1),
-                            text: t.text,
-                            is_active: t.active !== false,
-                            sort_order: idx + 1,
-                        })),
-                        partners: this.heroPartners,
+                        hero: heroPayload,
+                        drafts: draftsPayload,
+                        trust_items: trustItemsPayload,
+                        partners: sanitizedPartners,
                     }),
                 });
 
@@ -351,6 +457,15 @@ window.adminHeroManager = function(initialPayload) {
                 if (!response.ok || !result.success) {
                     alert(result.message || 'Gagal menyimpan ke database.');
                     return;
+                }
+                if (result.hero_drafts && Array.isArray(result.hero_drafts) && result.hero_drafts.length > 0) {
+                    this.drafts = result.hero_drafts;
+                }
+                if (result.hero_partners && Array.isArray(result.hero_partners.partners)) {
+                    result.hero_partners.partners.forEach(p => {
+                        p.is_active = this.normalizePartnerActive(p.is_active !== undefined ? p.is_active : p.active);
+                    });
+                    this.heroPartners = result.hero_partners;
                 }
                 this.showToast(result.message || 'Hero berhasil disimpan ke database!');
             } catch (err) {
@@ -361,6 +476,17 @@ window.adminHeroManager = function(initialPayload) {
 
         async savePartnersToDatabase() {
             try {
+                const sanitizedPartners = {
+                    badge: this.heroPartners.badge || 'Kepercayaan Mitra',
+                    title: this.heroPartners.title || '',
+                    partners: (this.heroPartners.partners || []).map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        logo: p.logo,
+                        is_active: this.normalizePartnerActive(p.is_active !== undefined ? p.is_active : p.active),
+                        sort_order: Number(p.sort_order) || 1
+                    }))
+                };
                 const response = await fetch(this.updateRoute, {
                     method: 'POST',
                     headers: {
@@ -369,7 +495,7 @@ window.adminHeroManager = function(initialPayload) {
                         'X-CSRF-TOKEN': this.csrfToken,
                     },
                     body: JSON.stringify({
-                        partners: this.heroPartners,
+                        partners: sanitizedPartners,
                     }),
                 });
 
@@ -377,6 +503,12 @@ window.adminHeroManager = function(initialPayload) {
                 if (!response.ok || !result.success) {
                     alert(result.message || 'Gagal menyimpan mitra ke database.');
                     return;
+                }
+                if (result.hero_partners && Array.isArray(result.hero_partners.partners)) {
+                    result.hero_partners.partners.forEach(p => {
+                        p.is_active = this.normalizePartnerActive(p.is_active !== undefined ? p.is_active : p.active);
+                    });
+                    this.heroPartners = result.hero_partners;
                 }
                 this.showToast(result.message || 'Pengaturan Mitra berhasil disimpan!');
             } catch (err) {
@@ -391,7 +523,7 @@ window.adminHeroManager = function(initialPayload) {
                 id: Date.now(),
                 name: '',
                 logo: '',
-                is_active: true,
+                is_active: 'true',
                 sort_order: (this.heroPartners.partners || []).length + 1,
             };
             this.partnerModalOpen = true;
@@ -399,7 +531,10 @@ window.adminHeroManager = function(initialPayload) {
 
         openEditPartnerModal(p) {
             this.isEditingPartner = true;
-            this.partnerForm = JSON.parse(JSON.stringify(p));
+            const cloned = JSON.parse(JSON.stringify(p));
+            const isActiveBool = this.normalizePartnerActive(cloned.is_active !== undefined ? cloned.is_active : cloned.active);
+            cloned.is_active = isActiveBool ? 'true' : 'false';
+            this.partnerForm = cloned;
             this.partnerModalOpen = true;
         },
 
@@ -428,35 +563,45 @@ window.adminHeroManager = function(initialPayload) {
             this.showToast(`Urutan mitra "${item.name}" diturunkan ke #${index + 2}`);
         },
 
-        savePartner() {
+        async savePartner() {
             if (!this.partnerForm.name || !this.partnerForm.name.trim()) {
                 alert('Nama mitra wajib diisi.');
                 return;
             }
-            if (!this.heroPartners.partners) {
-                this.heroPartners.partners = [];
-            }
-            if (this.isEditingPartner) {
-                const idx = this.heroPartners.partners.findIndex(p => p.id === this.partnerForm.id);
-                if (idx !== -1) {
-                    this.heroPartners.partners[idx] = JSON.parse(JSON.stringify(this.partnerForm));
+            this.isSavingPartner = true;
+            try {
+                if (!this.heroPartners.partners) {
+                    this.heroPartners.partners = [];
                 }
-            } else {
-                this.heroPartners.partners.push(JSON.parse(JSON.stringify(this.partnerForm)));
+                const boolActive = this.normalizePartnerActive(this.partnerForm.is_active);
+                const partnerData = {
+                    ...JSON.parse(JSON.stringify(this.partnerForm)),
+                    is_active: boolActive
+                };
+                if (this.isEditingPartner) {
+                    const idx = this.heroPartners.partners.findIndex(p => p.id === this.partnerForm.id || String(p.id) === String(this.partnerForm.id));
+                    if (idx !== -1) {
+                        this.heroPartners.partners[idx] = partnerData;
+                    }
+                } else {
+                    this.heroPartners.partners.push(partnerData);
+                }
+
+                // Sort array by sort_order then reindex to ensure continuous 1, 2, 3...
+                this.heroPartners.partners.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+                this.reindexPartners();
+
+                this.partnerModalOpen = false;
+                await this.savePartnersToDatabase();
+                this.showToast('Data mitra berhasil disimpan.');
+            } finally {
+                this.isSavingPartner = false;
             }
-
-            // Sort array by sort_order then reindex to ensure continuous 1, 2, 3...
-            this.heroPartners.partners.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
-            this.reindexPartners();
-
-            this.partnerModalOpen = false;
-            this.savePartnersToDatabase();
-            this.showToast('Data mitra berhasil disimpan.');
         },
 
         deletePartner(p) {
             if (!confirm(`Hapus mitra "${p.name}"?`)) return;
-            this.heroPartners.partners = this.heroPartners.partners.filter(item => item.id !== p.id);
+            this.heroPartners.partners = this.heroPartners.partners.filter(item => item.id !== p.id && String(item.id) !== String(p.id));
             this.reindexPartners();
             this.savePartnersToDatabase();
             this.showToast(`Mitra "${p.name}" berhasil dihapus dan urutan diperbarui.`);
@@ -482,7 +627,7 @@ window.adminHeroManager = function(initialPayload) {
                 id: Date.now(),
                 name: (item.title || item.filename || 'Mitra Baru').replace(/^partner_\d+_[a-zA-Z0-9]+_?|\.[^.]+$/g, '').replace(/[-_]/g, ' ').trim() || 'Mitra Baru',
                 logo: item.path,
-                is_active: true,
+                is_active: 'true',
                 sort_order: (this.heroPartners.partners || []).length + 1,
             };
             this.isEditingPartner = false;
@@ -543,7 +688,7 @@ window.adminHeroManager = function(initialPayload) {
 
         async deletePartnerMedia(item) {
             if (!item || !item.path) return;
-            if (!confirm(`Apakah Anda yakin ingin menghapus file logo "${item.title || item.filename}" dari storage mitra?`)) {
+            if (!confirm(`Apakah Anda yakin ingin menghapus file logo "${item.title || item.filename}" dari pustaka logo mitra?`)) {
                 return;
             }
 
@@ -581,23 +726,28 @@ window.adminHeroManager = function(initialPayload) {
             }
         },
 
-        saveDraft() {
+        async saveDraft() {
             if (this.draftForm.images.length === 0) {
                 alert('Minimal harus ada 1 gambar latar untuk slideshow.');
                 return;
             }
-            if (this.isEditingDraft) {
-                const idx = this.drafts.findIndex(d => d.id === this.draftForm.id);
-                if (idx !== -1) {
+            this.isSaving = true;
+            try {
+                if (this.isEditingDraft) {
+                    const idx = this.drafts.findIndex(d => d.id === this.draftForm.id);
+                    if (idx !== -1) {
+                        this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                        this.drafts[idx] = JSON.parse(JSON.stringify(this.draftForm));
+                    }
+                } else {
                     this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                    this.drafts[idx] = JSON.parse(JSON.stringify(this.draftForm));
+                    this.drafts.push(JSON.parse(JSON.stringify(this.draftForm)));
                 }
-            } else {
-                this.draftForm.updated_at = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                this.drafts.push(JSON.parse(JSON.stringify(this.draftForm)));
+                await this.saveHeroToDatabase(this.draftForm);
+                this.closeEditorModal();
+            } finally {
+                this.isSaving = false;
             }
-            this.saveHeroToDatabase(this.draftForm);
-            this.closeEditorModal();
         },
 
         closeEditorModal() {
@@ -636,7 +786,7 @@ window.adminHeroManager = function(initialPayload) {
             }
             const previewUrl = URL.createObjectURL(file);
             const sizeKb = Math.round(file.size / 1024);
-            
+
             this.uploadedMockImage = {
                 filename: file.name,
                 path: previewUrl,
@@ -667,7 +817,7 @@ window.adminHeroManager = function(initialPayload) {
                     this.mediaLibrary.unshift(result.media);
                     this.selectedMediaItem = result.media;
                     this.uploadedMockImage.path = result.media.path;
-                    this.showToast('File media berhasil diunggah ke storage server!');
+                    this.showToast('File media berhasil diunggah!');
                 } else {
                     this.showToast(result.message || 'Gagal mengunggah file media.');
                 }
@@ -775,12 +925,21 @@ window.adminHeroManager = function(initialPayload) {
             this.deleteModalOpen = true;
         },
 
-        confirmDelete() {
+        async confirmDelete() {
             if (this.selectedDraft) {
-                this.drafts = this.drafts.filter(d => d.id !== this.selectedDraft.id);
-                this.deleteModalOpen = false;
-                this.selectedDraft = null;
-                this.showToast('Draft Hero berhasil dihapus.');
+                this.isDeleting = true;
+                try {
+                    this.drafts = this.drafts.filter(d => d.id !== this.selectedDraft.id);
+                    const activeDraft = this.drafts.find(d => d.status === 'Aktif') || this.drafts[0];
+                    if (activeDraft) {
+                        await this.saveHeroToDatabase(activeDraft);
+                    }
+                    this.deleteModalOpen = false;
+                    this.selectedDraft = null;
+                    this.showToast('Draft Hero berhasil dihapus.');
+                } finally {
+                    this.isDeleting = false;
+                }
             }
         }
     };
@@ -799,7 +958,7 @@ window.adminHeroManager = function(initialPayload) {
          partnerUploadRoute: '{{ route('admin.hero.partner.upload') }}',
          partnerDeleteRoute: '{{ route('admin.hero.partner.delete') }}'
      })">
-    
+
     <!-- 1. Module Header & Draft Overview Card -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -808,14 +967,8 @@ window.adminHeroManager = function(initialPayload) {
                     <h2 class="text-xl sm:text-2xl font-extrabold text-brand-dark tracking-tight">
                         Daftar Draft Hero
                     </h2>
-                    
-                    <!-- HYBRID Classification Badge -->
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
-                        <span class="w-2 h-2 rounded-full bg-purple-600"></span>
-                        <span>HYBRID</span>
-                    </span>
                     <span class="text-xs text-gray-500 font-medium">
-                        • Layout Locked — Maksimal 3 Draft (1 Aktif di Website)
+                        • Maksimal 3 Draft (1 Aktif di Website)
                     </span>
                 </div>
                 <p class="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-3xl">
@@ -825,7 +978,7 @@ window.adminHeroManager = function(initialPayload) {
 
             <!-- Create Draft Action Button -->
             <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
-                <button @click="openCreateDraftModal()" 
+                <button @click="openCreateDraftModal()"
                         :disabled="drafts.length >= 3"
                         type="button"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer">
@@ -850,16 +1003,16 @@ window.adminHeroManager = function(initialPayload) {
 
         <template x-for="(draft, index) in drafts" :key="draft.id">
             <div class="bg-white rounded-modern-xl border p-5 sm:p-6 shadow-2xs transition-all duration-200 flex flex-col lg:flex-row gap-5 lg:gap-6 items-start lg:items-center justify-between"
-                 :class="draft.status === 'Aktif' 
-                     ? 'border-brand-primary/50 shadow-md ring-1 ring-brand-primary/20' 
+                 :class="draft.status === 'Aktif'
+                     ? 'border-brand-primary/50 shadow-md ring-1 ring-brand-primary/20'
                      : 'border-gray-200/80 hover:border-gray-300'">
-                
+
                 <!-- Left: 16:9 First Image Thumbnail -->
                 <div class="relative aspect-[16/9] w-full sm:w-64 lg:w-72 rounded-modern-lg overflow-hidden bg-brand-dark shrink-0 border border-gray-200 shadow-2xs">
-                    <img :src="getImageUrl(draft.images[0])" 
-                         :alt="draft.name" 
+                    <img :src="getImageUrl(draft.images[0])"
+                         :alt="draft.name"
                          class="w-full h-full object-cover object-center">
-                    
+
                     <!-- Dark Gradient Overlay Simulation -->
                     <div class="absolute inset-0 bg-gradient-to-t from-brand-dark/90 via-brand-dark/40 to-transparent"></div>
 
@@ -880,12 +1033,12 @@ window.adminHeroManager = function(initialPayload) {
 
                 <!-- Middle: Draft Details & Structured Headline Preview -->
                 <div class="flex-1 space-y-2 min-w-0">
-                    
+
                     <div class="flex items-center gap-2.5 flex-wrap">
                         <!-- Active / Draft Status Badge -->
                         <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-extrabold border"
-                              :class="draft.status === 'Aktif' 
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/20' 
+                              :class="draft.status === 'Aktif'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/20'
                                   : 'bg-gray-100 text-gray-500 border-gray-200'">
                             <span class="w-2 h-2 rounded-full"
                                   :class="draft.status === 'Aktif' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'"></span>
@@ -897,7 +1050,7 @@ window.adminHeroManager = function(initialPayload) {
 
                     <!-- Structured Headline with Highlight -->
                     <h3 class="text-base sm:text-lg font-extrabold text-brand-dark leading-snug">
-                        <span x-text="draft.headline_prefix"></span> 
+                        <span x-text="draft.headline_prefix"></span>
                         <span class="text-emerald-600 underline decoration-amber-500 decoration-2 underline-offset-4 font-black"
                               x-text="draft.highlight"></span><span x-text="draft.headline_suffix"></span>
                     </h3>
@@ -911,7 +1064,7 @@ window.adminHeroManager = function(initialPayload) {
                     <div class="pt-1 flex items-center gap-2 flex-wrap text-[11px] font-semibold text-gray-600">
                         <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Trust:</span>
                         <template x-for="(item, tIdx) in (draft.trust_items || [])" :key="tIdx">
-                            <span x-show="item.active" 
+                            <span x-show="item.active"
                                   class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <span>✓</span>
                                 <span x-text="item.text"></span>
@@ -922,9 +1075,9 @@ window.adminHeroManager = function(initialPayload) {
 
                 <!-- Right: Action Buttons -->
                 <div class="flex items-center gap-2 w-full lg:w-auto pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100 shrink-0 justify-end">
-                    
+
                     <!-- Edit Button -->
-                    <button @click="openEditDraftModal(draft)" 
+                    <button @click="openEditDraftModal(draft)"
                             type="button"
                             class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer shadow-2xs">
                         Edit
@@ -932,7 +1085,7 @@ window.adminHeroManager = function(initialPayload) {
 
                     <!-- Jadikan Aktif Button (Only for inactive drafts) -->
                     <template x-if="draft.status !== 'Aktif'">
-                        <button @click="openActivateModal(draft)" 
+                        <button @click="openActivateModal(draft)"
                                 type="button"
                                 class="px-3.5 py-2 rounded-modern text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-colors cursor-pointer">
                             Jadikan Aktif
@@ -941,7 +1094,7 @@ window.adminHeroManager = function(initialPayload) {
 
                     <!-- Dropdown Options (⋮) -->
                     <div class="relative" x-data="{ menuOpen: false }">
-                        <button @click="menuOpen = !menuOpen" 
+                        <button @click="menuOpen = !menuOpen"
                                 @click.away="menuOpen = false"
                                 type="button"
                                 class="p-2 rounded-modern text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
@@ -951,20 +1104,20 @@ window.adminHeroManager = function(initialPayload) {
                         </button>
 
                         <!-- Dropdown Menu items -->
-                        <div x-show="menuOpen" 
+                        <div x-show="menuOpen"
                              x-cloak
                              x-transition
                              class="absolute right-0 mt-1 w-36 bg-white rounded-modern border border-gray-200 shadow-lg py-1 z-20 text-xs font-medium text-gray-700">
-                            <button @click="duplicateDraft(draft); menuOpen = false" 
-                                    type="button" 
+                            <button @click="duplicateDraft(draft); menuOpen = false"
+                                    type="button"
                                     class="w-full text-left px-3.5 py-2 hover:bg-gray-50 flex items-center gap-2 cursor-pointer text-gray-700">
                                 <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                                 </svg>
                                 <span>Duplikat</span>
                             </button>
-                            <button @click="openDeleteModal(draft); menuOpen = false" 
-                                    type="button" 
+                            <button @click="openDeleteModal(draft); menuOpen = false"
+                                    type="button"
                                     class="w-full text-left px-3.5 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2 cursor-pointer">
                                 <svg class="w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1002,7 +1155,7 @@ window.adminHeroManager = function(initialPayload) {
 
             <!-- Save Action Button -->
             <div class="flex items-center gap-3 shrink-0">
-                <button type="button" 
+                <button type="button"
                         @click="savePartnersToDatabase()"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark transition-all cursor-pointer shadow-sm">
                     <span>Simpan Pengaturan Mitra</span>
@@ -1016,14 +1169,14 @@ window.adminHeroManager = function(initialPayload) {
                 <label class="block text-xs font-bold text-brand-dark mb-1">
                     Judul Section Mitra (Partner Title)
                 </label>
-                <input type="text" 
-                       x-model="heroPartners.title" 
-                       placeholder="Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja" 
+                <input type="text"
+                       x-model="heroPartners.title"
+                       placeholder="Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja"
                        class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold text-brand-dark focus:ring-2 focus:ring-brand-primary/30">
             </div>
             <div class="md:col-span-4 flex items-end">
-                <button type="button" 
-                        @click="openCreatePartnerModal()" 
+                <button type="button"
+                        @click="openCreatePartnerModal()"
                         class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-modern font-bold text-xs text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30 transition-all cursor-pointer">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                     <span>Tambah Mitra Baru</span>
@@ -1060,19 +1213,19 @@ window.adminHeroManager = function(initialPayload) {
                 <template x-if="partnerUploading">
                     <div class="inline-flex items-center gap-2 text-xs font-bold text-brand-primary mt-1">
                         <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-                        <span>Mengunggah logo ke storage/partners/...</span>
+                        <span>Mengunggah logo mitra...</span>
                     </div>
                 </template>
             </div>
         </div>
 
-        <!-- MEDIA PARTNER (Isolated Storage: storage/app/public/partners/) -->
+        <!-- MEDIA PARTNER (Pustaka Media Mitra) -->
         <div class="space-y-3 bg-gray-50/50 p-4 rounded-modern-lg border border-gray-200/70">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <span class="text-sm">🖼️</span>
                     <h4 class="text-xs font-bold text-brand-dark uppercase tracking-wider">
-                        Media Partner <span class="font-mono text-[11px] font-normal text-gray-500">(storage/partners/)</span>
+                        Pustaka Logo Mitra
                     </h4>
                 </div>
                 <span class="text-[11px] text-gray-400 font-bold" x-text="(partnerMediaLibrary || []).length + ' Logo Tersedia'"></span>
@@ -1082,7 +1235,7 @@ window.adminHeroManager = function(initialPayload) {
                 <template x-for="item in partnerMediaLibrary" :key="item.id || item.path">
                     <div class="group relative rounded-modern border p-2.5 bg-white hover:border-brand-primary hover:shadow-xs transition-all flex flex-col items-center justify-between text-center"
                          :class="isPartnerLogoUsed(item.path) ? 'border-emerald-300 bg-emerald-50/30' : 'border-gray-200'">
-                        
+
                         <!-- Top Controls: Used Badge & Delete Button -->
                         <div class="absolute top-1.5 right-1.5 flex items-center gap-1">
                             <template x-if="isPartnerLogoUsed(item.path)">
@@ -1091,7 +1244,7 @@ window.adminHeroManager = function(initialPayload) {
                                 </span>
                             </template>
                         </div>
-                        <button type="button" 
+                        <button type="button"
                                 @click.stop="deletePartnerMedia(item)"
                                 class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center transition-all cursor-pointer opacity-70 hover:opacity-100 shadow-2xs"
                                 title="Hapus Logo">
@@ -1108,7 +1261,7 @@ window.adminHeroManager = function(initialPayload) {
                         <span class="text-[9px] text-gray-400 font-mono" x-text="item.size || ''"></span>
 
                         <!-- Action Gunakan -->
-                        <button type="button" 
+                        <button type="button"
                                 @click="usePartnerMedia(item)"
                                 class="mt-2 w-full py-1 rounded-modern-sm text-[10px] font-bold transition-all cursor-pointer"
                                 :class="isPartnerLogoUsed(item.path) ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' : 'text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30'">
@@ -1162,16 +1315,16 @@ window.adminHeroManager = function(initialPayload) {
                             <!-- Status -->
                             <td class="p-3">
                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
-                                      :class="(p.is_active !== false && p.active !== false) ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'"
-                                      x-text="(p.is_active !== false && p.active !== false) ? 'Aktif' : 'Nonaktif'"></span>
+                                      :class="isPartnerActive(p) ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'"
+                                      x-text="isPartnerActive(p) ? 'Aktif' : 'Nonaktif'"></span>
                             </td>
 
                             <!-- Reordering Controls & Actions -->
                             <td class="p-3 text-right">
                                 <div class="inline-flex items-center gap-1.5">
                                     <!-- Move Up Button -->
-                                    <button type="button" 
-                                            @click="movePartnerUp(pIdx)" 
+                                    <button type="button"
+                                            @click="movePartnerUp(pIdx)"
                                             :disabled="pIdx === 0"
                                             class="w-7 h-7 rounded-modern-sm border border-gray-200 flex items-center justify-center transition-all cursor-pointer"
                                             :class="pIdx === 0 ? 'opacity-30 cursor-not-allowed bg-gray-50 text-gray-400' : 'bg-white hover:bg-brand-primary/10 text-brand-dark hover:text-brand-primary hover:border-brand-primary/30 shadow-2xs'"
@@ -1180,8 +1333,8 @@ window.adminHeroManager = function(initialPayload) {
                                     </button>
 
                                     <!-- Move Down Button -->
-                                    <button type="button" 
-                                            @click="movePartnerDown(pIdx)" 
+                                    <button type="button"
+                                            @click="movePartnerDown(pIdx)"
                                             :disabled="pIdx === (heroPartners.partners || []).length - 1"
                                             class="w-7 h-7 rounded-modern-sm border border-gray-200 flex items-center justify-center transition-all cursor-pointer"
                                             :class="pIdx === (heroPartners.partners || []).length - 1 ? 'opacity-30 cursor-not-allowed bg-gray-50 text-gray-400' : 'bg-white hover:bg-brand-primary/10 text-brand-dark hover:text-brand-primary hover:border-brand-primary/30 shadow-2xs'"
@@ -1192,15 +1345,15 @@ window.adminHeroManager = function(initialPayload) {
                                     <span class="text-gray-300 mx-0.5">|</span>
 
                                     <!-- Edit Button -->
-                                    <button type="button" 
-                                            @click="openEditPartnerModal(p)" 
+                                    <button type="button"
+                                            @click="openEditPartnerModal(p)"
                                             class="px-2 py-1 rounded-modern-sm text-xs font-bold text-brand-primary hover:bg-brand-primary/10 transition-colors cursor-pointer">
                                         Edit
                                     </button>
 
                                     <!-- Delete Button -->
-                                    <button type="button" 
-                                            @click="deletePartner(p)" 
+                                    <button type="button"
+                                            @click="deletePartner(p)"
                                             class="px-2 py-1 rounded-modern-sm text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer">
                                         Hapus
                                     </button>
@@ -1216,12 +1369,12 @@ window.adminHeroManager = function(initialPayload) {
     <!-- ======================================================= -->
     <!-- 3. DRAFT HERO EDITOR MODAL (Left Form + Right Preview)  -->
     <!-- ======================================================= -->
-    <div x-show="editorModalOpen" 
+    <div x-show="editorModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <!-- Backdrop -->
         <div x-show="editorModalOpen"
              x-transition:enter="transition-opacity ease-out duration-200"
@@ -1244,7 +1397,7 @@ window.adminHeroManager = function(initialPayload) {
                  x-transition:leave-start="opacity-100 scale-100"
                  x-transition:leave-end="opacity-0 scale-95"
                  class="relative bg-white rounded-modern-xl max-w-7xl w-full p-5 sm:p-8 shadow-2xl border border-gray-200 my-6">
-                
+
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between pb-4 mb-6 border-b border-gray-100">
                     <div class="space-y-0.5">
@@ -1252,14 +1405,14 @@ window.adminHeroManager = function(initialPayload) {
                             <h3 class="text-lg font-extrabold text-brand-dark"
                                 x-text="isEditingDraft ? 'Edit ' + draftForm.name : 'Buat Draft Hero Baru'">
                             </h3>
-                            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                                HYBRID • 1 Teks + Maks 4 Foto
+                            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                1 Teks + Maks 4 Foto Slideshow
                             </span>
                         </div>
                         <p class="text-xs text-gray-500">Teks Hero bersifat tetap di atas slideshow, latar berganti otomatis sesuai foto yang diupload.</p>
                     </div>
-                    <button @click="closeEditorModal()" 
-                            type="button" 
+                    <button @click="closeEditorModal()"
+                            type="button"
                             class="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1269,12 +1422,12 @@ window.adminHeroManager = function(initialPayload) {
 
                 <!-- Form Grid: Left Inputs, Right Live Source-of-Truth Preview -->
                 <form @submit.prevent="saveDraft()" class="space-y-6">
-                    
+
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                        
+
                         <!-- Left Column: Form Fields (5 cols on lg) -->
                         <div class="lg:col-span-5 space-y-6">
-                            
+
                             <!-- 1. Background Slideshow Images (Media Picker Trigger) -->
                             <div class="p-5 rounded-modern-xl bg-gray-50 border border-gray-200 space-y-4">
                                 <div class="flex items-center justify-between">
@@ -1284,7 +1437,7 @@ window.adminHeroManager = function(initialPayload) {
                                         </label>
                                         <p class="text-[11px] text-gray-500">Kelola foto latar dengan Media Picker (Maksimal 4 gambar slideshow).</p>
                                     </div>
-                                    <button @click="openMediaPickerForAdd()" 
+                                    <button @click="openMediaPickerForAdd()"
                                             :disabled="draftForm.images.length >= 4"
                                             type="button"
                                             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 border border-brand-soft-green-border disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs">
@@ -1297,7 +1450,7 @@ window.adminHeroManager = function(initialPayload) {
                                 <div class="space-y-2.5">
                                     <template x-for="(img, imgIdx) in draftForm.images" :key="imgIdx">
                                         <div class="bg-white p-3 rounded-modern border border-gray-200 flex items-center justify-between gap-3 shadow-2xs hover:border-gray-300 transition-colors">
-                                            
+
                                             <!-- Preview & Number -->
                                             <div class="flex items-center gap-3 min-w-0">
                                                 <div class="relative w-20 aspect-[16/9] rounded overflow-hidden bg-brand-dark shrink-0 border border-gray-200 shadow-2xs">
@@ -1314,28 +1467,28 @@ window.adminHeroManager = function(initialPayload) {
 
                                             <!-- Controls: Replace, Reorder & Delete -->
                                             <div class="flex items-center gap-1.5 shrink-0">
-                                                <button @click="openMediaPickerForReplace(imgIdx)" 
-                                                        type="button" 
+                                                <button @click="openMediaPickerForReplace(imgIdx)"
+                                                        type="button"
                                                         class="px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:text-brand-dark bg-gray-100 hover:bg-gray-200 rounded border border-gray-200 transition-colors cursor-pointer">
                                                     Ganti
                                                 </button>
-                                                <button @click="moveImageUp(imgIdx)" 
+                                                <button @click="moveImageUp(imgIdx)"
                                                         :disabled="imgIdx === 0"
-                                                        type="button" 
+                                                        type="button"
                                                         title="Naikkan urutan"
                                                         class="p-1 text-gray-500 hover:text-brand-dark disabled:opacity-20 cursor-pointer">
                                                     ↑
                                                 </button>
-                                                <button @click="moveImageDown(imgIdx)" 
+                                                <button @click="moveImageDown(imgIdx)"
                                                         :disabled="imgIdx === draftForm.images.length - 1"
-                                                        type="button" 
+                                                        type="button"
                                                         title="Turunkan urutan"
                                                         class="p-1 text-gray-500 hover:text-brand-dark disabled:opacity-20 cursor-pointer">
                                                     ↓
                                                 </button>
-                                                <button @click="removeImageFromDraft(imgIdx)" 
+                                                <button @click="removeImageFromDraft(imgIdx)"
                                                         :disabled="draftForm.images.length <= 1"
-                                                        type="button" 
+                                                        type="button"
                                                         title="Hapus foto"
                                                         class="p-1 text-rose-500 hover:text-rose-700 disabled:opacity-20 cursor-pointer">
                                                     ✕
@@ -1373,8 +1526,8 @@ window.adminHeroManager = function(initialPayload) {
                                     <label class="block text-xs font-bold text-brand-dark mb-1">
                                         Nama Draft Hero <span class="text-rose-500">*</span>
                                     </label>
-                                    <input type="text" 
-                                           x-model="draftForm.name" 
+                                    <input type="text"
+                                           x-model="draftForm.name"
                                            required
                                            placeholder="Hero Draft 01"
                                            class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
@@ -1385,8 +1538,8 @@ window.adminHeroManager = function(initialPayload) {
                                     <label class="block text-xs font-bold text-brand-dark mb-1">
                                         Teks Badge Atas <span class="text-rose-500">*</span>
                                     </label>
-                                    <input type="text" 
-                                           x-model="draftForm.badge" 
+                                    <input type="text"
+                                           x-model="draftForm.badge"
                                            required
                                            placeholder="Penyedia Bahan Segar & Frozen Food Terpercaya di Jogja"
                                            class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
@@ -1408,8 +1561,8 @@ window.adminHeroManager = function(initialPayload) {
                                             <label class="block text-[11px] font-semibold text-gray-600 mb-1">
                                                 Awal Headline
                                             </label>
-                                            <input type="text" 
-                                                   x-model="draftForm.headline_prefix" 
+                                            <input type="text"
+                                                   x-model="draftForm.headline_prefix"
                                                    required
                                                    placeholder="Bahan Masak"
                                                    class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
@@ -1418,8 +1571,8 @@ window.adminHeroManager = function(initialPayload) {
                                             <label class="block text-[11px] font-bold text-emerald-700 mb-1">
                                                 ★ Highlight Teks
                                             </label>
-                                            <input type="text" 
-                                                   x-model="draftForm.highlight" 
+                                            <input type="text"
+                                                   x-model="draftForm.highlight"
                                                    required
                                                    placeholder="Siap Olah"
                                                    class="w-full text-xs rounded-modern border-2 border-emerald-500 p-2 bg-emerald-50/50 font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600">
@@ -1428,8 +1581,8 @@ window.adminHeroManager = function(initialPayload) {
                                             <label class="block text-[11px] font-semibold text-gray-600 mb-1">
                                                 Lanjutan Headline
                                             </label>
-                                            <input type="text" 
-                                                   x-model="draftForm.headline_suffix" 
+                                            <input type="text"
+                                                   x-model="draftForm.headline_suffix"
                                                    placeholder=", Tinggal Masak."
                                                    class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                                         </div>
@@ -1444,8 +1597,8 @@ window.adminHeroManager = function(initialPayload) {
                                     <label class="block text-xs font-bold text-brand-dark mb-1">
                                         Paragraf Deskripsi <span class="text-rose-500">*</span>
                                     </label>
-                                    <textarea x-model="draftForm.description" 
-                                              rows="3" 
+                                    <textarea x-model="draftForm.description"
+                                              rows="3"
                                               required
                                               placeholder="Daging, ayam, ikan, dan sayuran pilihan dalam bentuk frozen dan ready to cook..."
                                               class="w-full text-xs sm:text-sm rounded-modern border border-gray-300 p-2.5 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"></textarea>
@@ -1467,8 +1620,8 @@ window.adminHeroManager = function(initialPayload) {
                                             <label class="block text-xs font-bold text-brand-dark mb-1">
                                                 Teks Tombol Utama (Primary Text) <span class="text-rose-500">*</span>
                                             </label>
-                                            <input type="text" 
-                                                   x-model="draftForm.primary_cta_text" 
+                                            <input type="text"
+                                                   x-model="draftForm.primary_cta_text"
                                                    required
                                                    placeholder="Belanja Sekarang"
                                                    class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary font-bold text-brand-dark">
@@ -1521,8 +1674,8 @@ window.adminHeroManager = function(initialPayload) {
                                         <label class="block text-xs font-bold text-brand-dark mb-1">
                                             Target URL / Anchor Link
                                         </label>
-                                        <input type="text" 
-                                               x-model="draftForm.primary_cta_link" 
+                                        <input type="text"
+                                               x-model="draftForm.primary_cta_link"
                                                placeholder="#produk"
                                                class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary font-mono">
                                     </div>
@@ -1534,8 +1687,8 @@ window.adminHeroManager = function(initialPayload) {
                                         <label class="block text-xs font-bold text-brand-dark mb-1">
                                             Secondary CTA (Text)
                                         </label>
-                                        <input type="text" 
-                                               x-model="draftForm.secondary_cta_text" 
+                                        <input type="text"
+                                               x-model="draftForm.secondary_cta_text"
                                                required
                                                placeholder="Lihat Produk"
                                                class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
@@ -1544,8 +1697,8 @@ window.adminHeroManager = function(initialPayload) {
                                         <label class="block text-xs font-bold text-brand-dark mb-1">
                                             Secondary CTA (Link)
                                         </label>
-                                        <input type="text" 
-                                               x-model="draftForm.secondary_cta_link" 
+                                        <input type="text"
+                                               x-model="draftForm.secondary_cta_link"
                                                required
                                                placeholder="#kategori"
                                                class="w-full text-xs rounded-modern border border-gray-300 p-2 bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary font-mono">
@@ -1582,8 +1735,8 @@ window.adminHeroManager = function(initialPayload) {
                                                 </span>
                                             </label>
                                         </div>
-                                        <input type="text" 
-                                               x-model="draftForm.trust_items[0].text" 
+                                        <input type="text"
+                                               x-model="draftForm.trust_items[0].text"
                                                placeholder="100% Halal"
                                                class="w-full text-xs rounded-modern border border-gray-300 p-2 focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                                     </div>
@@ -1602,8 +1755,8 @@ window.adminHeroManager = function(initialPayload) {
                                                 </span>
                                             </label>
                                         </div>
-                                        <input type="text" 
-                                               x-model="draftForm.trust_items[1].text" 
+                                        <input type="text"
+                                               x-model="draftForm.trust_items[1].text"
                                                placeholder="Cold Chain"
                                                class="w-full text-xs rounded-modern border border-gray-300 p-2 focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                                     </div>
@@ -1622,8 +1775,8 @@ window.adminHeroManager = function(initialPayload) {
                                                 </span>
                                             </label>
                                         </div>
-                                        <input type="text" 
-                                               x-model="draftForm.trust_items[2].text" 
+                                        <input type="text"
+                                               x-model="draftForm.trust_items[2].text"
                                                placeholder="Kirim Se-Jogja"
                                                class="w-full text-xs rounded-modern border border-gray-300 p-2 focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary">
                                     </div>
@@ -1638,7 +1791,7 @@ window.adminHeroManager = function(initialPayload) {
 
                         <!-- Right Column: Live Source-of-Truth Hero Preview (7 cols on lg) -->
                         <div class="lg:col-span-7 space-y-3 sticky top-6 self-start">
-                            
+
                             <style>
                                 /* Desktop & Tablet Full Viewport */
                                 .virtual-viewport-desktop > section {
@@ -1656,7 +1809,7 @@ window.adminHeroManager = function(initialPayload) {
                                 /* ISOLATED MOBILE RESPONSIVE CONTEXT FOR iPHONE 15 SIMULATOR (393px)        */
                                 /* Overrides desktop browser media queries to simulate true mobile viewport  */
                                 /* ========================================================================= */
-                                
+
                                 /* Section & Container */
                                 .preview-device-mobile section {
                                     width: 100% !important;
@@ -1764,7 +1917,7 @@ window.adminHeroManager = function(initialPayload) {
                                     border-radius: 9999px;
                                 }
                             </style>
-                            
+
                             <!-- Preview Device Toggle Bar -->
                             <div class="flex items-center justify-between pb-1">
                                 <div>
@@ -1792,10 +1945,10 @@ window.adminHeroManager = function(initialPayload) {
                                         </span>
                                     </p>
                                 </div>
-                                
+
                                 <!-- Device Simulator Switch -->
                                 <div class="flex items-center bg-gray-100 p-0.5 rounded-modern border border-gray-200 text-xs">
-                                    <button @click="previewDevice = 'desktop'" 
+                                    <button @click="previewDevice = 'desktop'"
                                             type="button"
                                             :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1.5 text-[11px]">
@@ -1804,7 +1957,7 @@ window.adminHeroManager = function(initialPayload) {
                                         </svg>
                                         <span>Desktop</span>
                                     </button>
-                                    <button @click="previewDevice = 'tablet'" 
+                                    <button @click="previewDevice = 'tablet'"
                                             type="button"
                                             :class="previewDevice === 'tablet' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1.5 text-[11px]">
@@ -1813,7 +1966,7 @@ window.adminHeroManager = function(initialPayload) {
                                         </svg>
                                         <span>Tablet</span>
                                     </button>
-                                    <button @click="previewDevice = 'mobile'" 
+                                    <button @click="previewDevice = 'mobile'"
                                             type="button"
                                             :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                                             class="px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1.5 text-[11px]">
@@ -1828,7 +1981,7 @@ window.adminHeroManager = function(initialPayload) {
                             <!-- Live Hero Simulation Container -->
                             <div x-ref="previewBoxWrapper"
                                  class="bg-gray-950 rounded-modern-xl p-3 sm:p-4 flex justify-center items-start overflow-hidden border border-gray-800 shadow-inner min-h-[380px]">
-                                
+
                                 <!-- =================================================== -->
                                 <!-- A. DESKTOP & TABLET VIEWPORT PREVIEW (FROZEN)       -->
                                 <!-- =================================================== -->
@@ -1838,7 +1991,7 @@ window.adminHeroManager = function(initialPayload) {
                                              width: currentFrameWidth + 'px',
                                              height: currentFrameHeight + 'px'
                                          }">
-                                        
+
                                         <!-- Virtual Viewport (Reference Resolution: 1280x720 or 1024x768) -->
                                         <div class="virtual-viewport-desktop absolute top-0 left-0 bg-brand-dark overflow-hidden"
                                              :style="{
@@ -1847,7 +2000,7 @@ window.adminHeroManager = function(initialPayload) {
                                                  transformOrigin: '0 0',
                                                  transform: 'scale(' + currentScale + ')'
                                              }">
-                                            
+
                                             <!-- SHARED HERO COMPONENT (SOURCE OF TRUTH) -->
                                             @include('components.hero', ['isLivePreview' => true])
 
@@ -1865,7 +2018,7 @@ window.adminHeroManager = function(initialPayload) {
                                              width: currentFrameWidth + 'px',
                                              height: currentFrameHeight + 'px'
                                          }">
-                                        
+
                                         <!-- iPhone 15 Outer Scaled Shell (393px × 852px scaled) -->
                                         <div class="absolute top-0 left-0 rounded-[44px] border-[4px] border-slate-700 bg-slate-950 shadow-2xl overflow-hidden flex flex-col"
                                              :style="{
@@ -1874,7 +2027,7 @@ window.adminHeroManager = function(initialPayload) {
                                                  transformOrigin: '0 0',
                                                  transform: 'scale(' + currentScale + ')'
                                              }">
-                                            
+
                                             <!-- Dynamic Island Overlay (Top Center) -->
                                             <div class="absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-40 pointer-events-none shadow-md flex items-center justify-between px-2.5">
                                                 <span class="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800"></span>
@@ -1884,7 +2037,7 @@ window.adminHeroManager = function(initialPayload) {
                                             <!-- Mobile Scrollable Screen (Isolated 393×852 Mobile Responsive Context) -->
                                             <div class="preview-device-mobile hero-iphone-viewport w-full h-full overflow-y-auto overflow-x-hidden text-left relative bg-brand-dark"
                                                  style="scroll-behavior: smooth;">
-                                                
+
                                                 <div class="w-[393px] min-h-[852px] h-full relative">
                                                     <!-- SHARED HERO COMPONENT (RENDERED WITH TRUE 1:1 MOBILE VIEWPORT RULES) -->
                                                     @include('components.hero', ['isLivePreview' => true])
@@ -1914,14 +2067,19 @@ window.adminHeroManager = function(initialPayload) {
 
                     <!-- Modal Actions Footer -->
                     <div class="pt-5 border-t border-gray-100 flex items-center justify-end gap-3">
-                        <button @click="closeEditorModal()" 
-                                type="button" 
+                        <button @click="closeEditorModal()"
+                                type="button"
                                 class="px-4 py-2.5 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
                             Batal
                         </button>
-                        <button type="submit" 
-                                class="px-6 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer">
-                            Simpan Draft Hero
+                        <button type="submit"
+                                :disabled="isSaving"
+                                class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                            <svg x-show="isSaving" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                            </svg>
+                            <span x-text="isSaving ? 'Menyimpan...' : 'Simpan Draft Hero'">Simpan Draft Hero</span>
                         </button>
                     </div>
 
@@ -1934,12 +2092,12 @@ window.adminHeroManager = function(initialPayload) {
     <!-- ======================================================= -->
     <!-- 4. MEDIA PICKER MODAL (z-[70] Above Editor Modal)       -->
     <!-- ======================================================= -->
-    <div x-show="mediaPickerOpen" 
+    <div x-show="mediaPickerOpen"
          x-cloak
          class="fixed inset-0 z-[70] overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <!-- Backdrop -->
         <div x-show="mediaPickerOpen"
              x-transition:enter="transition-opacity ease-out duration-200"
@@ -1948,7 +2106,7 @@ window.adminHeroManager = function(initialPayload) {
              x-transition:leave="transition-opacity ease-in duration-150"
              x-transition:leave-start="opacity-100"
              x-transition:leave-end="opacity-0"
-             class="fixed inset-0 bg-black/70 backdrop-blur-xs" 
+             class="fixed inset-0 bg-black/70 backdrop-blur-xs"
              @click="mediaPickerOpen = false"></div>
 
         <!-- Modal Dialog Container -->
@@ -1961,7 +2119,7 @@ window.adminHeroManager = function(initialPayload) {
                  x-transition:leave-start="opacity-100 scale-100"
                  x-transition:leave-end="opacity-0 scale-95"
                  class="relative bg-white rounded-modern-xl max-w-4xl w-full p-5 sm:p-7 shadow-2xl border border-gray-200 overflow-hidden my-6">
-                
+
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
                     <div>
@@ -1972,8 +2130,8 @@ window.adminHeroManager = function(initialPayload) {
                             <span x-text="mediaPickerTargetIndex !== null ? 'Mengganti foto slide ke-' + (mediaPickerTargetIndex + 1) : 'Menambahkan foto baru ke background slideshow.'"></span>
                         </p>
                     </div>
-                    <button @click="mediaPickerOpen = false" 
-                            type="button" 
+                    <button @click="mediaPickerOpen = false"
+                            type="button"
                             class="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1983,13 +2141,13 @@ window.adminHeroManager = function(initialPayload) {
 
                 <!-- Tabs: Media Library vs Upload -->
                 <div class="flex items-center gap-2 border-b border-gray-200 pb-3 mb-5">
-                    <button @click="mediaPickerTab = 'library'" 
+                    <button @click="mediaPickerTab = 'library'"
                             type="button"
                             :class="mediaPickerTab === 'library' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                             class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
                         🖼 Media Library (<span x-text="mediaLibrary.length"></span> Gambar)
                     </button>
-                    <button @click="mediaPickerTab = 'upload'" 
+                    <button @click="mediaPickerTab = 'upload'"
                             type="button"
                             :class="mediaPickerTab === 'upload' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                             class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
@@ -2005,13 +2163,13 @@ window.adminHeroManager = function(initialPayload) {
                             <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 text-xs">
                                 🔍
                             </span>
-                            <input type="text" 
-                                   x-model="mediaSearchQuery" 
-                                   placeholder="Cari gambar berdasarkan nama file..." 
+                            <input type="text"
+                                   x-model="mediaSearchQuery"
+                                   placeholder="Cari gambar berdasarkan nama file..."
                                    class="w-full pl-8 pr-8 py-2 text-xs rounded-modern border border-gray-200 bg-gray-50 focus:bg-white focus:border-brand-primary focus:outline-none transition-all">
-                            <button x-show="mediaSearchQuery" 
-                                    @click="mediaSearchQuery = ''" 
-                                    type="button" 
+                            <button x-show="mediaSearchQuery"
+                                    @click="mediaSearchQuery = ''"
+                                    type="button"
                                     class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 text-xs cursor-pointer">
                                 ✕
                             </button>
@@ -2024,16 +2182,16 @@ window.adminHeroManager = function(initialPayload) {
                     <!-- Media Grid -->
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5 max-h-[380px] overflow-y-auto p-1 overscroll-contain no-scrollbar">
                         <template x-for="item in filteredMediaLibrary" :key="item.id">
-                            <div @click="selectedMediaItem = item" 
+                            <div @click="selectedMediaItem = item"
                                  class="group relative rounded-modern overflow-hidden border-2 cursor-pointer transition-all duration-150 p-1.5 bg-gray-50 flex flex-col justify-between"
-                                 :class="selectedMediaItem?.id === item.id 
-                                     ? 'border-brand-primary bg-emerald-50/40 ring-2 ring-brand-primary/30' 
+                                 :class="selectedMediaItem?.id === item.id
+                                     ? 'border-brand-primary bg-emerald-50/40 ring-2 ring-brand-primary/30'
                                      : 'border-gray-200 hover:border-gray-300'">
-                                
+
                                 <!-- Image Preview -->
                                 <div class="relative aspect-[16/9] w-full rounded overflow-hidden bg-brand-dark mb-2">
                                     <img :src="getImageUrl(item.path)" :alt="item.title" class="w-full h-full object-cover">
-                                    
+
                                     <!-- Selected Checkmark Overlay -->
                                     <template x-if="selectedMediaItem?.id === item.id">
                                         <div class="absolute inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center text-white">
@@ -2046,15 +2204,20 @@ window.adminHeroManager = function(initialPayload) {
                                     </template>
 
                                     <!-- Delete Button on Card -->
-                                    <template x-if="item.is_deletable">
-                                        <button @click.stop="deleteMedia(item)" 
-                                                type="button" 
-                                                title="Hapus media dari server" 
-                                                class="absolute top-1.5 left-1.5 p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center z-10">
-                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
+                                    <button @click.stop="openDeleteMediaModal(item)"
+                                            type="button"
+                                            :title="item.is_in_use ? 'Media sedang digunakan (Klik untuk opsi hapus)' : 'Hapus media dari server'"
+                                            class="absolute top-1.5 left-1.5 p-1 rounded bg-rose-600/90 text-white hover:bg-rose-700 hover:scale-110 shadow-xs transition-all cursor-pointer flex items-center justify-center z-10">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+
+                                    <!-- In-Use Badge -->
+                                    <template x-if="item.is_in_use">
+                                        <span class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/90 text-white shadow-xs z-10" :title="'Digunakan di: ' + (item.usage_locations || []).join(', ')">
+                                            Pakai (<span x-text="item.usage_count"></span>)
+                                        </span>
                                     </template>
                                 </div>
 
@@ -2085,21 +2248,21 @@ window.adminHeroManager = function(initialPayload) {
 
                 <!-- Tab 2: Upload Dropzone (HTML5 File API + URL.createObjectURL) -->
                 <div x-show="mediaPickerTab === 'upload'" class="space-y-4">
-                    
+
                     <!-- Drag & Drop Area -->
-                    <div @dragover.prevent="isDragging = true" 
+                    <div @dragover.prevent="isDragging = true"
                          @dragleave.prevent="isDragging = false"
                          @drop.prevent="isDragging = false; if ($event.dataTransfer.files.length > 0) handleFileSelected($event.dataTransfer.files[0])"
                          @click="$refs.nativeFileInput.click()"
                          class="relative rounded-modern-xl border-2 border-dashed p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-3"
                          :class="isDragging ? 'border-brand-primary bg-emerald-50/50 scale-[0.99]' : 'border-gray-300 hover:border-brand-primary/60 bg-gray-50/60'">
-                        
-                        <input type="file" 
-                               x-ref="nativeFileInput" 
+
+                        <input type="file"
+                               x-ref="nativeFileInput"
                                @change="if ($event.target.files.length > 0) handleFileSelected($event.target.files[0])"
-                               class="hidden" 
+                               class="hidden"
                                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
-                        
+
                         <div class="w-12 h-12 rounded-full bg-brand-soft-green text-brand-primary flex items-center justify-center shadow-xs">
                             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -2151,13 +2314,13 @@ window.adminHeroManager = function(initialPayload) {
 
                 <!-- Media Picker Actions -->
                 <div class="pt-4 mt-5 border-t border-gray-100 flex items-center justify-end gap-3">
-                    <button @click="mediaPickerOpen = false" 
-                            type="button" 
+                    <button @click="mediaPickerOpen = false"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button @click="applySelectedMedia()" 
-                            type="button" 
+                    <button @click="applySelectedMedia()"
+                            type="button"
                             class="px-5 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm transition-colors cursor-pointer">
                         <span x-text="mediaPickerTab === 'upload' ? 'Gunakan Gambar' : 'Pilih Gambar'"></span>
                     </button>
@@ -2167,20 +2330,109 @@ window.adminHeroManager = function(initialPayload) {
         </div>
     </div>
 
+    <!-- Modal Konfirmasi / Warning Hapus Media -->
+    <div x-show="mediaDeleteConfirmModalOpen"
+         x-cloak
+         class="fixed inset-0 z-[120] overflow-y-auto"
+         role="dialog"
+         aria-modal="true">
+
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+             @click="if (!isDeletingMedia) { mediaDeleteConfirmModalOpen = false; mediaToDelete = null; }"></div>
+
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="relative bg-white rounded-modern-lg shadow-2xl border border-gray-100 w-full max-w-md overflow-hidden p-6 space-y-4 text-left">
+
+                <!-- Header Warning / Info -->
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                         :class="mediaToDelete?.is_in_use ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'">
+                        <template x-if="mediaToDelete?.is_in_use">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </template>
+                        <template x-if="!mediaToDelete?.is_in_use">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </template>
+                    </div>
+                    <div class="space-y-1">
+                        <h4 class="text-sm font-bold text-gray-900"
+                            x-text="mediaToDelete?.is_in_use ? 'Media Sedang Digunakan' : 'Hapus Media?'"></h4>
+                        <p class="text-xs text-gray-500 break-all font-mono bg-gray-50 px-2 py-1 rounded border border-gray-200"
+                           x-text="mediaToDelete?.filename"></p>
+                    </div>
+                </div>
+
+                <!-- Body Section: In-Use Details or Unused Info -->
+                <template x-if="mediaToDelete?.is_in_use">
+                    <div class="space-y-3">
+                        <div class="bg-amber-50 border border-amber-200 rounded-modern p-3 text-xs text-amber-900 space-y-1.5">
+                            <p class="font-semibold text-amber-950">Media ini sedang aktif digunakan oleh:</p>
+                            <ul class="max-h-28 overflow-y-auto space-y-1 pl-1 text-[11px] no-scrollbar">
+                                <template x-for="loc in (mediaToDelete?.usage_locations || [])" :key="loc">
+                                    <li class="flex items-center gap-1.5">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                        <span x-text="loc"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+
+                        <p class="text-[11px] text-rose-600 font-medium leading-relaxed">
+                            ⚠️ <strong>Peringatan Risiko:</strong> Jika media ini dihapus, gambar pada bagian terkait di atas tidak akan dapat ditampilkan lagi dan dapat menyebabkan <strong>BROKEN IMAGE</strong>. Tindakan ini tidak dapat dibatalkan.
+                        </p>
+                    </div>
+                </template>
+
+                <template x-if="!mediaToDelete?.is_in_use">
+                    <p class="text-xs text-gray-600 leading-relaxed">
+                        File ini tidak sedang digunakan oleh produk, kategori, artikel, maupun pengaturan situs. Tindakan ini tidak dapat dibatalkan.
+                    </p>
+                </template>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                    <button @click="mediaDeleteConfirmModalOpen = false; mediaToDelete = null;"
+                            type="button"
+                            :disabled="isDeletingMedia"
+                            class="px-3.5 py-1.5 rounded-modern border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer">
+                        Batal
+                    </button>
+                    <button @click="executeDeleteMedia()"
+                            type="button"
+                            :disabled="isDeletingMedia"
+                            class="px-4 py-1.5 rounded-modern bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                        <template x-if="isDeletingMedia">
+                            <svg class="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </template>
+                        <span x-text="isDeletingMedia ? 'Menghapus...' : (mediaToDelete?.is_in_use ? 'Ya, Hapus Media' : 'Ya, Hapus')"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ======================================================= -->
     <!-- 5. ACTIVATE CONFIRMATION MODAL                          -->
     <!-- ======================================================= -->
-    <div x-show="activateModalOpen" 
+    <div x-show="activateModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="activateModalOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
-                
+
                 <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2195,13 +2447,13 @@ window.adminHeroManager = function(initialPayload) {
                 </div>
 
                 <div class="pt-3 flex items-center justify-center gap-3">
-                    <button @click="activateModalOpen = false" 
-                            type="button" 
+                    <button @click="activateModalOpen = false"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button @click="confirmActivate()" 
-                            type="button" 
+                    <button @click="confirmActivate()"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer shadow-sm">
                         Jadikan Aktif
                     </button>
@@ -2214,17 +2466,17 @@ window.adminHeroManager = function(initialPayload) {
     <!-- ======================================================= -->
     <!-- 6. DELETE CONFIRMATION MODAL                            -->
     <!-- ======================================================= -->
-    <div x-show="deleteModalOpen" 
+    <div x-show="deleteModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
-        
+
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="deleteModalOpen = false"></div>
 
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-sm w-full p-6 shadow-xl border border-gray-200 text-center space-y-4">
-                
+
                 <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -2239,15 +2491,20 @@ window.adminHeroManager = function(initialPayload) {
                 </div>
 
                 <div class="pt-3 flex items-center justify-center gap-3">
-                    <button @click="deleteModalOpen = false" 
-                            type="button" 
+                    <button @click="deleteModalOpen = false"
+                            type="button"
                             class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button @click="confirmDelete()" 
-                            type="button" 
-                            class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer">
-                        Hapus Draft
+                    <button @click="confirmDelete()"
+                            :disabled="isDeleting"
+                            type="button"
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-modern text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                        <svg x-show="isDeleting" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span x-text="isDeleting ? 'Menghapus...' : 'Ya, Hapus Draft'">Ya, Hapus Draft</span>
                     </button>
                 </div>
 
@@ -2258,15 +2515,15 @@ window.adminHeroManager = function(initialPayload) {
     <!-- ======================================================= -->
     <!-- 6B. PARTNER CREATE / EDIT MODAL                         -->
     <!-- ======================================================= -->
-    <div x-show="partnerModalOpen" 
+    <div x-show="partnerModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
         <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="partnerModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 space-y-4">
-                
+
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                     <div class="flex items-center gap-2">
                         <span class="text-base">🤝</span>
@@ -2294,8 +2551,8 @@ window.adminHeroManager = function(initialPayload) {
                              :class="isDraggingPartner ? 'border-brand-primary bg-brand-primary/10 ring-2 ring-brand-primary/30' : ''">
                             <div class="w-14 h-14 shrink-0 rounded-modern border border-gray-200 bg-white p-1 flex items-center justify-center overflow-hidden">
                                 <template x-if="partnerForm.logo">
-                                    <img :src="getImageUrl(partnerForm.logo)" 
-                                         alt="Preview Logo" 
+                                    <img :src="getImageUrl(partnerForm.logo)"
+                                         alt="Preview Logo"
                                          class="max-w-full max-h-full object-contain">
                                 </template>
                                 <template x-if="!partnerForm.logo">
@@ -2305,8 +2562,8 @@ window.adminHeroManager = function(initialPayload) {
                             <div class="space-y-1.5 flex-1 min-w-0">
                                 <div class="text-[11px] font-mono text-gray-500 truncate" x-text="partnerForm.logo || 'Belum memilih logo'"></div>
                                 <div class="flex items-center flex-wrap gap-2">
-                                    <button type="button" 
-                                            @click="openPartnerMediaPicker()" 
+                                    <button type="button"
+                                            @click="openPartnerMediaPicker()"
                                             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern-sm text-xs font-bold text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30 transition-all cursor-pointer">
                                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                         <span>Pilih dari Media Mitra</span>
@@ -2330,8 +2587,8 @@ window.adminHeroManager = function(initialPayload) {
                         <div>
                             <label class="block text-xs font-bold text-brand-dark mb-1">Status Visibilitas</label>
                             <select x-model="partnerForm.is_active" class="w-full text-xs rounded-modern border border-gray-300 p-2.5 bg-white font-bold">
-                                <option :value="true">Aktif (Tampil)</option>
-                                <option :value="false">Nonaktif (Sembunyi)</option>
+                                <option value="true">Aktif (Tampil)</option>
+                                <option value="false">Nonaktif (Sembunyi)</option>
                             </select>
                         </div>
                     </div>
@@ -2341,8 +2598,15 @@ window.adminHeroManager = function(initialPayload) {
                     <button @click="partnerModalOpen = false" type="button" class="px-4 py-2 rounded-modern text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
                         Batal
                     </button>
-                    <button @click="savePartner()" type="button" class="px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer">
-                        Simpan Mitra
+                    <button @click="savePartner()"
+                            :disabled="isSavingPartner"
+                            type="button"
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-modern text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-dark transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                        <svg x-show="isSavingPartner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span x-text="isSavingPartner ? 'Menyimpan...' : 'Simpan Mitra'">Simpan Mitra</span>
                     </button>
                 </div>
 
@@ -2351,29 +2615,26 @@ window.adminHeroManager = function(initialPayload) {
     </div>
 
     <!-- ======================================================= -->
-    <!-- 6C. ISOLATED PARTNER MEDIA PICKER MODAL                 -->
+    <!-- 6C. PARTNER MEDIA PICKER MODAL                          -->
     <!-- ======================================================= -->
-    <div x-show="partnerMediaPickerOpen" 
+    <div x-show="partnerMediaPickerOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
         <div class="fixed inset-0 bg-black/60 backdrop-blur-xs" @click="partnerMediaPickerOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-2xl w-full p-6 shadow-2xl border border-gray-200 space-y-5">
-                
+
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="text-base">🤝</span>
-                            <h3 class="text-sm font-extrabold text-brand-dark">Media Storage Khusus Mitra (Partners)</h3>
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                                ISOLATED: storage/partners/
-                            </span>
+                            <h3 class="text-sm font-extrabold text-brand-dark">Pustaka Media Logo Mitra</h3>
                         </div>
                         <p class="text-xs text-gray-500 mt-0.5">
-                            Pilih logo mitra dari storage terisolasi atau unggah logo mitra baru (tidak bercampur dengan gambar Hero).
+                            Pilih logo mitra dari pustaka media atau unggah file logo baru.
                         </p>
                     </div>
                     <button @click="partnerMediaPickerOpen = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
@@ -2403,7 +2664,7 @@ window.adminHeroManager = function(initialPayload) {
                         <template x-if="partnerUploading">
                             <div class="inline-flex items-center gap-2 text-xs font-bold text-brand-primary mt-1">
                                 <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-                                <span>Mengunggah logo ke storage/partners/...</span>
+                                <span>Mengunggah logo mitra...</span>
                             </div>
                         </template>
                     </div>
@@ -2417,9 +2678,9 @@ window.adminHeroManager = function(initialPayload) {
                             <div @click="selectPartnerMedia(item)"
                                  class="group relative rounded-modern border p-2.5 bg-white hover:border-brand-primary hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center text-center"
                                  :class="partnerForm.logo === item.path ? 'ring-2 ring-brand-primary border-brand-primary bg-brand-primary/5' : 'border-gray-200'">
-                                
+
                                 <!-- Delete Button -->
-                                <button type="button" 
+                                <button type="button"
                                         @click.stop="deletePartnerMedia(item)"
                                         class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center transition-all cursor-pointer opacity-70 hover:opacity-100 shadow-2xs"
                                         title="Hapus Logo">
@@ -2453,7 +2714,7 @@ window.adminHeroManager = function(initialPayload) {
     <!-- ======================================================= -->
     <!-- 7. TOAST NOTIFICATION                                   -->
     <!-- ======================================================= -->
-    <div x-show="toastVisible" 
+    <div x-show="toastVisible"
          x-cloak
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 translate-y-4"

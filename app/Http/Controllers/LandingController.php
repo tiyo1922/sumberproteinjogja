@@ -261,7 +261,7 @@ class LandingController
                 'category' => $article->category->name ?? 'Edukasi Dapur',
                 'badge_class' => $badgeClassMap[$catId] ?? 'badge-primary',
                 'read_time' => '3 menit baca',
-                'image' => $article->image ?? 'images/know-thawing.jpg',
+                'image' => $article->image ?? 'storage/media/know_thawing_1786890543832.jpg',
                 'excerpt' => $article->excerpt ?? '',
                 'content' => $htmlContent ?: ($article->excerpt ?? ''),
                 'date' => $article->created_at ? $article->created_at->format('d M Y') : '',

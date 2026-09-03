@@ -33,7 +33,7 @@ class EloquentAnalyticsRepository implements AnalyticsRepositoryInterface
     private array $channelMeta = [
         'meta_ads' => [
             'name' => 'Meta Ads',
-            'color' => '#1F6B45',
+            'color' => '#003F22',
             'bg_light' => 'bg-emerald-50 text-emerald-800 border-emerald-200'
         ],
         'google_organic' => [

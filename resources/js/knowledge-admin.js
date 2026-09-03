@@ -32,6 +32,10 @@ export function createKnowledgeManager(config = {}) {
         deleteCategoryModalOpen: false,
         unsavedChangesModalOpen: false,
         linkModalOpen: false,
+        isSaving: false,
+        isDeleting: false,
+        isSavingCat: false,
+        isDeletingCat: false,
         isEditing: false,
         isEditingCategory: false,
         toastMessage: '',
@@ -56,17 +60,24 @@ export function createKnowledgeManager(config = {}) {
                 return this.mediaLibrary;
             }
             const q = this.mediaSearchQuery.toLowerCase().trim();
-            return this.mediaLibrary.filter(m => 
-                (m.filename && m.filename.toLowerCase().includes(q)) || 
-                (m.title && m.title.toLowerCase().includes(q)) || 
+            return this.mediaLibrary.filter(m =>
+                (m.filename && m.filename.toLowerCase().includes(q)) ||
+                (m.title && m.title.toLowerCase().includes(q)) ||
                 (m.path && m.path.toLowerCase().includes(q))
             );
         },
 
-        async deleteMedia(media) {
-            if (!confirm('Apakah Anda yakin ingin menghapus file "' + media.filename + '" secara permanen dari server?')) {
-                return;
-            }
+        mediaDeleteConfirmModalOpen: false,
+        mediaToDelete: null,
+        isDeletingMedia: false,
+
+        openDeleteMediaModal(media) {
+            this.mediaToDelete = media;
+            this.mediaDeleteConfirmModalOpen = true;
+        },
+
+        async executeDeleteMedia() {
+            if (!this.mediaToDelete) return;
             this.isDeletingMedia = true;
             try {
                 const response = await fetch(this.mediaDeleteRoute || '/admin/media/delete', {
@@ -76,14 +87,18 @@ export function createKnowledgeManager(config = {}) {
                         'X-CSRF-TOKEN': this.csrfToken,
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ path: media.path })
+                    body: JSON.stringify({ path: this.mediaToDelete.path })
                 });
                 const result = await response.json();
                 if (response.ok && result.success) {
-                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== media.id && m.path !== media.path);
-                    if (this.selectedMedia && this.selectedMedia.path === media.path) {
+                    const deletedPath = this.mediaToDelete.path;
+                    const deletedId = this.mediaToDelete.id;
+                    this.mediaLibrary = this.mediaLibrary.filter(m => m.id !== deletedId && m.path !== deletedPath);
+                    if (this.selectedMedia && (this.selectedMedia.path === deletedPath || this.selectedMedia.id === deletedId)) {
                         this.selectedMedia = null;
                     }
+                    this.mediaDeleteConfirmModalOpen = false;
+                    this.mediaToDelete = null;
                     this.showToast(result.message || 'File media berhasil dihapus!');
                 } else {
                     alert(result.message || 'Gagal menghapus file media.');
@@ -95,7 +110,7 @@ export function createKnowledgeManager(config = {}) {
                 this.isDeletingMedia = false;
             }
         },
-        
+
         // B1-R Document Editor Workspace State
         editorTab: 'content', // 'content' | 'info' | 'preview'
         isFocusMode: false,
@@ -110,7 +125,7 @@ export function createKnowledgeManager(config = {}) {
         redoStack: [],
         isUndoRedoAction: false,
         initialFormJson: '',
-        
+
         colorOptions: [
             { id: 'blue', name: 'Biru (Edukasi)', class: 'bg-blue-100 text-blue-800 border-blue-300' },
             { id: 'green', name: 'Hijau (Tips/Fresh)', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
@@ -120,7 +135,7 @@ export function createKnowledgeManager(config = {}) {
             { id: 'red', name: 'Merah (Protein)', class: 'bg-rose-100 text-rose-800 border-rose-300' },
             { id: 'teal', name: 'Teal (Higienis)', class: 'bg-teal-100 text-teal-800 border-teal-300' }
         ],
-        
+
         activeFormats: {
             bold: false,
             italic: false,
@@ -133,7 +148,7 @@ export function createKnowledgeManager(config = {}) {
             isOrderedList: false,
             isUnorderedList: false,
         },
-        
+
         form: {
             id: null,
             title: '',
@@ -141,11 +156,11 @@ export function createKnowledgeManager(config = {}) {
             category: 'Tips Penyimpanan',
             status: 'Published',
             published_at: '17 Agustus 2026',
-            image: 'images/know-thawing.jpg',
+            image: 'storage/media/know_thawing_1786890543832.jpg',
             excerpt: '',
             content: '',
         },
-        
+
         categoryForm: {
             id: null,
             name: '',
@@ -153,10 +168,10 @@ export function createKnowledgeManager(config = {}) {
             status: 'Aktif',
             articles_count: 0
         },
-        
+
         selectedArticle: null,
         selectedCategoryItem: null,
-        
+
         init() {
             if (typeof document !== 'undefined') {
                 document.addEventListener('selectionchange', () => {
@@ -172,9 +187,9 @@ export function createKnowledgeManager(config = {}) {
                 });
             }
         },
-        
+
         isSavingSection: false,
-        
+
         showToast(msg) {
             this.toastMessage = msg;
             this.toastVisible = true;
@@ -212,7 +227,7 @@ export function createKnowledgeManager(config = {}) {
                 this.isSavingSection = false;
             }
         },
-        
+
         getColorClass(color) {
             const map = {
                 orange: 'bg-orange-50 text-orange-800 border-orange-200',
@@ -225,33 +240,33 @@ export function createKnowledgeManager(config = {}) {
             };
             return map[color] || 'bg-gray-50 text-gray-800 border-gray-200';
         },
-        
+
         getCategoryColor(catName) {
             const cat = this.categories.find(c => c.name === catName);
             return cat ? cat.color : 'green';
         },
-        
+
         get activeCategories() {
             return this.categories.filter(c => c.is_active === true || c.status === 'Aktif');
         },
-        
+
         get filteredArticles() {
             return this.articles.filter(a => {
                 const matchCat = this.selectedCategoryFilter === 'all' || a.category === this.selectedCategoryFilter;
-                const matchSearch = !this.searchQuery.trim() || 
-                    a.title.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
+                const matchSearch = !this.searchQuery.trim() ||
+                    a.title.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
                     a.category.toLowerCase().includes(this.searchQuery.toLowerCase());
                 return matchCat && matchSearch;
             });
         },
-        
+
         isDirty() {
             const canvas = document.getElementById('documentCanvas');
             const currentHtml = canvas ? canvas.innerHTML : this.canvasHtml;
             const currentJson = JSON.stringify({ form: this.form, html: currentHtml });
             return currentJson !== this.initialFormJson;
         },
-        
+
         closeEditorModal() {
             if (this.isDirty()) {
                 this.unsavedChangesModalOpen = true;
@@ -259,12 +274,12 @@ export function createKnowledgeManager(config = {}) {
                 this.editorModalOpen = false;
             }
         },
-        
+
         forceCloseEditorModal() {
             this.unsavedChangesModalOpen = false;
             this.editorModalOpen = false;
         },
-        
+
         openCreateModal() {
             this.isEditing = false;
             this.editorTab = 'content';
@@ -280,7 +295,7 @@ export function createKnowledgeManager(config = {}) {
                 category: defaultCat.name,
                 status: 'Published',
                 published_at: '17 Agustus 2026',
-                image: 'images/know-thawing.jpg',
+                image: 'storage/media/know_thawing_1786890543832.jpg',
                 excerpt: '',
                 content: '',
             };
@@ -301,7 +316,7 @@ export function createKnowledgeManager(config = {}) {
             });
             this.editorModalOpen = true;
         },
-        
+
         openEditModal(a) {
             this.isEditing = true;
             this.editorTab = 'content';
@@ -309,13 +324,13 @@ export function createKnowledgeManager(config = {}) {
             this.showInsertPanel = true;
             this.showPreviewPanel = true;
             this.form = JSON.parse(JSON.stringify(a));
-            
+
             // Ensure category_id is populated
             if (!this.form.category_id && this.form.category) {
                 const found = this.categories.find(c => c.name === this.form.category);
                 if (found) this.form.category_id = found.id;
             }
-            
+
             // Parse legacy or canonical content to HTML for Document Canvas
             if (window.KnowledgeArticleParser) {
                 const parsed = window.KnowledgeArticleParser.parseArticleContent(a.content);
@@ -323,11 +338,11 @@ export function createKnowledgeManager(config = {}) {
             } else {
                 this.canvasHtml = a.content || '';
             }
-            
+
             if (!this.canvasHtml.trim()) {
                 this.canvasHtml = '<p>Tulis isi artikel di sini...</p>';
             }
-            
+
             this.$nextTick(() => {
                 const canvas = document.getElementById('documentCanvas');
                 if (canvas) {
@@ -342,17 +357,17 @@ export function createKnowledgeManager(config = {}) {
                 }
                 this.initialFormJson = JSON.stringify({ form: this.form, html: this.canvasHtml });
             });
-            
+
             this.editorModalOpen = true;
         },
-        
+
         initHistory() {
             const canvas = document.getElementById('documentCanvas');
             const html = canvas ? canvas.innerHTML : this.canvasHtml;
             this.undoStack = [html];
             this.redoStack = [];
         },
-        
+
         pushHistory() {
             if (this.isUndoRedoAction) return;
             const canvas = document.getElementById('documentCanvas');
@@ -364,7 +379,7 @@ export function createKnowledgeManager(config = {}) {
                 this.redoStack = [];
             }
         },
-        
+
         docUndo() {
             if (this.undoStack.length > 1) {
                 const current = this.undoStack.pop();
@@ -382,7 +397,7 @@ export function createKnowledgeManager(config = {}) {
                 document.execCommand('undo', false, null);
             }
         },
-        
+
         docRedo() {
             if (this.redoStack.length > 0) {
                 const next = this.redoStack.pop();
@@ -399,7 +414,7 @@ export function createKnowledgeManager(config = {}) {
                 document.execCommand('redo', false, null);
             }
         },
-        
+
         formatDoc(cmd, val = null) {
             const canvas = document.getElementById('documentCanvas');
             if (canvas) canvas.focus();
@@ -422,7 +437,7 @@ export function createKnowledgeManager(config = {}) {
             document.execCommand(cmd, false, val);
             this.onCanvasInput();
         },
-        
+
         applyBlockStyle(style) {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas) return;
@@ -477,7 +492,7 @@ export function createKnowledgeManager(config = {}) {
             this.onCanvasInput();
             this.updateActiveFormats();
         },
-        
+
         setFontSize(size) {
             if (!size || size === 'mixed') return;
             const sz = parseInt(size, 10) || 16;
@@ -525,7 +540,7 @@ export function createKnowledgeManager(config = {}) {
             this.onCanvasInput();
             this.updateActiveFormats();
         },
-        
+
         setAlignment(align) {
             const canvas = document.getElementById('documentCanvas');
             if (canvas) canvas.focus();
@@ -546,7 +561,7 @@ export function createKnowledgeManager(config = {}) {
             this.activeFormats.align = align;
             this.onCanvasInput();
         },
-        
+
         setLineSpacing(spacing) {
             const canvas = document.getElementById('documentCanvas');
             if (canvas) canvas.focus();
@@ -570,7 +585,7 @@ export function createKnowledgeManager(config = {}) {
             this.activeFormats.lineHeight = String(spacing);
             this.onCanvasInput();
         },
-        
+
         openLinkModal() {
             const sel = window.getSelection();
             if (sel && sel.rangeCount > 0) {
@@ -581,7 +596,7 @@ export function createKnowledgeManager(config = {}) {
             this.linkInputUrl = 'https://';
             this.linkModalOpen = true;
         },
-        
+
         applyLink() {
             if (!this.linkInputUrl || this.linkInputUrl.trim() === 'https://') {
                 this.linkModalOpen = false;
@@ -598,7 +613,7 @@ export function createKnowledgeManager(config = {}) {
             this.linkModalOpen = false;
             this.onCanvasInput();
         },
-        
+
         insertCallout(variant = 'tips') {
             const isTips = variant === 'tips';
             const icon = isTips ? '💡' : '📋';
@@ -606,7 +621,7 @@ export function createKnowledgeManager(config = {}) {
             const bgClass = isTips ? 'bg-brand-soft-green/60 border-brand-soft-green-border' : 'bg-brand-cream/80 border-gray-200';
             const textClass = isTips ? 'text-brand-primary' : 'text-brand-dark';
             const placeholder = isTips ? 'Tuliskan tips praktis dapur di sini...' : 'Tuliskan catatan informasi penting di sini...';
-            
+
             const calloutHtml = `
                 <div data-block="callout" data-variant="${isTips ? 'tips' : 'info'}" class="callout-box my-6 p-4 sm:p-5 rounded-modern ${bgClass} border select-text">
                     <div class="callout-header flex items-center justify-between pb-1.5 select-none" contenteditable="false">
@@ -614,9 +629,9 @@ export function createKnowledgeManager(config = {}) {
                             <span>${icon}</span>
                             <span>${title}</span>
                         </h4>
-                        <button type="button" 
-                                onclick="window.deleteCalloutBlock && window.deleteCalloutBlock(this)" 
-                                class="callout-delete-btn p-1 rounded text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer" 
+                        <button type="button"
+                                onclick="window.deleteCalloutBlock && window.deleteCalloutBlock(this)"
+                                class="callout-delete-btn p-1 rounded text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
                                 title="Hapus Block ${isTips ? 'Tips' : 'Info'}">
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -631,11 +646,11 @@ export function createKnowledgeManager(config = {}) {
             `;
             this.insertHtmlAtCursor(calloutHtml);
         },
-        
+
         insertDivider() {
             this.insertHtmlAtCursor('<hr class="my-6 border-t-2 border-gray-200"><p><br></p>');
         },
-        
+
         insertQuote() {
             const quoteHtml = `
                 <blockquote class="my-5 pl-4 border-l-4 border-brand-primary italic text-gray-700 bg-brand-soft-green/20 py-2.5 rounded-r text-xs sm:text-sm">
@@ -645,7 +660,7 @@ export function createKnowledgeManager(config = {}) {
             `;
             this.insertHtmlAtCursor(quoteHtml);
         },
-        
+
         insertHtmlAtCursor(html) {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas) return;
@@ -674,7 +689,7 @@ export function createKnowledgeManager(config = {}) {
             }
             this.onCanvasInput();
         },
-        
+
         onCanvasInput() {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas) return;
@@ -682,7 +697,7 @@ export function createKnowledgeManager(config = {}) {
             this.updateDocStats();
             this.pushHistory();
         },
-        
+
         onCanvasKeydown(e) {
             // Ctrl+S / Cmd+S -> Save
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -862,7 +877,7 @@ export function createKnowledgeManager(config = {}) {
             // 1. Capture current item's non-list inline content into a new <p>
             const p = document.createElement('p');
             const childList = li.querySelector(':scope > ol, :scope > ul');
-            
+
             const inlineNodes = [];
             Array.from(li.childNodes).forEach(node => {
                 if (node === childList) return;
@@ -909,10 +924,10 @@ export function createKnowledgeManager(config = {}) {
                     // Case B & C: Middle or First item with following items
                     const afterList = document.createElement(parentList.tagName.toLowerCase());
                     afterLis.forEach(item => afterList.appendChild(item));
-                    
+
                     canvas.insertBefore(p, parentList.nextSibling);
                     canvas.insertBefore(afterList, p.nextSibling);
-                    
+
                     if (parentList.children.length === 0) {
                         parentList.remove();
                     }
@@ -1185,7 +1200,7 @@ export function createKnowledgeManager(config = {}) {
 
             return false;
         },
-        
+
         updateDocStats() {
             const canvas = document.getElementById('documentCanvas');
             const text = canvas ? (canvas.textContent || canvas.innerText || '') : '';
@@ -1194,7 +1209,7 @@ export function createKnowledgeManager(config = {}) {
             this.charCount = text.length;
             this.updateActiveFormats();
         },
-        
+
         getSelectionFontSize() {
             const canvas = document.getElementById('documentCanvas');
             if (!canvas) return { value: '16', state: 'single' };
@@ -1230,7 +1245,7 @@ export function createKnowledgeManager(config = {}) {
             const range = sel.getRangeAt(0);
             const container = range.commonAncestorContainer;
             const rootNode = container.nodeType === Node.TEXT_NODE ? container.parentNode : container;
-            
+
             const walker = document.createTreeWalker(
                 rootNode,
                 NodeFilter.SHOW_TEXT,
@@ -1275,7 +1290,7 @@ export function createKnowledgeManager(config = {}) {
             const singleSize = Array.from(detectedSizes)[0] || '16';
             return { value: singleSize, state: 'single' };
         },
-        
+
         updateActiveFormats() {
             try {
                 this.activeFormats.bold = document.queryCommandState('bold');
@@ -1288,7 +1303,7 @@ export function createKnowledgeManager(config = {}) {
                 const sel = window.getSelection();
                 if (sel && sel.rangeCount > 0) {
                     this.savedSelectionRange = sel.getRangeAt(0).cloneRange();
-                    
+
                     // 1. Resolve Font Size via robust algorithm
                     const fontRes = this.getSelectionFontSize();
                     if (fontRes.state === 'mixed') {
@@ -1324,46 +1339,47 @@ export function createKnowledgeManager(config = {}) {
                 // ignore
             }
         },
-        
+
         async saveArticle() {
             if (!this.form.title.trim()) {
                 alert('Judul artikel wajib diisi.');
                 this.editorTab = 'info';
                 return;
             }
-            const canvas = document.getElementById('documentCanvas');
-            const html = canvas ? canvas.innerHTML : this.canvasHtml;
-            
-            // Parse Canvas HTML to Canonical Schema for backend and reader
-            let rawContent = html;
-            if (window.KnowledgeArticleParser) {
-                const canonical = window.KnowledgeArticleParser.parseHtmlContent(html);
-                this.form.content = JSON.stringify(canonical);
-                rawContent = canonical;
-            } else {
-                this.form.content = html;
-            }
-
-            // Resolve category_id & category name accurately from current category selection
-            const foundCat = this.categories.find(c => c.name === this.form.category || c.id === this.form.category || c.id === this.form.category_id);
-            const catId = foundCat ? foundCat.id : (this.form.category_id || this.categories[0]?.id || 1);
-            const catName = foundCat ? foundCat.name : (this.form.category || this.categories[0]?.name || 'Tips Penyimpanan');
-
-            this.form.category_id = catId;
-            this.form.category = catName;
-
-            const payload = {
-                category_id: catId,
-                title: this.form.title,
-                slug: this.form.slug,
-                excerpt: this.form.excerpt || '',
-                content: rawContent,
-                image: this.form.image || 'images/know-thawing.jpg',
-                status: (this.form.status || 'draft').toLowerCase(),
-                sort_order: this.form.sort_order || 1,
-            };
-
+            this.isSaving = true;
             try {
+                const canvas = document.getElementById('documentCanvas');
+                const html = canvas ? canvas.innerHTML : this.canvasHtml;
+
+                // Parse Canvas HTML to Canonical Schema for backend and reader
+                let rawContent = html;
+                if (window.KnowledgeArticleParser) {
+                    const canonical = window.KnowledgeArticleParser.parseHtmlContent(html);
+                    this.form.content = JSON.stringify(canonical);
+                    rawContent = canonical;
+                } else {
+                    this.form.content = html;
+                }
+
+                // Resolve category_id & category name accurately from current category selection
+                const foundCat = this.categories.find(c => c.name === this.form.category || c.id === this.form.category || c.id === this.form.category_id);
+                const catId = foundCat ? foundCat.id : (this.form.category_id || this.categories[0]?.id || 1);
+                const catName = foundCat ? foundCat.name : (this.form.category || this.categories[0]?.name || 'Tips Penyimpanan');
+
+                this.form.category_id = catId;
+                this.form.category = catName;
+
+                const payload = {
+                    category_id: catId,
+                    title: this.form.title,
+                    slug: this.form.slug,
+                    excerpt: this.form.excerpt || '',
+                    content: rawContent,
+                    image: this.form.image || 'storage/media/know_thawing_1786890543832.jpg',
+                    status: (this.form.status || 'draft').toLowerCase(),
+                    sort_order: this.form.sort_order || 1,
+                };
+
                 const url = this.isEditing ? `/admin/knowledge-articles/${this.form.id}` : '/admin/knowledge-articles';
                 const method = this.isEditing ? 'PUT' : 'POST';
 
@@ -1392,7 +1408,7 @@ export function createKnowledgeManager(config = {}) {
                     category: saved.category ? saved.category.name : (this.categories.find(c => c.id === saved.category_id)?.name || 'Edukasi Dapur'),
                     status: (saved.status || 'draft').charAt(0).toUpperCase() + (saved.status || 'draft').slice(1),
                     published_at: saved.created_at ? new Date(saved.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Baru saja',
-                    image: saved.image || 'images/know-thawing.jpg',
+                    image: saved.image || 'storage/media/know_thawing_1786890543832.jpg',
                     excerpt: saved.excerpt || '',
                     content: html,
                     sort_order: saved.sort_order || 1,
@@ -1414,9 +1430,11 @@ export function createKnowledgeManager(config = {}) {
             } catch (err) {
                 console.error(err);
                 alert('Terjadi kesalahan jaringan saat menyimpan artikel.');
+            } finally {
+                this.isSaving = false;
             }
         },
-        
+
         async togglePublish(a) {
             try {
                 const response = await fetch(`/admin/knowledge-articles/${a.id}/toggle`, {
@@ -1438,14 +1456,15 @@ export function createKnowledgeManager(config = {}) {
                 alert('Terjadi kesalahan jaringan saat mengubah status.');
             }
         },
-        
+
         openDelete(a) {
             this.selectedArticle = a;
             this.deleteModalOpen = true;
         },
-        
+
         async confirmDelete() {
             if (!this.selectedArticle) return;
+            this.isDeleting = true;
             try {
                 const response = await fetch(`/admin/knowledge-articles/${this.selectedArticle.id}`, {
                     method: 'DELETE',
@@ -1466,9 +1485,11 @@ export function createKnowledgeManager(config = {}) {
             } catch (err) {
                 console.error(err);
                 alert('Terjadi kesalahan jaringan saat menghapus artikel.');
+            } finally {
+                this.isDeleting = false;
             }
         },
-        
+
         openMediaPicker(target = 'thumbnail') {
             this.mediaTarget = target;
             this.mediaTab = 'library';
@@ -1477,11 +1498,11 @@ export function createKnowledgeManager(config = {}) {
             this.uploadedPreviewUrl = null;
             this.mediaPickerOpen = true;
         },
-        
+
         selectMedia(media) {
             this.selectedMedia = media;
         },
-        
+
         confirmMediaSelection() {
             let chosenUrl = null;
             if (this.mediaTab === 'library' && this.selectedMedia) {
@@ -1491,9 +1512,9 @@ export function createKnowledgeManager(config = {}) {
             } else if (this.selectedMedia) {
                 chosenUrl = this.selectedMedia.path;
             }
-            
+
             if (!chosenUrl) return;
-            
+
             if (this.mediaTarget === 'inline') {
                 const imgFullUrl = this.getImageUrl(chosenUrl);
                 const figureHtml = `
@@ -1512,7 +1533,7 @@ export function createKnowledgeManager(config = {}) {
                 this.showToast('Gambar thumbnail artikel dipilih!');
             }
         },
-        
+
         async handleFileUpload(e) {
             const file = e.target.files ? e.target.files[0] : (e.dataTransfer ? e.dataTransfer.files[0] : null);
             if (!file) return;
@@ -1559,7 +1580,7 @@ export function createKnowledgeManager(config = {}) {
                 this.isUploadingMedia = false;
             }
         },
-        
+
         openCreateCategoryModal() {
             this.isEditingCategory = false;
             this.categoryForm = {
@@ -1573,26 +1594,27 @@ export function createKnowledgeManager(config = {}) {
             };
             this.categoryModalOpen = true;
         },
-        
+
         openEditCategoryModal(cat) {
             this.isEditingCategory = true;
             this.categoryForm = JSON.parse(JSON.stringify(cat));
             this.categoryModalOpen = true;
         },
-        
+
         async saveCategory() {
             if (!this.categoryForm.name.trim()) {
                 alert('Nama kategori artikel wajib diisi.');
                 return;
             }
 
-            const payload = {
-                name: this.categoryForm.name,
-                slug: this.categoryForm.slug || '',
-                is_active: this.categoryForm.is_active !== false && this.categoryForm.status !== 'Nonaktif',
-            };
-
+            this.isSavingCat = true;
             try {
+                const payload = {
+                    name: this.categoryForm.name,
+                    slug: this.categoryForm.slug || '',
+                    is_active: this.categoryForm.is_active !== false && this.categoryForm.status !== 'Nonaktif',
+                };
+
                 const url = this.isEditingCategory ? `/admin/knowledge-categories/${this.categoryForm.id}` : '/admin/knowledge-categories';
                 const method = this.isEditingCategory ? 'PUT' : 'POST';
 
@@ -1643,9 +1665,11 @@ export function createKnowledgeManager(config = {}) {
             } catch (err) {
                 console.error(err);
                 alert('Terjadi kesalahan jaringan saat menyimpan kategori.');
+            } finally {
+                this.isSavingCat = false;
             }
         },
-        
+
         async toggleCategoryStatus(cat) {
             try {
                 const response = await fetch(`/admin/knowledge-categories/${cat.id}/toggle`, {
@@ -1668,14 +1692,15 @@ export function createKnowledgeManager(config = {}) {
                 alert('Terjadi kesalahan jaringan saat mengubah status kategori.');
             }
         },
-        
+
         openDeleteCategory(cat) {
             this.selectedCategoryItem = cat;
             this.deleteCategoryModalOpen = true;
         },
-        
+
         async confirmDeleteCategory() {
             if (!this.selectedCategoryItem) return;
+            this.isDeletingCat = true;
             try {
                 const response = await fetch(`/admin/knowledge-categories/${this.selectedCategoryItem.id}`, {
                     method: 'DELETE',
@@ -1701,14 +1726,16 @@ export function createKnowledgeManager(config = {}) {
             } catch (err) {
                 console.error(err);
                 alert('Terjadi kesalahan jaringan saat menghapus kategori.');
+            } finally {
+                this.isDeletingCat = false;
             }
         },
-        
+
         openPreview(a) {
             this.selectedArticle = a;
             this.previewModalOpen = true;
         },
-        
+
         autoSlug() {
             this.form.slug = this.form.title.toLowerCase()
                 .replace(/[^a-z0-9\s-]/g, '')
@@ -1717,7 +1744,7 @@ export function createKnowledgeManager(config = {}) {
         },
 
         getImageUrl(path) {
-            if (!path) return '/images/know-thawing.jpg';
+            if (!path) return '/storage/media/know_thawing_1786890543832.jpg';
             if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) {
                 return path;
             }

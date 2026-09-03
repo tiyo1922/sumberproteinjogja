@@ -139,134 +139,242 @@ class AdminController extends Controller
     }
 
     /**
+     * System preset media items (protected canonical assets).
+     */
+    private function getSystemPresetMedia(): array
+    {
+        return [
+            [
+                'id' => 1,
+                'filename' => 'hero_meat_poultry_1786889302143.jpg',
+                'path' => 'storage/media/hero_meat_poultry_1786889302143.jpg',
+                'title' => 'Daging Sapi & Ayam Segar (Hero)',
+                'resolution' => '1920 × 1080',
+                'ratio' => '16:9',
+                'size' => '769 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 2,
+                'filename' => 'hero_seafood_fish_1786889522926.jpg',
+                'path' => 'storage/media/hero_seafood_fish_1786889522926.jpg',
+                'title' => 'Seafood & Ikan Fillet Pilihan (Hero)',
+                'resolution' => '1920 × 1080',
+                'ratio' => '16:9',
+                'size' => '914 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 3,
+                'filename' => 'hero_ready_cook_1786889537358.jpg',
+                'path' => 'storage/media/hero_ready_cook_1786889537358.jpg',
+                'title' => 'Ready to Cook & Sayur Siap Masak (Hero)',
+                'resolution' => '1920 × 1080',
+                'ratio' => '16:9',
+                'size' => '1055 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 4,
+                'filename' => 'cat_daging_1786889601901.jpg',
+                'path' => 'storage/media/cat_daging_1786889601901.jpg',
+                'title' => 'Daging Sapi Slice & Sengkel Rawon',
+                'resolution' => '800 × 600',
+                'ratio' => '4:3',
+                'size' => '605 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 5,
+                'filename' => 'cat_ayam_1786889762714.jpg',
+                'path' => 'storage/media/cat_ayam_1786889762714.jpg',
+                'title' => 'Ayam Broiler & Dada Fillet Boneless',
+                'resolution' => '800 × 600',
+                'ratio' => '4:3',
+                'size' => '620 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 6,
+                'filename' => 'cat_ikan_1786889777193.jpg',
+                'path' => 'storage/media/cat_ikan_1786889777193.jpg',
+                'title' => 'Ikan Gurame & Dori Fillet Segar',
+                'resolution' => '800 × 600',
+                'ratio' => '4:3',
+                'size' => '617 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 7,
+                'filename' => 'cat_sayur_1786889823537.jpg',
+                'path' => 'storage/media/cat_sayur_1786889823537.jpg',
+                'title' => 'Sayuran Segar Organik & Siap Olah',
+                'resolution' => '800 × 600',
+                'ratio' => '4:3',
+                'size' => '692 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 8,
+                'filename' => 'know_thawing_1786890543832.jpg',
+                'path' => 'storage/media/know_thawing_1786890543832.jpg',
+                'title' => 'Dapur & Edukasi Thawing Higienis',
+                'resolution' => '1200 × 800',
+                'ratio' => '3:2',
+                'size' => '754 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 9,
+                'filename' => 'prod_beef_slice_1786890263309.jpg',
+                'path' => 'storage/media/prod_beef_slice_1786890263309.jpg',
+                'title' => 'Daging Sapi Shortplate Slice 500g',
+                'resolution' => '1200 × 900',
+                'ratio' => '4:3',
+                'size' => '603 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 10,
+                'filename' => 'prod_ayam_bumbu_1786889976117.jpg',
+                'path' => 'storage/media/prod_ayam_bumbu_1786889976117.jpg',
+                'title' => 'Ayam Ungkep Bumbu Kuning Lengkuas',
+                'resolution' => '1200 × 900',
+                'ratio' => '4:3',
+                'size' => '817 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 11,
+                'filename' => 'prod_ikan_gurame_1786890735183.jpg',
+                'path' => 'storage/media/prod_ikan_gurame_1786890735183.jpg',
+                'title' => 'Fillet Ikan Gurame Segar Bersih',
+                'resolution' => '1200 × 900',
+                'ratio' => '4:3',
+                'size' => '694 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+            [
+                'id' => 12,
+                'filename' => 'prod_sayur_mix_1786890756703.jpg',
+                'path' => 'storage/media/prod_sayur_mix_1786890756703.jpg',
+                'title' => 'Paket Sayur Sop Komplit Higienis',
+                'resolution' => '1200 × 900',
+                'ratio' => '4:3',
+                'size' => '574 KB',
+                'is_recommended' => true,
+                'is_deletable' => false,
+            ],
+        ];
+    }
+
+    /**
+     * Dynamic usage detection across active database entities.
+     * Returns a map: [ filename => [ 'is_in_use' => bool, 'usage_count' => int, 'usage_locations' => string[] ] ]
+     */
+    private function getAllMediaUsage(): array
+    {
+        $usageMap = [];
+
+        // 1. Products
+        try {
+            $products = DB::table('products')->select('id', 'name', 'image')->get();
+            foreach ($products as $p) {
+                if (!empty($p->image)) {
+                    $fn = basename($p->image);
+                    $usageMap[$fn][] = "Produk: " . $p->name;
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // 2. Categories
+        try {
+            $categories = DB::table('categories')->select('id', 'name', 'image')->get();
+            foreach ($categories as $c) {
+                if (!empty($c->image)) {
+                    $fn = basename($c->image);
+                    $usageMap[$fn][] = "Kategori: " . $c->name;
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // 3. Knowledge Articles
+        try {
+            $articles = DB::table('knowledge_articles')->select('id', 'title', 'image')->get();
+            foreach ($articles as $a) {
+                if (!empty($a->image)) {
+                    $fn = basename($a->image);
+                    $usageMap[$fn][] = "Edukasi: " . $a->title;
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // 4. Users (Avatar)
+        try {
+            $users = DB::table('users')->select('id', 'name', 'avatar')->get();
+            foreach ($users as $u) {
+                if (!empty($u->avatar)) {
+                    $fn = basename($u->avatar);
+                    $usageMap[$fn][] = "Avatar Admin: " . $u->name;
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // 5. Site Settings (hero, hero_drafts, seo, site, etc.)
+        try {
+            $settings = DB::table('site_settings')->select('id', 'key', 'value')->get();
+            $disk = Storage::disk('public');
+            $files = $disk->exists('media') ? $disk->files('media') : [];
+
+            foreach ($settings as $s) {
+                $val = (string) $s->value;
+                if (empty($val)) continue;
+
+                foreach ($files as $file) {
+                    $fn = basename($file);
+                    if (str_contains($val, $fn)) {
+                        $locLabel = match ($s->key) {
+                            'hero' => 'Hero Slider Utama',
+                            'hero_drafts' => 'Draft Hero Slider',
+                            'seo' => 'SEO OpenGraph Meta',
+                            'site' => 'Identitas Brand & Situs',
+                            default => 'Pengaturan: ' . $s->key,
+                        };
+                        if (!isset($usageMap[$fn]) || !in_array($locLabel, $usageMap[$fn], true)) {
+                            $usageMap[$fn][] = $locLabel;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        return $usageMap;
+    }
+
+    /**
      * Centralized Media Library list for Global Media Picker.
      */
     private function getMediaLibrary(): array
     {
-        $items = [
-            [
-                'id' => 1,
-                'filename' => 'hero-1.jpg',
-                'path' => 'images/hero-1.jpg',
-                'title' => 'Daging Sapi & Ayam Segar (Hero)',
-                'resolution' => '1920 × 1080',
-                'ratio' => '16:9',
-                'size' => '342 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 2,
-                'filename' => 'hero-2.jpg',
-                'path' => 'images/hero-2.jpg',
-                'title' => 'Seafood & Ikan Fillet Pilihan (Hero)',
-                'resolution' => '1920 × 1080',
-                'ratio' => '16:9',
-                'size' => '415 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 3,
-                'filename' => 'hero-3.jpg',
-                'path' => 'images/hero-3.jpg',
-                'title' => 'Ready to Cook & Sayur Siap Masak (Hero)',
-                'resolution' => '1920 × 1080',
-                'ratio' => '16:9',
-                'size' => '388 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 4,
-                'filename' => 'cat-daging.jpg',
-                'path' => 'images/cat-daging.jpg',
-                'title' => 'Daging Sapi Slice & Sengkel Rawon',
-                'resolution' => '800 × 600',
-                'ratio' => '4:3',
-                'size' => '295 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 5,
-                'filename' => 'cat-ayam.jpg',
-                'path' => 'images/cat-ayam.jpg',
-                'title' => 'Ayam Broiler & Dada Fillet Boneless',
-                'resolution' => '800 × 600',
-                'ratio' => '4:3',
-                'size' => '310 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 6,
-                'filename' => 'cat-ikan.jpg',
-                'path' => 'images/cat-ikan.jpg',
-                'title' => 'Ikan Gurame & Dori Fillet Segar',
-                'resolution' => '800 × 600',
-                'ratio' => '4:3',
-                'size' => '360 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 7,
-                'filename' => 'cat-sayur.jpg',
-                'path' => 'images/cat-sayur.jpg',
-                'title' => 'Sayuran Segar Organik & Siap Olah',
-                'resolution' => '800 × 600',
-                'ratio' => '4:3',
-                'size' => '280 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 8,
-                'filename' => 'know-thawing.jpg',
-                'path' => 'images/know-thawing.jpg',
-                'title' => 'Dapur & Edukasi Thawing Higienis',
-                'resolution' => '1200 × 800',
-                'ratio' => '3:2',
-                'size' => '420 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 9,
-                'filename' => 'prod-beef-slice.jpg',
-                'path' => 'images/prod-beef-slice.jpg',
-                'title' => 'Daging Sapi Shortplate Slice 500g',
-                'resolution' => '1200 × 900',
-                'ratio' => '4:3',
-                'size' => '325 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 10,
-                'filename' => 'prod-ayam-bumbu.jpg',
-                'path' => 'images/prod-ayam-bumbu.jpg',
-                'title' => 'Ayam Ungkep Bumbu Kuning Lengkuas',
-                'resolution' => '1200 × 900',
-                'ratio' => '4:3',
-                'size' => '315 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 11,
-                'filename' => 'prod-ikan-gurame.jpg',
-                'path' => 'images/prod-ikan-gurame.jpg',
-                'title' => 'Fillet Ikan Gurame Segar Bersih',
-                'resolution' => '1200 × 900',
-                'ratio' => '4:3',
-                'size' => '340 KB',
-                'is_recommended' => true,
-            ],
-            [
-                'id' => 12,
-                'filename' => 'prod-sayur-mix.jpg',
-                'path' => 'images/prod-sayur-mix.jpg',
-                'title' => 'Paket Sayur Sop Komplit Higienis',
-                'resolution' => '1200 × 900',
-                'ratio' => '4:3',
-                'size' => '290 KB',
-                'is_recommended' => true,
-            ],
-        ];
+        $presetMeta = [];
+        foreach ($this->getSystemPresetMedia() as $pm) {
+            $presetMeta[$pm['filename']] = $pm;
+        }
 
-        // Dynamically scan uploaded files from storage/app/public/media/
+        $usageMap = $this->getAllMediaUsage();
+
+        $items = [];
         $disk = Storage::disk('public');
         if ($disk->exists('media')) {
             $files = $disk->files('media');
@@ -275,30 +383,46 @@ class AdminController extends Controller
                 $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
                 if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'svg', 'ico'])) {
                     $filename = basename($file);
+                    $fullPath = $disk->path($file);
                     $sizeKb = round($disk->size($file) / 1024);
+
+                    $locations = $usageMap[$filename] ?? [];
+                    $isInUse = !empty($locations);
+
+                    // Check if file has preset metadata
+                    $preset = $presetMeta[$filename] ?? null;
+
+                    $title = $preset['title'] ?? $filename;
+                    $resolution = $preset['resolution'] ?? 'Custom Upload';
+                    $ratio = $preset['ratio'] ?? 'Auto';
+                    $isRecommended = $preset['is_recommended'] ?? false;
+
+                    // If resolution is not in preset, attempt getimagesize
+                    if ($resolution === 'Custom Upload' && file_exists($fullPath)) {
+                        $imgInfo = @getimagesize($fullPath);
+                        if ($imgInfo && !empty($imgInfo[0]) && !empty($imgInfo[1])) {
+                            $resolution = $imgInfo[0] . ' × ' . $imgInfo[1];
+                        }
+                    }
+
                     $items[] = [
-                        'id' => 'upload_' . ($idx + 1) . '_' . md5($file),
+                        'id' => 'media_' . ($idx + 1) . '_' . md5($file),
                         'filename' => $filename,
                         'path' => 'storage/' . $file,
                         'url' => asset('storage/' . $file),
-                        'title' => $filename,
-                        'resolution' => 'Custom Upload',
-                        'ratio' => 'Auto',
+                        'title' => $title,
+                        'resolution' => $resolution,
+                        'ratio' => $ratio,
                         'size' => $sizeKb . ' KB',
-                        'is_recommended' => false,
+                        'is_recommended' => $isRecommended,
                         'is_deletable' => true,
+                        'is_in_use' => $isInUse,
+                        'usage_count' => count($locations),
+                        'usage_locations' => $locations,
                     ];
                 }
             }
         }
-
-        // Ensure all preset items have is_deletable = false
-        foreach ($items as &$it) {
-            if (!isset($it['is_deletable'])) {
-                $it['is_deletable'] = false;
-            }
-        }
-        unset($it);
 
         return $items;
     }
@@ -329,6 +453,9 @@ class AdminController extends Controller
             'size' => round($file->getSize() / 1024) . ' KB',
             'is_recommended' => false,
             'is_deletable' => true,
+            'is_in_use' => false,
+            'usage_count' => 0,
+            'usage_locations' => [],
         ];
 
         return response()->json([
@@ -351,6 +478,14 @@ class AdminController extends Controller
         // Extract strictly the base filename to prevent directory traversal
         $filename = basename($rawPath);
 
+        // Path safety verification
+        if (empty($filename) || $filename === '.' || $filename === '..' || str_contains($rawPath, '..')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Path file tidak valid.',
+            ], 422);
+        }
+
         $disk = Storage::disk('public');
         if ($disk->exists('media/' . $filename)) {
             $disk->delete('media/' . $filename);
@@ -365,7 +500,7 @@ class AdminController extends Controller
 
         return response()->json([
             'success' => false,
-            'message' => 'File media bawaan sistem tidak dapat dihapus atau file tidak ditemukan di server.',
+            'message' => 'File tidak ditemukan di server.',
         ], 404);
     }
 
@@ -419,9 +554,9 @@ class AdminController extends Controller
             'secondary_cta_text' => 'Lihat Produk',
             'secondary_cta_link' => '#kategori',
             'images' => [
-                'images/hero-1.jpg',
-                'images/hero-2.jpg',
-                'images/hero-3.jpg',
+                'storage/media/hero-1.jpg',
+                'storage/media/hero-2.jpg',
+                'storage/media/hero-3.jpg',
             ],
         ]);
 
@@ -435,13 +570,13 @@ class AdminController extends Controller
             'badge' => 'Kepercayaan Mitra',
             'title' => 'Telah Dipercaya Restoran, Cafe, Catering & Rumah Tangga di Jogja',
             'partners' => [
-                ['id' => 1, 'name' => 'Restoran & Cafe Jogja', 'logo' => 'images/mitra-placeholder.png', 'is_active' => true, 'sort_order' => 1],
-                ['id' => 2, 'name' => 'Katering & Horeka', 'logo' => 'images/mitra-placeholder.png', 'is_active' => true, 'sort_order' => 2],
-                ['id' => 3, 'name' => 'Rumah Tangga Jogja', 'logo' => 'images/mitra-placeholder.png', 'is_active' => true, 'sort_order' => 3],
+                ['id' => 1, 'name' => 'Restoran & Cafe Jogja', 'logo' => 'storage/partners/partner_1787924153_Ag8XLYM1.jpg', 'is_active' => true, 'sort_order' => 1],
+                ['id' => 2, 'name' => 'Katering & Horeka', 'logo' => 'storage/partners/partner_1787925467_Hjp87zCe.png', 'is_active' => true, 'sort_order' => 2],
+                ['id' => 3, 'name' => 'Rumah Tangga Jogja', 'logo' => 'storage/partners/partner_1787925555_vj3dgBxF.png', 'is_active' => true, 'sort_order' => 3],
             ]
         ]);
 
-        $drafts = [
+        $defaultPresets = [
             [
                 'id' => 1,
                 'name' => 'Hero Utama (Live DB)',
@@ -461,10 +596,10 @@ class AdminController extends Controller
                     : ($heroSetting['catalog_button_text'] ?? 'Lihat Produk'),
                 'secondary_cta_link' => $heroSetting['secondary_cta_link'] ?? '#kategori',
                 'images' => $heroSetting['images'] ?? [
-                    'images/hero-1.jpg',
-                    'images/hero-2.jpg',
-                    'images/hero-3.jpg',
-                    'images/cat-daging.jpg',
+                    'storage/media/hero_meat_poultry_1786889302143.jpg',
+                    'storage/media/hero_seafood_fish_1786889522926.jpg',
+                    'storage/media/hero_ready_cook_1786889537358.jpg',
+                    'storage/media/cat_daging_1786889601901.jpg',
                 ],
                 'trust_items' => is_array($heroTrustItems) ? array_map(function ($item) {
                     return [
@@ -491,9 +626,9 @@ class AdminController extends Controller
                 'secondary_cta_text' => 'Lihat Produk',
                 'secondary_cta_link' => '#kategori',
                 'images' => [
-                    'images/hero-2.jpg',
-                    'images/hero-3.jpg',
-                    'images/hero-1.jpg',
+                    'storage/media/hero-2.jpg',
+                    'storage/media/hero-3.jpg',
+                    'storage/media/hero-1.jpg',
                 ],
                 'trust_items' => [
                     ['id' => 1, 'text' => 'Higienis & Segar', 'active' => true, 'sort_order' => 1],
@@ -517,8 +652,8 @@ class AdminController extends Controller
                 'secondary_cta_text' => 'Lihat Produk',
                 'secondary_cta_link' => '#kategori',
                 'images' => [
-                    'images/hero-3.jpg',
-                    'images/hero-1.jpg',
+                    'storage/media/hero-3.jpg',
+                    'storage/media/hero-1.jpg',
                 ],
                 'trust_items' => [
                     ['id' => 1, 'text' => 'Harga Grosir & Ecer', 'active' => true, 'sort_order' => 1],
@@ -528,6 +663,11 @@ class AdminController extends Controller
                 'updated_at' => 'Preset Layout',
             ],
         ];
+
+        $savedDrafts = $this->siteSettingRepo->get('hero_drafts', null);
+        $drafts = ($savedDrafts && is_array($savedDrafts) && count($savedDrafts) > 0)
+            ? $savedDrafts
+            : $defaultPresets;
 
         $mediaLibrary = $this->getMediaLibrary();
         $partnerMediaLibrary = $this->getPartnerMediaLibrary();
@@ -561,12 +701,17 @@ class AdminController extends Controller
             'hero.secondary_cta_link' => 'nullable|string|max:255',
             'hero.secondary_cta_contact' => 'nullable|string|max:50',
             'hero.images' => 'nullable|array',
+            'drafts' => 'nullable|array',
             'trust_items' => 'nullable|array',
             'partners' => 'nullable|array',
             'partners.title' => 'nullable|string|max:255',
             'partners.badge' => 'nullable|string|max:255',
             'partners.partners' => 'nullable|array',
         ]);
+
+        if (isset($validated['drafts']) && is_array($validated['drafts'])) {
+            $this->siteSettingRepo->set('hero_drafts', $validated['drafts']);
+        }
 
         if (isset($validated['hero'])) {
             $currentHero = $this->siteSettingRepo->get('hero', []);
@@ -588,14 +733,42 @@ class AdminController extends Controller
         if (isset($validated['partners'])) {
             $currentPartners = $this->siteSettingRepo->get('hero_partners', []);
             $mergedPartners = array_merge($currentPartners, $validated['partners']);
+
+            if (isset($mergedPartners['partners']) && is_array($mergedPartners['partners'])) {
+                foreach ($mergedPartners['partners'] as &$p) {
+                    $raw = $p['is_active'] ?? ($p['active'] ?? true);
+                    if (is_bool($raw)) {
+                        $p['is_active'] = $raw;
+                    } elseif (is_numeric($raw)) {
+                        $p['is_active'] = (int) $raw === 1;
+                    } elseif (is_string($raw)) {
+                        $lower = strtolower(trim($raw));
+                        if (in_array($lower, ['false', '0', 'nonaktif', 'nonaktif (sembunyi)', 'inactive', 'off', 'hide', 'hidden', ''])) {
+                            $p['is_active'] = false;
+                        } elseif (in_array($lower, ['true', '1', 'aktif', 'aktif (tampil)', 'active', 'on', 'show', 'visible'])) {
+                            $p['is_active'] = true;
+                        } else {
+                            $p['is_active'] = false;
+                        }
+                    } else {
+                        $p['is_active'] = (bool) $raw;
+                    }
+                    if (isset($p['active'])) {
+                        unset($p['active']);
+                    }
+                }
+                unset($p);
+            }
+
             $this->siteSettingRepo->set('hero_partners', $mergedPartners);
         }
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Pengaturan Hero, Trust Checklist, dan Mitra berhasil disimpan ke database!',
+                'message' => 'Pengaturan Hero, Drafts, Trust Checklist, dan Mitra berhasil disimpan ke database!',
                 'hero' => $this->siteSettingRepo->get('hero'),
+                'hero_drafts' => $this->siteSettingRepo->get('hero_drafts'),
                 'hero_trust_items' => $this->siteSettingRepo->get('hero_trust_items'),
                 'hero_partners' => $this->siteSettingRepo->get('hero_partners'),
             ]);
@@ -643,7 +816,7 @@ class AdminController extends Controller
 
         $categories = $dbCategories->map(function ($cat) use ($dbProducts, $defaultMetadata) {
             $activeCount = $dbProducts->filter(function ($p) use ($cat) {
-                return $p->category_id == $cat->id && $p->is_active;
+                return in_array($cat->id, $p->category_ids, true) && $p->is_active;
             })->count();
 
             $meta = $defaultMetadata[$cat->slug] ?? [];
@@ -657,7 +830,7 @@ class AdminController extends Controller
                 'subtitle' => $cat->subtitle ?? ($meta['subtitle'] ?? 'Pilihan Bahan Segar & Berkualitas'),
                 'badge' => $cat->badge ?? ($meta['badge'] ?? 'Sertifikasi Halal'),
                 'color' => $cat->color ?? 'orange',
-                'image' => $cat->image ?? 'images/cat-daging.jpg',
+                'image' => $cat->image ?? 'storage/media/cat_daging_1786889601901.jpg',
                 'description' => $cat->description ?? ($meta['description'] ?? 'Bahan masak segar dan higienis pilihan keluarga.'),
                 'order' => (int) $cat->sort_order,
                 'sort_order' => (int) $cat->sort_order,
@@ -674,6 +847,7 @@ class AdminController extends Controller
                 'id' => $p->id,
                 'name' => $p->name,
                 'category_id' => $p->category_id,
+                'category_ids' => $p->category_ids,
                 'status' => $p->is_active ? 'Aktif' : 'Nonaktif',
             ];
         })->toArray();
@@ -703,9 +877,9 @@ class AdminController extends Controller
         }
 
         $validated['color'] = $validated['color'] ?? 'orange';
-        $validated['image'] = $validated['image'] ?? 'images/cat-daging.jpg';
+        $validated['image'] = $validated['image'] ?? 'storage/media/cat_daging_1786889601901.jpg';
         $validated['sort_order'] = isset($validated['sort_order']) ? (int) $validated['sort_order'] : ($this->categoryRepo->getAll()->count() + 1);
-        
+
         if (isset($validated['status'])) {
             $validated['is_active'] = ($validated['status'] === 'active_landing') ? 1 : (($validated['status'] === 'active_catalog') ? 2 : 0);
         } elseif (isset($validated['is_active'])) {
@@ -1001,7 +1175,7 @@ class AdminController extends Controller
                 'discount_value' => $p->discount_value ? (float) $p->discount_value : null,
                 'status' => $p->is_active ? 'Aktif' : 'Nonaktif',
                 'is_active' => (bool) $p->is_active,
-                'image' => $p->image ?? 'images/prod-beef-slice.jpg',
+                'image' => $p->image ?? 'storage/media/prod_beef_slice_1786890263309.jpg',
                 'description' => $p->description ?? '',
                 'stock_status' => $p->stock_status ?? 'READY_STOCK',
                 'is_flash_sale' => (bool) $p->is_flash_sale,
@@ -1075,7 +1249,7 @@ class AdminController extends Controller
         $validated['unit'] = $validated['unit'] ?? 'gram';
         $validated['weight_value'] = isset($validated['weight_value']) ? (float) $validated['weight_value'] : 500;
         $validated['weight'] = $validated['weight'] ?? ($validated['weight_value'] . ($validated['unit'] === 'gram' ? 'g' : ' ' . $validated['unit']));
-        $validated['image'] = $validated['image'] ?? 'images/prod-beef-slice.jpg';
+        $validated['image'] = $validated['image'] ?? 'storage/media/prod_beef_slice_1786890263309.jpg';
         $validated['is_active'] = isset($validated['is_active']) ? (bool) $validated['is_active'] : true;
 
         // Flash Sale Isolation: New regular products start outside flash sale
@@ -1567,7 +1741,7 @@ class AdminController extends Controller
                 'category' => $a->category ? $a->category->name : 'Tips Penyimpanan',
                 'status' => ucfirst($a->status),
                 'published_at' => $a->created_at ? $a->created_at->translatedFormat('d F Y') : 'Draft',
-                'image' => $a->image ?? 'images/know-thawing.jpg',
+                'image' => $a->image ?? 'storage/media/know_thawing_1786890543832.jpg',
                 'excerpt' => $a->excerpt ?? '',
                 'content' => $htmlContent ?: ($a->excerpt ?? ''),
                 'sort_order' => (int) ($a->sort_order ?? 1),
@@ -1819,7 +1993,7 @@ class AdminController extends Controller
             'slug' => $validated['slug'],
             'excerpt' => $validated['excerpt'] ?? '',
             'content' => $parsedContent,
-            'image' => $validated['image'] ?? 'images/know-thawing.jpg',
+            'image' => $validated['image'] ?? 'storage/media/know_thawing_1786890543832.jpg',
             'status' => strtolower($validated['status']),
             'sort_order' => $validated['sort_order'] ?? (KnowledgeArticle::count() + 1),
         ]);
@@ -2384,7 +2558,7 @@ class AdminController extends Controller
 
             if ($response->successful() && ($data['status'] ?? '') === 'OK') {
                 $result = $data['result'] ?? [];
-                
+
                 if (isset($result['rating'])) {
                     $settings['google_rating'] = (float) $result['rating'];
                 }
@@ -2666,7 +2840,7 @@ class AdminController extends Controller
             $this->siteSettingRepo->set('site', $existingSettings);
         }
 
-        $avatarUrl = $avatarPath 
+        $avatarUrl = $avatarPath
             ? (str_starts_with($avatarPath, 'http') ? $avatarPath : asset(ltrim($avatarPath, '/')))
             : null;
 

@@ -16,7 +16,7 @@
          contacts: window.__initialContactsData
      })"
      x-init="initPreviewObserver()">
-    
+
     <style>
         [x-cloak] {
             display: none !important;
@@ -67,7 +67,7 @@
 
             <!-- Save Action Button -->
             <div class="flex items-center gap-3 shrink-0">
-                <button @click="saveFooter()" 
+                <button @click="saveFooter()"
                         type="button"
                         :disabled="isSaving"
                         class="inline-flex items-center gap-2 px-6 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
@@ -83,19 +83,19 @@
 
     <!-- 2. Navigation Tabs for 3 Distinct Footer Sub-sections -->
     <div class="flex items-center gap-2 border-b border-gray-200 pb-2">
-        <button @click="activeTab = 'reviews'" 
+        <button @click="activeTab = 'reviews'"
                 type="button"
                 :class="activeTab === 'reviews' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
                 class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
             ⭐ 1. Ulasan Pelanggan (Google Reviews)
         </button>
-        <button @click="activeTab = 'location'" 
+        <button @click="activeTab = 'location'"
                 type="button"
                 :class="activeTab === 'location' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
                 class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
             📍 2. Kunjungi Outlet (Lokasi & Maps)
         </button>
-        <button @click="activeTab = 'footer'" 
+        <button @click="activeTab = 'footer'"
                 type="button"
                 :class="activeTab === 'footer' ? 'bg-brand-primary text-white font-bold shadow-xs' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
                 class="px-4 py-2 rounded-modern text-xs transition-all cursor-pointer">
@@ -109,10 +109,10 @@
     <!-- TAB 1: ULASAN PELANGGAN (MANUAL & GOOGLE REVIEWS MANAGER)       -->
     <!-- --------------------------------------------------------------- -->
     <div x-show="activeTab === 'reviews'" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
+
         <!-- Left Column (5 cols): Mode Switch & Google Config -->
         <div class="lg:col-span-5 space-y-6">
-            
+
             <!-- 1. DUAL REVIEW SOURCE MODE SWITCH CARD -->
             <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-6 shadow-2xs space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -133,13 +133,13 @@
 
                 <!-- Dual Mode Toggle Selector -->
                 <div class="grid grid-cols-2 gap-2 bg-gray-100/80 p-1.5 rounded-modern-lg">
-                    <button type="button" 
+                    <button type="button"
                             @click="toggleReviewMode('manual')"
                             class="py-2 px-3 rounded-modern text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
                             :class="footer.reviews.review_mode === 'manual' ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200' : 'text-gray-600 hover:text-brand-dark'">
-                        <span>⭐ Manual Database</span>
+                        <span>⭐ Ulasan Manual</span>
                     </button>
-                    <button type="button" 
+                    <button type="button"
                             @click="toggleReviewMode('google')"
                             class="py-2 px-3 rounded-modern text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
                             :class="footer.reviews.review_mode === 'google' ? 'bg-white text-blue-700 shadow-sm border border-blue-200' : 'text-gray-600 hover:text-brand-dark'">
@@ -176,8 +176,8 @@
                 <div class="space-y-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">Google Place ID</label>
-                        <input type="text" 
-                               x-model="footer.reviews.google_place_id" 
+                        <input type="text"
+                               x-model="footer.reviews.google_place_id"
                                class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono text-brand-dark"
                                placeholder="ChIJN1t_tDeuEmsRUsoyG83frY4">
                         <p class="text-[10px] text-gray-400 mt-1">Kode pengenal unik lokasi Google Maps toko Anda.</p>
@@ -186,18 +186,18 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Rating Google</label>
-                            <input type="number" 
-                                   step="0.1" 
-                                   min="1" 
-                                   max="5" 
-                                   x-model="footer.reviews.rating" 
+                            <input type="number"
+                                   step="0.1"
+                                   min="1"
+                                   max="5"
+                                   x-model="footer.reviews.rating"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-bold text-amber-500">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Total Ulasan Google</label>
-                            <input type="number" 
-                                   min="0" 
-                                   x-model="footer.reviews.total_reviews" 
+                            <input type="number"
+                                   min="0"
+                                   x-model="footer.reviews.total_reviews"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono">
                         </div>
                     </div>
@@ -209,12 +209,12 @@
                     </div>
 
                     <div class="pt-2 space-y-2">
-                        <button @click="saveGoogleConfig()" 
+                        <button @click="saveGoogleConfig()"
                                 type="button"
                                 class="w-full px-4 py-2.5 rounded-modern font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1.5">
                             <span>Simpan Konfigurasi Google</span>
                         </button>
-                        
+
                         <div class="grid grid-cols-2 gap-2">
                             <template x-if="footer.reviews.google_place_id && footer.reviews.google_place_id.trim() !== ''">
                                 <a :href="'https://search.google.com/local/writereview?placeid=' + footer.reviews.google_place_id.trim()"
@@ -251,7 +251,7 @@
 
         <!-- Right Column (7 cols): REVIEW MANAGEMENT (CRUD & LIST) -->
         <div class="lg:col-span-7 space-y-6">
-            
+
             <!-- REVIEW LIST CARD -->
             <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-6 shadow-2xs space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3 flex-wrap gap-2">
@@ -261,8 +261,8 @@
                             Daftar Ulasan (<span x-text="footer.reviews.items.length"></span>)
                         </h3>
                     </div>
-                    
-                    <button type="button" 
+
+                    <button type="button"
                             @click="openCreateReviewModal()"
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark transition-all cursor-pointer shadow-2xs">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
@@ -275,10 +275,10 @@
                     <template x-for="(item, idx) in footer.reviews.items" :key="item.id">
                         <div class="p-4 rounded-modern-lg border transition-all duration-200 space-y-3"
                              :class="item.is_active ? 'border-gray-200 bg-gray-50/70 hover:bg-white' : 'border-dashed border-gray-300 bg-gray-100/60 opacity-60'">
-                            
+
                             <!-- Top Row: Reviewer Meta, Rating & Actions -->
                             <div class="flex items-center justify-between flex-wrap gap-2">
-                                
+
                                 <!-- Left: Avatar & Details -->
                                 <div class="flex items-center gap-3 min-w-0">
                                     <div class="w-9 h-9 rounded-full bg-brand-primary text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs"
@@ -309,7 +309,7 @@
                                     </div>
 
                                     <!-- Active Toggle Button -->
-                                    <button type="button" 
+                                    <button type="button"
                                             @click="toggleReviewStatus(item)"
                                             class="px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all border"
                                             :class="item.is_active ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-200 text-gray-600 border-gray-300'"
@@ -317,7 +317,7 @@
                                     </button>
 
                                     <!-- Edit Button -->
-                                    <button type="button" 
+                                    <button type="button"
                                             @click="openEditReviewModal(item)"
                                             class="p-1 rounded text-gray-500 hover:text-brand-primary hover:bg-gray-100 cursor-pointer"
                                             title="Edit ulasan">
@@ -325,9 +325,9 @@
                                     </button>
 
                                     <!-- Delete Button -->
-                                    <button type="button" 
+                                    <button type="button"
                                             @click="deleteReview(item)"
-                                            class="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                                            class="p-1 rounded text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
                                             title="Hapus ulasan">
                                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                     </button>
@@ -351,7 +351,7 @@
     <!-- TAB 2: KUNJUNGI OUTLET (LOKASI & MAPS)                          -->
     <!-- --------------------------------------------------------------- -->
     <div x-show="activeTab === 'location'" class="space-y-6">
-        
+
         <!-- ROW 1: HEADER SECTION (Full Width Card) -->
         <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
             <div class="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -361,29 +361,28 @@
                         1. Pengaturan Header Section
                     </h3>
                 </div>
-                <span class="text-[11px] text-gray-400 font-mono">Location Section Header</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div class="md:col-span-4">
                     <label class="block text-xs font-bold text-gray-700 mb-1">Badge Tag</label>
-                    <input type="text" 
-                           x-model="footer.location.section.badge" 
+                    <input type="text"
+                           x-model="footer.location.section.badge"
                            class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary font-medium text-brand-dark bg-white"
                            placeholder="Kunjungi Outlet">
                 </div>
 
                 <div class="md:col-span-8">
                     <label class="block text-xs font-bold text-gray-700 mb-1">Judul Section (H2)</label>
-                    <input type="text" 
-                           x-model="footer.location.section.title" 
+                    <input type="text"
+                           x-model="footer.location.section.title"
                            class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary font-extrabold text-brand-dark bg-white"
                            placeholder="Lokasi & Jam Operasional">
                 </div>
 
                 <div class="md:col-span-12">
                     <label class="block text-xs font-bold text-gray-700 mb-1">Deskripsi Pengantar</label>
-                    <textarea x-model="footer.location.section.subtitle" 
+                    <textarea x-model="footer.location.section.subtitle"
                               rows="2"
                               class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary text-gray-700 leading-relaxed bg-white"
                               placeholder="Bisa datang langsung memilih daging segar atau pesan online..."></textarea>
@@ -393,10 +392,10 @@
 
         <!-- ROW 2: STORE INFO & ADDRESS & MAPS SETTINGS (2 Columns) -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
+
             <!-- Left Column (6 cols): Identitas Outlet & Alamat Terstruktur -->
             <div class="lg:col-span-6 space-y-6">
-                
+
                 <!-- 2. IDENTITAS OUTLET & STATUS OPERASIONAL -->
                 <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
                     <div class="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -406,7 +405,6 @@
                                 2. Identitas Outlet &amp; Status
                             </h3>
                         </div>
-                        <span class="text-[11px] text-gray-400 font-mono">Outlet Identity</span>
                     </div>
 
                     <div class="space-y-3.5">
@@ -414,8 +412,8 @@
                             <label class="block text-xs font-bold text-gray-700 mb-1">
                                 Status Operasional (Badge Hijau)
                             </label>
-                            <input type="text" 
-                                   x-model="footer.location.outlet.status_badge" 
+                            <input type="text"
+                                   x-model="footer.location.outlet.status_badge"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-medium text-emerald-800 focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Buka Hari Ini (07.00 - 19.00 WIB)">
                         </div>
@@ -423,15 +421,15 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Nama Toko / Outlet</label>
-                                <input type="text" 
-                                       x-model="footer.location.outlet.name" 
+                                <input type="text"
+                                       x-model="footer.location.outlet.name"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-bold text-brand-dark focus:ring-1 focus:ring-brand-primary"
                                        placeholder="Sumber Protein Jogja">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Tagline / Sub-judul Toko</label>
-                                <input type="text" 
-                                       x-model="footer.location.outlet.tagline" 
+                                <input type="text"
+                                       x-model="footer.location.outlet.tagline"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-medium text-brand-primary focus:ring-1 focus:ring-brand-primary"
                                        placeholder="Outlet & Cold Storage Yogyakarta">
                             </div>
@@ -439,8 +437,8 @@
 
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Catatan Pengiriman (Delivery Note)</label>
-                            <input type="text" 
-                                   x-model="footer.location.delivery_note" 
+                            <input type="text"
+                                   x-model="footer.location.delivery_note"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-600 focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Pengiriman instant GrabExpress / Gosend siap tiap hari">
                         </div>
@@ -456,7 +454,6 @@
                                 3. Customer Care &amp; Kontak Pemesanan
                             </h3>
                         </div>
-                        <span class="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Site &amp; Contact Registry</span>
                     </div>
 
                     <div class="space-y-3.5">
@@ -468,12 +465,12 @@
                                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                                 </a>
                             </div>
-                            <select x-model="footer.location.contact_key" 
+                            <select x-model="footer.location.contact_key"
                                     @change="onLocationContactChange()"
                                     class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 bg-white font-semibold text-brand-dark focus:ring-1 focus:ring-brand-primary focus:border-brand-primary">
                                 <option value="">-- Pilih Kontak dari Registry --</option>
                                 <template x-for="c in (contacts || [])" :key="c.key || c.id">
-                                    <option :value="c.key || c.id" 
+                                    <option :value="c.key || c.id"
                                             :selected="(footer.location.contact_key || '') === (c.key || c.id)"
                                             x-text="c.name + ' (' + (c.division || c.type) + ') — ' + c.value"></option>
                                 </template>
@@ -506,8 +503,8 @@
                         <!-- Fallback / Custom override bila tidak memilih registry -->
                         <div x-show="!footer.location.contact_key">
                             <label class="block text-xs font-bold text-gray-700 mb-1">Nomor Kontak Manual (Fallback)</label>
-                            <input type="text" 
-                                   x-model="footer.location.phone" 
+                            <input type="text"
+                                   x-model="footer.location.phone"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-800 font-medium focus:ring-1 focus:ring-brand-primary"
                                    placeholder="+62 812-3456-7890">
                         </div>
@@ -523,14 +520,13 @@
                                 4. Alamat Fisik &amp; Koordinat Geo
                             </h3>
                         </div>
-                        <span class="text-[11px] text-gray-400 font-mono">Structured Address</span>
                     </div>
 
                     <div class="space-y-3.5">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Jalan &amp; Nomor Gedung</label>
-                            <input type="text" 
-                                   x-model="footer.location.address.street" 
+                            <input type="text"
+                                   x-model="footer.location.address.street"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-800 font-medium focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Jl. Kaliurang Km. 8.5 No. 42">
                         </div>
@@ -538,15 +534,15 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Kecamatan (District)</label>
-                                <input type="text" 
-                                       x-model="footer.location.address.district" 
+                                <input type="text"
+                                       x-model="footer.location.address.district"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-800 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="Ngaglik">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Kabupaten / Kota (City)</label>
-                                <input type="text" 
-                                       x-model="footer.location.address.city" 
+                                <input type="text"
+                                       x-model="footer.location.address.city"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-800 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="Sleman">
                             </div>
@@ -555,22 +551,22 @@
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Provinsi (Province)</label>
-                                <input type="text" 
-                                       x-model="footer.location.address.province" 
+                                <input type="text"
+                                       x-model="footer.location.address.province"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-800 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="D.I. Yogyakarta">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Kode Pos</label>
-                                <input type="text" 
-                                       x-model="footer.location.address.postal_code" 
+                                <input type="text"
+                                       x-model="footer.location.address.postal_code"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-800 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="55581">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Kode Negara</label>
-                                <input type="text" 
-                                       x-model="footer.location.address.country_code" 
+                                <input type="text"
+                                       x-model="footer.location.address.country_code"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-800 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="ID">
                             </div>
@@ -586,17 +582,17 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-100">
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Latitude (Decimal)</label>
-                                <input type="number" 
+                                <input type="number"
                                        step="any"
-                                       x-model.number="footer.location.coordinates.latitude" 
+                                       x-model.number="footer.location.coordinates.latitude"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono text-gray-700 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="-7.748906392269989">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Longitude (Decimal)</label>
-                                <input type="number" 
+                                <input type="number"
                                        step="any"
-                                       x-model.number="footer.location.coordinates.longitude" 
+                                       x-model.number="footer.location.coordinates.longitude"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono text-gray-700 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="110.38623737593888">
                             </div>
@@ -608,7 +604,7 @@
 
             <!-- Right Column (6 cols): Jam Operasional & Integrasi Google Maps -->
             <div class="lg:col-span-6 space-y-6">
-                
+
                 <!-- 5. JAM OPERASIONAL TOKO -->
                 <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
                     <div class="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -618,7 +614,6 @@
                                 5. Jam Operasional Outlet
                             </h3>
                         </div>
-                        <span class="text-[11px] text-gray-400 font-mono">Operating Hours</span>
                     </div>
 
                     <div class="space-y-3.5">
@@ -626,8 +621,8 @@
                             <label class="block text-xs font-bold text-gray-700 mb-1">
                                 Teks Ringkasan Display Jam
                             </label>
-                            <input type="text" 
-                                   x-model="footer.location.operational_hours.display" 
+                            <input type="text"
+                                   x-model="footer.location.operational_hours.display"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-medium text-brand-dark focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Senin – Minggu, 07.00 – 19.00 WIB">
                         </div>
@@ -638,19 +633,19 @@
                                 <span class="text-xs font-bold text-gray-700">Jadwal Jam Buka Harian:</span>
                                 <span class="text-[10px] text-gray-400 font-mono" x-text="'Zona: ' + (footer.location.operational_hours.timezone || 'Asia/Jakarta')"></span>
                             </div>
-                            
+
                             <div class="bg-gray-50 p-3 rounded-modern border border-gray-200/70 space-y-2">
                                 <template x-for="(dayObj, dayKey) in footer.location.operational_hours.days" :key="dayKey">
                                     <div class="flex items-center justify-between text-xs py-1 border-b border-gray-200/40 last:border-0">
                                         <span class="font-bold text-gray-600 capitalize w-28" x-text="dayKey"></span>
                                         <div class="flex items-center gap-2">
-                                            <input type="text" 
-                                                   x-model="dayObj.open" 
+                                            <input type="text"
+                                                   x-model="dayObj.open"
                                                    class="w-18 text-center text-xs rounded-modern border border-gray-300 px-1.5 py-1 bg-white font-mono"
                                                    placeholder="07:00">
                                             <span class="text-gray-400 text-xs">-</span>
-                                            <input type="text" 
-                                                   x-model="dayObj.close" 
+                                            <input type="text"
+                                                   x-model="dayObj.close"
                                                    class="w-18 text-center text-xs rounded-modern border border-gray-300 px-1.5 py-1 bg-white font-mono"
                                                    placeholder="19:00">
                                         </div>
@@ -670,22 +665,21 @@
                                 6. Integrasi Google Maps &amp; CTA
                             </h3>
                         </div>
-                        <span class="text-[11px] text-gray-400 font-mono">Map &amp; Actions</span>
                     </div>
 
                     <div class="space-y-3.5">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Teks Tombol CTA</label>
-                                <input type="text" 
-                                       x-model="footer.location.maps.button_text" 
+                                <input type="text"
+                                       x-model="footer.location.maps.button_text"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-medium text-brand-dark focus:ring-1 focus:ring-brand-primary"
                                        placeholder="Petunjuk Lokasi Google Maps">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Link URL Google Maps</label>
-                                <input type="text" 
-                                       x-model="footer.location.maps.link" 
+                                <input type="text"
+                                       x-model="footer.location.maps.link"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono text-[11px] text-gray-600 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="https://maps.google.com/?q=...">
                             </div>
@@ -694,15 +688,15 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Judul Bar Header Peta</label>
-                                <input type="text" 
-                                       x-model="footer.location.maps.map_title" 
+                                <input type="text"
+                                       x-model="footer.location.maps.map_title"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-medium text-brand-dark focus:ring-1 focus:ring-brand-primary"
                                        placeholder="Peta Lokasi Toko & Rute">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1">Tag Lokasi Ringkas</label>
-                                <input type="text" 
-                                       x-model="footer.location.maps.map_location_tag" 
+                                <input type="text"
+                                       x-model="footer.location.maps.map_location_tag"
                                        class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-600 focus:ring-1 focus:ring-brand-primary"
                                        placeholder="Jl. Kaliurang Km. 8.5, Sleman">
                             </div>
@@ -710,8 +704,8 @@
 
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Google Maps Iframe Embed URL</label>
-                            <input type="text" 
-                                   x-model="footer.location.maps.embed" 
+                            <input type="text"
+                                   x-model="footer.location.maps.embed"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-mono text-[11px] text-gray-600 focus:ring-1 focus:ring-brand-primary"
                                    placeholder="https://www.google.com/maps/embed?pb=...">
                         </div>
@@ -728,10 +722,10 @@
     <!-- TAB 3: ACTUAL FOOTER (INFORMASI BRAND, LINK & HAK CIPTA)        -->
     <!-- --------------------------------------------------------------- -->
     <div x-show="activeTab === 'footer'" class="space-y-6">
-        
+
         <!-- ROW 1: BRAND IDENTITAS & MEDIA SOSIAL -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
+
             <!-- Left Column (6 cols): Brand & Hak Cipta -->
             <div class="lg:col-span-6 space-y-6">
                 <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
@@ -742,30 +736,29 @@
                                 1. Identitas Brand &amp; Hak Cipta
                             </h3>
                         </div>
-                        <span class="text-[11px] text-gray-400 font-mono">Brand Identity</span>
                     </div>
 
                     <div class="space-y-3.5">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Nama Brand Footer</label>
-                            <input type="text" 
-                                   x-model="footer.actual_footer.brand_title" 
+                            <input type="text"
+                                   x-model="footer.actual_footer.brand_title"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2.5 bg-white font-extrabold text-brand-dark focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Sumber Protein Jogja">
                         </div>
 
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Deskripsi Singkat Footer</label>
-                            <textarea x-model="footer.actual_footer.brand_desc" 
-                                      rows="3" 
+                            <textarea x-model="footer.actual_footer.brand_desc"
+                                      rows="3"
                                       class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-700 leading-relaxed focus:ring-1 focus:ring-brand-primary"
                                       placeholder="Penyedia bahan makanan mentah, frozen food..."></textarea>
                         </div>
 
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Teks Hak Cipta (Copyright)</label>
-                            <input type="text" 
-                                   x-model="footer.actual_footer.copyright" 
+                            <input type="text"
+                                   x-model="footer.actual_footer.copyright"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-700 font-medium focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Sumber Protein Jogja. Hak Cipta Dilindungi.">
                         </div>
@@ -775,7 +768,7 @@
 
             <!-- Right Column (6 cols): Media Sosial Dinamis & Outlet Footer -->
             <div class="lg:col-span-6 space-y-6">
-                
+
                 <!-- 2. MEDIA SOSIAL DINAMIS DENGAN DETEKSI OTOMATIS -->
                 <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
                     <div class="flex items-center justify-between border-b border-gray-100 pb-3 flex-wrap gap-2">
@@ -785,9 +778,9 @@
                                 2. Tautan Media Sosial Dinamis
                             </h3>
                         </div>
-                        
+
                         <!-- Add Social Media Button -->
-                        <button @click="addSocialLink()" 
+                        <button @click="addSocialLink()"
                                 type="button"
                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-modern text-xs font-bold text-brand-primary bg-brand-soft-green hover:bg-emerald-100 border border-brand-soft-green-border transition-all cursor-pointer shadow-2xs">
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -801,7 +794,7 @@
                     <div class="space-y-3">
                         <template x-for="(soc, idx) in footer.actual_footer.social_links" :key="soc.id || idx">
                             <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-modern border border-gray-200">
-                                
+
                                 <!-- Platform Badge Preview (Automatic from URL) -->
                                 <span class="px-2.5 py-1 rounded text-[11px] font-bold shrink-0 border flex items-center gap-1 min-w-[90px] justify-center transition-all"
                                       :class="getSocialPlatform(soc.url).badgeClass">
@@ -809,15 +802,15 @@
                                 </span>
 
                                 <!-- URL Input -->
-                                <input type="text" 
-                                       x-model="soc.url" 
+                                <input type="text"
+                                       x-model="soc.url"
                                        class="flex-1 text-xs rounded border border-gray-300 px-3 py-1.5 bg-white text-gray-800 font-mono text-[11px] focus:ring-1 focus:ring-brand-primary"
                                        placeholder="https://instagram.com/..., https://tiktok.com/..., https://wa.me/...">
 
                                 <!-- Delete Button -->
-                                <button @click="removeSocialLink(idx)" 
-                                        type="button" 
-                                        class="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors cursor-pointer"
+                                <button @click="removeSocialLink(idx)"
+                                        type="button"
+                                        class="p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded transition-colors cursor-pointer"
                                         title="Hapus media sosial">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -844,35 +837,34 @@
                                 3. Ringkasan Outlet &amp; Jam di Footer
                             </h3>
                         </div>
-                        <span class="text-[11px] text-gray-400 font-mono">Footer Outlet Col</span>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div class="sm:col-span-2">
                             <label class="block text-xs font-bold text-gray-700 mb-1">Judul Kolom Outlet</label>
-                            <input type="text" 
-                                   x-model="footer.actual_footer.outlet_title" 
+                            <input type="text"
+                                   x-model="footer.actual_footer.outlet_title"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-bold text-brand-dark focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Outlet Yogyakarta">
                         </div>
                         <div class="sm:col-span-2">
                             <label class="block text-xs font-bold text-gray-700 mb-1">Alamat Ringkas</label>
-                            <input type="text" 
-                                   x-model="footer.actual_footer.outlet_address" 
+                            <input type="text"
+                                   x-model="footer.actual_footer.outlet_address"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-700 focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Jl. Kaliurang Km. 8.5 No. 42, Sleman...">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Jam Operasional</label>
-                            <input type="text" 
-                                   x-model="footer.actual_footer.outlet_hours" 
+                            <input type="text"
+                                   x-model="footer.actual_footer.outlet_hours"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white text-gray-700 focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Senin – Minggu (07.00 – 19.00 WIB)">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Hotline Pemesanan</label>
-                            <input type="text" 
-                                   x-model="footer.actual_footer.outlet_phone" 
+                            <input type="text"
+                                   x-model="footer.actual_footer.outlet_phone"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-semibold text-emerald-700 focus:ring-1 focus:ring-brand-primary"
                                    placeholder="+62 812-3456-7890">
                         </div>
@@ -885,7 +877,7 @@
 
         <!-- ROW 2: KOLOM NAVIGASI & KATEGORI PANGAN (2 Columns) -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
+
             <!-- Left Column (6 cols): Navigasi Cepat List -->
             <div class="lg:col-span-6 space-y-6">
                 <div class="bg-white rounded-modern-xl border border-gray-200/80 p-5 sm:p-7 shadow-2xs space-y-4">
@@ -896,14 +888,13 @@
                                 4. Menu Navigasi Cepat
                             </h3>
                         </div>
-                        <span class="text-[11px] text-gray-400 font-mono">Quick Links</span>
                     </div>
 
                     <div class="space-y-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Judul Kolom</label>
-                            <input type="text" 
-                                   x-model="footer.actual_footer.nav_title" 
+                            <input type="text"
+                                   x-model="footer.actual_footer.nav_title"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-bold text-brand-dark focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Navigasi Cepat">
                         </div>
@@ -912,12 +903,12 @@
                             <label class="block text-[11px] font-bold text-gray-600">Daftar Link Navigasi</label>
                             <template x-for="(nav, idx) in footer.actual_footer.nav_links" :key="idx">
                                 <div class="flex items-center gap-2">
-                                    <input type="text" 
-                                           x-model="nav.title" 
+                                    <input type="text"
+                                           x-model="nav.title"
                                            class="w-1/2 text-xs rounded border border-gray-300 px-2.5 py-1.5 bg-white text-gray-800 font-medium focus:ring-1 focus:ring-brand-primary"
                                            placeholder="Label Menu">
-                                    <input type="text" 
-                                           x-model="nav.url" 
+                                    <input type="text"
+                                           x-model="nav.url"
                                            class="w-1/2 text-xs rounded border border-gray-300 px-2.5 py-1.5 bg-white font-mono text-[11px] text-gray-600 focus:ring-1 focus:ring-brand-primary"
                                            placeholder="#anchor">
                                 </div>
@@ -937,14 +928,13 @@
                                 5. Menu Kategori Pangan
                             </h3>
                         </div>
-                        <span class="text-[11px] text-gray-400 font-mono">Category Links</span>
                     </div>
 
                     <div class="space-y-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 mb-1">Judul Kolom</label>
-                            <input type="text" 
-                                   x-model="footer.actual_footer.category_title" 
+                            <input type="text"
+                                   x-model="footer.actual_footer.category_title"
                                    class="w-full text-xs rounded-modern border border-gray-300 px-3 py-2 bg-white font-bold text-brand-dark focus:ring-1 focus:ring-brand-primary"
                                    placeholder="Kategori Pangan">
                         </div>
@@ -953,12 +943,12 @@
                             <label class="block text-[11px] font-bold text-gray-600">Daftar Kategori Pangan</label>
                             <template x-for="(cat, idx) in footer.actual_footer.category_links" :key="idx">
                                 <div class="flex items-center gap-2">
-                                    <input type="text" 
-                                           x-model="cat.title" 
+                                    <input type="text"
+                                           x-model="cat.title"
                                            class="w-1/2 text-xs rounded border border-gray-300 px-2.5 py-1.5 bg-white text-gray-800 font-medium focus:ring-1 focus:ring-brand-primary"
                                            placeholder="Nama Kategori">
-                                    <input type="text" 
-                                           x-model="cat.url" 
+                                    <input type="text"
+                                           x-model="cat.url"
                                            class="w-1/2 text-xs rounded border border-gray-300 px-2.5 py-1.5 bg-white font-mono text-[11px] text-gray-600 focus:ring-1 focus:ring-brand-primary"
                                            placeholder="#anchor">
                                 </div>
@@ -976,7 +966,7 @@
     <!-- 4. PREVIEW SECTION (FULL WIDTH AT THE BOTTOM)                   -->
     <!-- =============================================================== -->
     <div class="bg-white rounded-modern-xl border border-gray-200/80 p-6 sm:p-8 shadow-2xs space-y-5">
-        
+
         <!-- Header Preview Bar & Device Switcher -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
             <div class="space-y-1">
@@ -998,8 +988,8 @@
 
             <!-- Responsive Device Switcher (Pure Reactive Alpine Binding) -->
             <div class="flex items-center bg-gray-100 p-1 rounded-modern border border-gray-200 text-xs shrink-0 self-start sm:self-auto">
-                <button @click="previewDevice = 'desktop'" 
-                        type="button" 
+                <button @click="previewDevice = 'desktop'"
+                        type="button"
                         :class="previewDevice === 'desktop' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
                     <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1007,8 +997,8 @@
                     </svg>
                     <span>Desktop</span>
                 </button>
-                <button @click="previewDevice = 'tablet'" 
-                        type="button" 
+                <button @click="previewDevice = 'tablet'"
+                        type="button"
                         :class="previewDevice === 'tablet' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
                     <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1016,8 +1006,8 @@
                     </svg>
                     <span>Tablet</span>
                 </button>
-                <button @click="previewDevice = 'mobile'" 
-                        type="button" 
+                <button @click="previewDevice = 'mobile'"
+                        type="button"
                         :class="previewDevice === 'mobile' ? 'bg-white font-bold text-brand-dark shadow-2xs' : 'text-gray-500 hover:text-brand-dark'"
                         class="px-3 py-1.5 rounded transition-all cursor-pointer flex items-center gap-1.5 text-xs">
                     <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1031,7 +1021,7 @@
         <!-- Preview Frame Container (STABLE FIXED HEIGHT - NO JUMPING ACROSS DEVICES) -->
         <div x-ref="previewBoxWrapper"
              class="bg-gray-950 rounded-modern-xl p-3 sm:p-6 flex justify-center items-center overflow-hidden border border-gray-800 shadow-inner h-[560px] sm:h-[600px] relative">
-            
+
             <!-- =================================================== -->
             <!-- A. DESKTOP VIEWPORT PREVIEW (Laptop 14" 1366x768)  -->
             <!-- =================================================== -->
@@ -1041,7 +1031,7 @@
                      width: currentFrameWidth + 'px',
                      height: currentFrameHeight + 'px'
                  }">
-                
+
                 <!-- Scaled Laptop 14" Screen Shell (1366px × 768px Virtual Viewport) -->
                 <div class="laptop-desktop-viewport absolute top-0 left-0 bg-white overflow-y-auto overflow-x-hidden text-left"
                      :style="{
@@ -1051,12 +1041,12 @@
                          transform: 'scale(' + currentScale + ')'
                      }"
                      style="scroll-behavior: smooth;">
-                    
+
                     <!-- Desktop Viewport: Tab 1 (Ulasan Pelanggan) - Exact LP Representation -->
                     <div x-show="activeTab === 'reviews'" class="w-[1366px] min-h-[768px] h-auto bg-white">
                         <section class="py-16 px-12 bg-white w-full min-h-[768px] text-left flex flex-col justify-center">
                             <div class="max-w-7xl mx-auto w-full">
-                                
+
                                 <!-- Section Header (LP Exact) -->
                                 <div class="flex items-end justify-between mb-10 gap-6">
                                     <div>
@@ -1155,7 +1145,7 @@
                     <div x-show="activeTab === 'location'" class="w-[1366px] min-h-[768px] h-auto bg-brand-cream/80">
                         <section class="py-16 px-12 bg-brand-cream/80 border-t border-gray-200/60 relative w-full min-h-[768px] flex flex-col justify-center">
                             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-                                
+
                                 <!-- Section Header (LP Exact) -->
                                 <div class="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-soft-green text-brand-primary mb-3"
@@ -1168,7 +1158,7 @@
 
                                 <!-- 2-Column Grid: Left Store Info, Right Google Maps (LP Exact) -->
                                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-                                    
+
                                     <!-- Left Column: Store Information (5 cols) -->
                                     <div class="lg:col-span-5 bg-white p-6 sm:p-8 rounded-modern-lg border border-gray-100 shadow-sm flex flex-col justify-between">
                                         <div class="space-y-6">
@@ -1230,8 +1220,8 @@
 
                                         <!-- Action CTA -->
                                         <div class="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
-                                            <a :href="footer.location.maps.link" 
-                                               target="_blank" 
+                                            <a :href="footer.location.maps.link"
+                                               target="_blank"
                                                rel="noopener noreferrer"
                                                class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-modern text-xs sm:text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow-md transition-all">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1255,12 +1245,12 @@
 
                                         <!-- Google Maps iframe -->
                                         <div class="w-full flex-1 relative bg-gray-100 min-h-[340px]">
-                                            <iframe 
+                                            <iframe
                                                 title="Google Maps Lokasi Sumber Protein Jogja"
-                                                :src="footer.location.maps.embed" 
-                                                class="absolute inset-0 w-full h-full border-0" 
-                                                allowfullscreen="" 
-                                                loading="lazy" 
+                                                :src="footer.location.maps.embed"
+                                                class="absolute inset-0 w-full h-full border-0"
+                                                allowfullscreen=""
+                                                loading="lazy"
                                                 referrerpolicy="no-referrer-when-downgrade">
                                             </iframe>
                                         </div>
@@ -1276,10 +1266,10 @@
                     <div x-show="activeTab === 'footer'" class="w-[1366px] min-h-[768px] h-auto bg-brand-dark text-white">
                         <footer class="bg-brand-dark text-white pt-16 pb-12 border-t border-brand-dark-soft w-full min-h-[768px] flex flex-col justify-end">
                             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-12">
-                                
+
                                 <!-- Top Footer Grid (5 cols LP Exact) -->
                                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8 pb-12 border-b border-white/10">
-                                    
+
                                     <!-- Col 1: Brand Info (2 cols wide) -->
                                     <div class="lg:col-span-2 space-y-4">
                                         <div class="flex items-center gap-3">
@@ -1293,20 +1283,20 @@
                                             </div>
                                             <span class="text-xl font-extrabold tracking-tight text-white" x-text="footer.actual_footer.brand_title"></span>
                                         </div>
-                                        
+
                                         <p class="text-xs sm:text-sm text-gray-300 font-normal leading-relaxed max-w-sm"
                                            x-text="footer.actual_footer.brand_desc"></p>
 
                                         <!-- Dynamic Social Icons based on URL -->
                                         <div class="flex items-center gap-3 pt-2 flex-wrap">
                                             <template x-for="soc in footer.actual_footer.social_links" :key="soc.id">
-                                                <a :href="soc.url || '#'" 
-                                                   target="_blank" 
-                                                   rel="noopener noreferrer" 
+                                                <a :href="soc.url || '#'"
+                                                   target="_blank"
+                                                   rel="noopener noreferrer"
                                                    class="w-9 h-9 rounded-full bg-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all duration-200"
                                                    :class="getSocialPlatform(soc.url).hoverClass"
                                                    :title="getSocialPlatform(soc.url).name">
-                                                    
+
                                                     <!-- Instagram SVG -->
                                                     <template x-if="getSocialPlatform(soc.url).key === 'instagram'">
                                                         <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
@@ -1419,7 +1409,7 @@
                      width: currentFrameWidth + 'px',
                      height: currentFrameHeight + 'px'
                  }">
-                
+
                 <!-- Scaled Tablet Screen Shell (1024px × 768px Virtual Viewport) -->
                 <div class="tablet-viewport absolute top-0 left-0 bg-white overflow-y-auto overflow-x-hidden text-left"
                      :style="{
@@ -1429,12 +1419,12 @@
                          transform: 'scale(' + currentScale + ')'
                      }"
                      style="scroll-behavior: smooth;">
-                    
+
                     <!-- Tablet Viewport: Tab 1 (Ulasan Pelanggan) -->
                     <div x-show="activeTab === 'reviews'" class="w-[1024px] min-h-[768px] h-auto bg-white">
                         <section class="py-14 px-8 bg-white w-full min-h-[768px] text-left flex flex-col justify-center">
                             <div class="max-w-4xl mx-auto w-full">
-                                
+
                                 <div class="flex items-end justify-between mb-8 gap-4">
                                     <div>
                                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-soft-green text-brand-primary mb-2"
@@ -1564,17 +1554,17 @@
                                             <span class="text-base font-extrabold text-white" x-text="footer.actual_footer.brand_title"></span>
                                         </div>
                                         <p class="text-xs text-gray-300 max-w-sm" x-text="footer.actual_footer.brand_desc"></p>
-                                        
+
                                         <!-- Social Icons Tablet -->
                                         <div class="flex items-center gap-2.5 pt-2 flex-wrap">
                                             <template x-for="soc in footer.actual_footer.social_links" :key="soc.id">
-                                                <a :href="soc.url || '#'" 
-                                                   target="_blank" 
-                                                   rel="noopener noreferrer" 
+                                                <a :href="soc.url || '#'"
+                                                   target="_blank"
+                                                   rel="noopener noreferrer"
                                                    class="w-8 h-8 rounded-full bg-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all duration-200"
                                                    :class="getSocialPlatform(soc.url).hoverClass"
                                                    :title="getSocialPlatform(soc.url).name">
-                                                    
+
                                                     <!-- Instagram SVG -->
                                                     <template x-if="getSocialPlatform(soc.url).key === 'instagram'">
                                                         <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
@@ -1662,7 +1652,7 @@
                      width: currentFrameWidth + 'px',
                      height: currentFrameHeight + 'px'
                  }">
-                
+
                 <!-- Mobile Outer Scaled Shell (393px × 852px scaled) -->
                 <div class="absolute top-0 left-0 rounded-[44px] border-[4px] border-slate-700 bg-slate-950 shadow-2xl overflow-hidden flex flex-col"
                      :style="{
@@ -1671,7 +1661,7 @@
                          transformOrigin: '0 0',
                          transform: 'scale(' + currentScale + ')'
                      }">
-                    
+
                     <!-- Dynamic Island Overlay (Top Center) -->
                     <div class="absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-30 pointer-events-none shadow-md flex items-center justify-between px-2.5">
                         <span class="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800"></span>
@@ -1684,7 +1674,7 @@
 
                         <!-- Mobile Viewport: Tab 1 (Ulasan Pelanggan) - Exact LP Representation -->
                         <div x-show="activeTab === 'reviews'" class="bg-white min-h-full py-10 px-4 space-y-6">
-                            
+
                             <!-- Mobile Section Header -->
                             <div class="text-center max-w-xs mx-auto pt-2">
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-soft-green text-brand-primary mb-2.5 shadow-2xs"
@@ -1762,7 +1752,7 @@
 
                         <!-- Mobile Viewport: Tab 2 (Kunjungi Outlet) - EXACT 100% LP REPLICA -->
                         <div x-show="activeTab === 'location'" class="bg-brand-cream/80 min-h-full py-10 px-4 space-y-6">
-                            
+
                             <!-- Header (Mobile LP Exact) -->
                             <div class="text-center max-w-xs mx-auto pt-2">
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-soft-green text-brand-primary mb-2.5 shadow-2xs"
@@ -1839,7 +1829,7 @@
 
                         <!-- Mobile Viewport: Tab 3 (Footer Actual) - EXACT 100% LP REPLICA -->
                         <div x-show="activeTab === 'footer'" class="bg-brand-dark min-h-full py-10 px-4 space-y-6 text-white">
-                            
+
                             <!-- Brand & Intro -->
                             <div class="space-y-4">
                                 <div class="flex items-center gap-2.5">
@@ -1849,17 +1839,17 @@
                                     <span class="text-base font-extrabold text-white" x-text="footer.actual_footer.brand_title"></span>
                                 </div>
                                 <p class="text-xs text-gray-300 leading-relaxed" x-text="footer.actual_footer.brand_desc"></p>
-                                
+
                                 <!-- Dynamic Social Icons Mobile -->
                                 <div class="flex items-center gap-2.5 pt-1 flex-wrap">
                                     <template x-for="soc in footer.actual_footer.social_links" :key="soc.id">
-                                        <a :href="soc.url || '#'" 
-                                           target="_blank" 
-                                           rel="noopener noreferrer" 
+                                        <a :href="soc.url || '#'"
+                                           target="_blank"
+                                           rel="noopener noreferrer"
                                            class="w-8 h-8 rounded-full bg-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-all duration-200"
                                            :class="getSocialPlatform(soc.url).hoverClass"
                                            :title="getSocialPlatform(soc.url).name">
-                                            
+
                                             <!-- Instagram SVG -->
                                             <template x-if="getSocialPlatform(soc.url).key === 'instagram'">
                                                 <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
@@ -1980,15 +1970,15 @@
     <!-- ======================================================= -->
     <!-- REVIEW CREATE / EDIT MODAL                              -->
     <!-- ======================================================= -->
-    <div x-show="reviewModalOpen" 
+    <div x-show="reviewModalOpen"
          x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         role="dialog" 
+         role="dialog"
          aria-modal="true">
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs" @click="reviewModalOpen = false"></div>
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="relative bg-white rounded-modern-xl max-w-md w-full p-6 shadow-xl border border-gray-200 space-y-4">
-                
+
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3">
                     <div class="flex items-center gap-2">
                         <span class="text-base">⭐</span>
@@ -2067,7 +2057,7 @@
     </div>
 
     <!-- Toast Notification -->
-    <div x-show="toastVisible" 
+    <div x-show="toastVisible"
          x-cloak
          x-transition
          class="fixed bottom-6 right-6 z-50 bg-brand-dark text-white px-4 py-3 rounded-modern-lg shadow-xl border border-white/10 flex items-center gap-2.5 text-xs font-semibold">

@@ -17,8 +17,8 @@ return [
         'tagline' => 'Penyedia Bahan Segar & Frozen Food Terpercaya di Jogja',
         'description' => 'Penyedia bahan makanan mentah, frozen food, dan olahan ready-to-cook berkualitas di Yogyakarta. Melayani kebutuhan konsumsi harian keluarga dan suplai horeka/curah.',
         'tab_title_pattern' => '{page_title} — Sumber Protein Jogja',
-        'logo_url' => 'images/hero-1.jpg',
-        'favicon_url' => 'images/hero-1.jpg',
+        'logo_url' => 'storage/media/hero-1.jpg',
+        'favicon_url' => 'storage/media/hero-1.jpg',
     ],
 
     /*
@@ -174,7 +174,7 @@ return [
         'email' => 'admin@sumberproteinjogja.com',
         'phone' => '0812-3456-7890',
         'avatar_text' => 'SP',
-        'avatar_image' => 'images/hero-1.jpg',
+        'avatar_image' => 'storage/media/hero-1.jpg',
     ],
 
 ];
