@@ -82,14 +82,33 @@ class LandingController
                             $cleanNum = preg_replace('/[^0-9]/', '', $c['value'] ?? '');
                             return $cleanNum ? "https://wa.me/{$cleanNum}" : $fallback;
                         } elseif (($c['type'] ?? '') === 'email') {
-                            return "mailto:" . ($c['value'] ?? '');
+                            $cleanEmail = filter_var($c['value'] ?? '', FILTER_VALIDATE_EMAIL);
+                            return $cleanEmail ? "mailto:{$cleanEmail}" : $fallback;
                         } elseif (($c['type'] ?? '') === 'phone') {
-                            return "tel:" . preg_replace('/[^0-9+]/', '', $c['value'] ?? '');
+                            $cleanPhone = preg_replace('/[^0-9+]/', '', $c['value'] ?? '');
+                            return $cleanPhone ? "tel:{$cleanPhone}" : $fallback;
                         }
                     }
                 }
             }
-            return $ref;
+
+            // Defense in depth: sanitize non-registry URLs before returning
+            $cleanRef = trim((string) $ref);
+            if (preg_match('/^(javascript|vbscript|data|file|blob|about):/i', $cleanRef)) {
+                return $fallback;
+            }
+            if (str_starts_with($cleanRef, '//')) {
+                return $fallback;
+            }
+            if (str_starts_with($cleanRef, '#') || str_starts_with($cleanRef, '/')) {
+                return $cleanRef;
+            }
+            $scheme = strtolower((string) parse_url($cleanRef, PHP_URL_SCHEME));
+            if (in_array($scheme, ['http', 'https'], true) && filter_var($cleanRef, FILTER_VALIDATE_URL)) {
+                return $cleanRef;
+            }
+
+            return $fallback;
         };
 
         // Resolve location Customer Care contact from Contact Registry
@@ -161,13 +180,25 @@ class LandingController
                 'images/hero-2.jpg',
                 'images/hero-3.jpg',
             ],
-            'trust_items' => is_array($heroTrustItems) ? array_map(function ($item) {
-                return [
-                    'id' => $item['id'] ?? 1,
-                    'text' => $item['text'] ?? '',
-                    'active' => $item['is_active'] ?? ($item['active'] ?? true),
+            'trust_items' => call_user_func(function() use ($heroTrustItems) {
+                $defaultTrust = [
+                    ['id' => 1, 'text' => '100% Halal & Higienis', 'is_active' => true, 'sort_order' => 1],
+                    ['id' => 2, 'text' => 'Standar Rantai Dingin (Cold Chain)', 'is_active' => true, 'sort_order' => 2],
+                    ['id' => 3, 'text' => 'Pengiriman Cepat Se-Jogja', 'is_active' => true, 'sort_order' => 3],
                 ];
-            }, $heroTrustItems) : [],
+                $raw = is_array($heroTrustItems) ? $heroTrustItems : [];
+                $res = [];
+                for ($i = 0; $i < 3; $i++) {
+                    $item = $raw[$i] ?? $defaultTrust[$i];
+                    $res[] = [
+                        'id' => $item['id'] ?? ($i + 1),
+                        'text' => $item['text'] ?? ($defaultTrust[$i]['text'] ?? ''),
+                        'active' => isset($item['active']) ? (bool) $item['active'] : (isset($item['is_active']) ? (bool) $item['is_active'] : true),
+                        'is_active' => isset($item['is_active']) ? (bool) $item['is_active'] : (isset($item['active']) ? (bool) $item['active'] : true),
+                    ];
+                }
+                return $res;
+            }),
             'partners' => $heroPartners,
         ];
 

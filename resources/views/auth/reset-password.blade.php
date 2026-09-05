@@ -108,21 +108,6 @@
                 <!-- Hidden Reset Token -->
                 <input type="hidden" name="token" value="{{ $token }}">
 
-                <!-- Email Input -->
-                <div>
-                    <label for="email" class="block text-xs font-semibold text-gray-700 mb-1.5">
-                        Email Administrator
-                    </label>
-                    <input id="email" 
-                           name="email" 
-                           type="email" 
-                           autocomplete="email" 
-                           required 
-                           value="{{ old('email', $email ?? '') }}" 
-                           placeholder="nama@sumberproteinjogja.com"
-                           class="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all">
-                </div>
-
                 <!-- Password Input with Eye Visibility Toggle -->
                 <div>
                     <label for="password" class="block text-xs font-semibold text-gray-700 mb-1.5">

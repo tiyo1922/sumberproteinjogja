@@ -15,7 +15,9 @@ Route::middleware([\App\Http\Middleware\TrackVisitorTraffic::class])->group(func
 });
 
 // Public Traffic Event Tracking (WhatsApp CTA & Conversion Actions)
-Route::post('/api/track-event', [\App\Http\Controllers\TrafficEventController::class, 'track'])->name('api.traffic.event');
+Route::post('/api/track-event', [\App\Http\Controllers\TrafficEventController::class, 'track'])
+    ->middleware('throttle:30,1')
+    ->name('api.traffic.event');
 
 // SEO Technical Foundation - Robots.txt & Sitemap.xml
 Route::get('/robots.txt', function () {
@@ -154,7 +156,3 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/media/upload', [AdminController::class, 'mediaUpload'])->name('media.upload');
     Route::post('/media/delete', [AdminController::class, 'mediaDestroy'])->name('media.delete');
 });
-
-// Temporary Preview Routes for Error Pages (Local UI Testing)
-Route::get('/preview-403', fn () => abort(403));
-Route::get('/preview-404', fn () => abort(404));

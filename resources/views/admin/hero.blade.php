@@ -29,8 +29,38 @@ window.adminHeroManager = function(initialPayload) {
             }
         });
     }
+
+    const defaultTrust = [
+        { id: 1, text: '100% Halal & Higienis', active: true, is_active: true, sort_order: 1 },
+        { id: 2, text: 'Standar Rantai Dingin (Cold Chain)', active: true, is_active: true, sort_order: 2 },
+        { id: 3, text: 'Pengiriman Cepat Se-Jogja', active: true, is_active: true, sort_order: 3 }
+    ];
+
+    function normalizeTrustList(items) {
+        const rawList = Array.isArray(items) ? items : [];
+        const result = [];
+        for (let i = 0; i < 3; i++) {
+            const raw = rawList[i] || {};
+            const def = defaultTrust[i];
+            const isActive = (raw.active !== undefined) ? Boolean(raw.active) : ((raw.is_active !== undefined) ? Boolean(raw.is_active) : true);
+            result.push({
+                id: Number(raw.id) || def.id,
+                text: (typeof raw.text === 'string' && raw.text.trim() !== '') ? raw.text : (raw.text !== undefined && raw.text !== null && String(raw.text).trim() !== '' ? String(raw.text) : def.text),
+                active: isActive,
+                is_active: isActive,
+                sort_order: Number(raw.sort_order) || def.sort_order
+            });
+        }
+        return result;
+    }
+
+    const normalizedDrafts = (payload.drafts || []).map(d => {
+        d.trust_items = normalizeTrustList(d.trust_items);
+        return d;
+    });
+
     return {
-        drafts: payload.drafts || [],
+        drafts: normalizedDrafts,
         mediaLibrary: payload.mediaLibrary || [],
         partnerMediaLibrary: payload.partnerMediaLibrary || [],
         heroPartners: heroPartners,
@@ -39,6 +69,10 @@ window.adminHeroManager = function(initialPayload) {
         updateRoute: payload.updateRoute || '',
         partnerUploadRoute: payload.partnerUploadRoute || '',
         partnerDeleteRoute: payload.partnerDeleteRoute || '',
+
+        normalizeTrustItems(items) {
+            return normalizeTrustList(items);
+        },
 
         normalizePartnerActive(val) {
             if (val === undefined || val === null) return true;
@@ -277,9 +311,9 @@ window.adminHeroManager = function(initialPayload) {
             secondary_cta_contact: '',
             images: ['storage/media/hero_meat_poultry_1786889302143.jpg', 'storage/media/hero_seafood_fish_1786889522926.jpg', 'storage/media/hero_ready_cook_1786889537358.jpg', 'storage/media/cat_daging_1786889601901.jpg'],
             trust_items: [
-                { id: 1, text: '100% Halal', active: true },
-                { id: 2, text: 'Cold Chain', active: true },
-                { id: 3, text: 'Kirim Se-Jogja', active: true }
+                { id: 1, text: '100% Halal & Higienis', active: true, is_active: true, sort_order: 1 },
+                { id: 2, text: 'Standar Rantai Dingin (Cold Chain)', active: true, is_active: true, sort_order: 2 },
+                { id: 3, text: 'Pengiriman Cepat Se-Jogja', active: true, is_active: true, sort_order: 3 }
             ],
             status: 'Nonaktif',
             updated_at: 'Baru saja'
@@ -318,9 +352,9 @@ window.adminHeroManager = function(initialPayload) {
                 secondary_cta_contact: '',
                 images: ['storage/media/hero_meat_poultry_1786889302143.jpg', 'storage/media/hero_seafood_fish_1786889522926.jpg'],
                 trust_items: [
-                    { id: 1, text: '100% Halal', active: true },
-                    { id: 2, text: 'Cold Chain', active: true },
-                    { id: 3, text: 'Kirim Se-Jogja', active: true }
+                    { id: 1, text: '100% Halal & Higienis', active: true, is_active: true, sort_order: 1 },
+                    { id: 2, text: 'Standar Rantai Dingin (Cold Chain)', active: true, is_active: true, sort_order: 2 },
+                    { id: 3, text: 'Pengiriman Cepat Se-Jogja', active: true, is_active: true, sort_order: 3 }
                 ],
                 status: 'Nonaktif',
                 updated_at: 'Baru saja'
@@ -347,14 +381,8 @@ window.adminHeroManager = function(initialPayload) {
             if (!this.draftForm.secondary_cta_contact) {
                 this.draftForm.secondary_cta_contact = '';
             }
-            // Ensure trust_items has 3 items
-            if (!this.draftForm.trust_items || this.draftForm.trust_items.length === 0) {
-                this.draftForm.trust_items = [
-                    { id: 1, text: '100% Halal', active: true },
-                    { id: 2, text: 'Cold Chain', active: true },
-                    { id: 3, text: 'Kirim Se-Jogja', active: true }
-                ];
-            }
+            // Ensure trust_items has exactly 3 items
+            this.draftForm.trust_items = this.normalizeTrustItems(this.draftForm.trust_items);
             this.editorModalOpen = true;
             this.startAutoplay();
             this.initPreviewObserver();
@@ -422,19 +450,21 @@ window.adminHeroManager = function(initialPayload) {
                     secondary_cta_link: d.secondary_cta_link || '#kategori',
                     secondary_cta_contact: d.secondary_cta_contact || '',
                     images: Array.isArray(d.images) ? d.images : [],
-                    trust_items: (d.trust_items || []).map((t, idx) => ({
+                    trust_items: this.normalizeTrustItems(d.trust_items).map((t, idx) => ({
                         id: t.id || (idx + 1),
                         text: t.text || '',
-                        active: t.active !== false && t.is_active !== false,
-                        sort_order: t.sort_order || (idx + 1),
+                        active: Boolean(t.active),
+                        is_active: Boolean(t.active),
+                        sort_order: idx + 1,
                     })),
                     updated_at: d.updated_at || 'Baru saja',
                 }));
 
-                const trustItemsPayload = (activeDraft.trust_items || []).map((t, idx) => ({
+                const trustItemsPayload = this.normalizeTrustItems(activeDraft.trust_items).map((t, idx) => ({
                     id: t.id || (idx + 1),
                     text: t.text || '',
-                    is_active: t.active !== false && t.is_active !== false,
+                    is_active: Boolean(t.active),
+                    active: Boolean(t.active),
                     sort_order: idx + 1,
                 }));
 
@@ -459,7 +489,10 @@ window.adminHeroManager = function(initialPayload) {
                     return;
                 }
                 if (result.hero_drafts && Array.isArray(result.hero_drafts) && result.hero_drafts.length > 0) {
-                    this.drafts = result.hero_drafts;
+                    this.drafts = result.hero_drafts.map(d => {
+                        d.trust_items = this.normalizeTrustItems(d.trust_items);
+                        return d;
+                    });
                 }
                 if (result.hero_partners && Array.isArray(result.hero_partners.partners)) {
                     result.hero_partners.partners.forEach(p => {
@@ -858,7 +891,7 @@ window.adminHeroManager = function(initialPayload) {
         },
 
         removeImage(imgIndex) {
-            if (this.draftForm.images.length <= 1) {
+            if (!this.draftForm.images || this.draftForm.images.length <= 1) {
                 alert('Minimal harus tersisa 1 gambar latar untuk Hero.');
                 return;
             }
@@ -868,6 +901,10 @@ window.adminHeroManager = function(initialPayload) {
             }
             this.startAutoplay();
             this.showToast('Gambar dihapus dari slideshow.');
+        },
+
+        removeImageFromDraft(imgIndex) {
+            this.removeImage(imgIndex);
         },
 
         moveImageUp(imgIndex) {
@@ -1064,7 +1101,7 @@ window.adminHeroManager = function(initialPayload) {
                     <div class="pt-1 flex items-center gap-2 flex-wrap text-[11px] font-semibold text-gray-600">
                         <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Trust:</span>
                         <template x-for="(item, tIdx) in (draft.trust_items || [])" :key="tIdx">
-                            <span x-show="item.active"
+                            <span x-show="item.active !== false && item.is_active !== false"
                                   class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <span>✓</span>
                                 <span x-text="item.text"></span>
@@ -1486,7 +1523,7 @@ window.adminHeroManager = function(initialPayload) {
                                                         class="p-1 text-gray-500 hover:text-brand-dark disabled:opacity-20 cursor-pointer">
                                                     ↓
                                                 </button>
-                                                <button @click="removeImageFromDraft(imgIdx)"
+                                                <button @click="removeImage(imgIdx)"
                                                         :disabled="draftForm.images.length <= 1"
                                                         type="button"
                                                         title="Hapus foto"

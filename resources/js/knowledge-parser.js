@@ -494,7 +494,34 @@ export function renderBlocksToHtml(canonical) {
 }
 
 /**
- * Render structured segments to safe HTML.
+ * Strictly validate and sanitize URL schemes against an allowlist (http, https, mailto, tel).
+ * Rejects dangerous/active-content schemes (javascript, vbscript, data, file, blob, etc.)
+ * and returns null if the scheme is not allowed or the URL is malformed.
+ * @param {string|null} url
+ * @returns {string|null}
+ */
+export function sanitizeLink(url) {
+    if (typeof url !== 'string') return null;
+    let clean = url.trim().replace(/[\x00-\x1F\x7F]/g, '').trim();
+    if (!clean) return null;
+
+    if (/^\s*(?:javascript|vbscript|data|file|blob)\s*:/i.test(clean)) {
+        return null;
+    }
+
+    const match = clean.match(/^([a-zA-Z0-9+.-]+):/i);
+    if (match) {
+        const scheme = match[1].toLowerCase();
+        if (!['http', 'https', 'mailto', 'tel'].includes(scheme)) {
+            return null;
+        }
+    }
+
+    return clean;
+}
+
+/**
+ * Render structured segments array to safe HTML (Single Source of Truth).
  * @param {Array<{ text: string, bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean, fontSize?: number, link?: string }>} segments
  * @returns {string}
  */
@@ -513,8 +540,11 @@ export function renderSegmentsToHtml(segments) {
             text = `<span style="font-size: ${seg.fontSize}px">${text}</span>`;
         }
         if (seg.link) {
-            const href = escapeHtml(seg.link);
-            text = `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-brand-primary underline hover:text-brand-primary-dark">${text}</a>`;
+            const cleanLink = sanitizeLink(seg.link);
+            if (cleanLink) {
+                const href = escapeHtml(cleanLink);
+                text = `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-brand-primary underline hover:text-brand-primary-dark">${text}</a>`;
+            }
         }
         return text;
     }).join('');
@@ -580,7 +610,15 @@ function domNodeToSegments(node, currentFormat = {}) {
             else if (['s', 'strike', 'del'].includes(tag) || (el.style && el.style.textDecoration && el.style.textDecoration.includes('line-through'))) {
                 format.strikethrough = true;
             }
-            else if (tag === 'a') format.link = el.getAttribute('href') || '#';
+            else if (tag === 'a') {
+                const rawHref = el.getAttribute('href') || '';
+                const sanitized = sanitizeLink(rawHref);
+                if (sanitized) {
+                    format.link = sanitized;
+                } else {
+                    delete format.link;
+                }
+            }
 
             if (el.style && el.style.fontSize) {
                 const match = el.style.fontSize.match(/(\d+)/);
@@ -619,7 +657,8 @@ export function mergeConsecutiveSegments(segments) {
         const underline = !!seg.underline;
         const strikethrough = !!seg.strikethrough;
         const fontSize = seg.fontSize ? parseInt(seg.fontSize, 10) : null;
-        const link = seg.link || null;
+        const rawLink = seg.link || null;
+        const link = sanitizeLink(rawLink);
 
         if (!current) {
             current = { text, bold, italic, underline, strikethrough, fontSize, link };
@@ -878,6 +917,7 @@ if (typeof window !== 'undefined') {
         renderBlocksToHtml,
         renderSegmentsToHtml,
         segmentsToPlainText,
-        mergeConsecutiveSegments
+        mergeConsecutiveSegments,
+        sanitizeLink
     };
 }

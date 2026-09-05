@@ -539,6 +539,54 @@ class KnowledgeArticleParser
     }
 
     /**
+     * Strictly validate and sanitize URL schemes against an allowlist (http, https, mailto, tel).
+     * Rejects dangerous/active-content schemes (javascript, vbscript, data, file, blob, etc.)
+     * and returns null if the scheme is not allowed or the URL is malformed.
+     */
+    public static function sanitizeLink(?string $url): ?string
+    {
+        if ($url === null) {
+            return null;
+        }
+
+        $cleanUrl = trim($url);
+        if ($cleanUrl === '') {
+            return null;
+        }
+
+        // Strip non-printable ASCII control characters (0x00-0x1F, 0x7F) and line breaks
+        $cleanUrl = preg_replace('/[\x00-\x1F\x7F]/u', '', $cleanUrl);
+        $cleanUrl = trim($cleanUrl);
+        if ($cleanUrl === '') {
+            return null;
+        }
+
+        // Reject explicit dangerous schemes before decoding/parsing
+        if (preg_match('/^\s*(?:javascript|vbscript|data|file|blob)\s*:/i', $cleanUrl)) {
+            return null;
+        }
+
+        // Scheme validation via parse_url
+        $parsedScheme = parse_url($cleanUrl, PHP_URL_SCHEME);
+        if ($parsedScheme !== null && $parsedScheme !== false) {
+            $scheme = strtolower($parsedScheme);
+            if (!in_array($scheme, ['http', 'https', 'mailto', 'tel'], true)) {
+                return null;
+            }
+        }
+
+        // Regex validation to catch custom schemes and edge cases (e.g. "customscheme://...", "java\0script:...")
+        if (preg_match('/^([a-zA-Z0-9+.-]+):/i', $cleanUrl, $matches)) {
+            $scheme = strtolower($matches[1]);
+            if (!in_array($scheme, ['http', 'https', 'mailto', 'tel'], true)) {
+                return null;
+            }
+        }
+
+        return $cleanUrl;
+    }
+
+    /**
      * Render structured segments array to safe HTML (Single Source of Truth).
      *
      * @param array<int, array{text: string, bold?: bool, italic?: bool, underline?: bool, strikethrough?: bool, fontSize?: int, link?: string}> $segments
@@ -573,8 +621,11 @@ class KnowledgeArticleParser
                 $text = '<span style="font-size: ' . (int) $seg['fontSize'] . 'px">' . $text . '</span>';
             }
             if (!empty($seg['link'])) {
-                $href = htmlspecialchars($seg['link'], ENT_QUOTES, 'UTF-8');
-                $text = '<a href="' . $href . '" target="_blank" rel="noopener noreferrer" class="text-brand-primary underline hover:text-brand-primary-dark">' . $text . '</a>';
+                $sanitizedLink = self::sanitizeLink($seg['link']);
+                if ($sanitizedLink !== null) {
+                    $href = htmlspecialchars($sanitizedLink, ENT_QUOTES, 'UTF-8');
+                    $text = '<a href="' . $href . '" target="_blank" rel="noopener noreferrer" class="text-brand-primary underline hover:text-brand-primary-dark">' . $text . '</a>';
+                }
             }
 
             $rendered .= $text;
@@ -643,7 +694,13 @@ class KnowledgeArticleParser
                 } elseif (in_array($tag, ['s', 'strike', 'del']) || str_contains($child->getAttribute('style'), 'text-decoration: line-through')) {
                     $format['strikethrough'] = true;
                 } elseif ($tag === 'a') {
-                    $format['link'] = $child->getAttribute('href');
+                    $rawHref = $child->getAttribute('href');
+                    $sanitized = self::sanitizeLink($rawHref);
+                    if ($sanitized !== null) {
+                        $format['link'] = $sanitized;
+                    } else {
+                        unset($format['link']);
+                    }
                 }
 
                 $style = $child->getAttribute('style');
@@ -684,7 +741,8 @@ class KnowledgeArticleParser
             $underline = !empty($seg['underline']);
             $strikethrough = !empty($seg['strikethrough']);
             $fontSize = isset($seg['fontSize']) ? (int) $seg['fontSize'] : null;
-            $link = $seg['link'] ?? null;
+            $rawLink = $seg['link'] ?? null;
+            $link = self::sanitizeLink($rawLink);
 
             if ($current === null) {
                 $current = [
@@ -713,7 +771,7 @@ class KnowledgeArticleParser
                 if ($current['underline']) $cleanSeg['underline'] = true;
                 if ($current['strikethrough']) $cleanSeg['strikethrough'] = true;
                 if ($current['fontSize']) $cleanSeg['fontSize'] = $current['fontSize'];
-                if ($current['link']) $cleanSeg['link'] = $current['link'];
+                if (!empty($current['link'])) $cleanSeg['link'] = $current['link'];
                 $merged[] = $cleanSeg;
 
                 $current = [
@@ -735,7 +793,7 @@ class KnowledgeArticleParser
             if ($current['underline']) $cleanSeg['underline'] = true;
             if ($current['strikethrough']) $cleanSeg['strikethrough'] = true;
             if ($current['fontSize']) $cleanSeg['fontSize'] = $current['fontSize'];
-            if ($current['link']) $cleanSeg['link'] = $current['link'];
+            if (!empty($current['link'])) $cleanSeg['link'] = $current['link'];
             $merged[] = $cleanSeg;
         }
 

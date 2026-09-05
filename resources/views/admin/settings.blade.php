@@ -962,7 +962,7 @@ window.adminSettingsManager = function(initialPayload) {
                     <label class="inline-flex items-center gap-2 px-4 py-2.5 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow transition-all cursor-pointer"
                            :class="{ 'opacity-60 cursor-not-allowed pointer-events-none': isUploadingMedia }">
                         <input type="file"
-                               accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon"
+                               accept="image/jpeg,image/png,image/webp"
                                class="hidden"
                                @change="handleFileUpload($event)">
                         <template x-if="isUploadingMedia">
@@ -1013,7 +1013,7 @@ window.adminSettingsManager = function(initialPayload) {
                      @dragover.prevent=""
                      @drop.prevent="handleFileUpload($event)">
                     <input type="file"
-                           accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon"
+                           accept="image/jpeg,image/png,image/webp"
                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                            @change="handleFileUpload($event)">
                     <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -1024,7 +1024,7 @@ window.adminSettingsManager = function(initialPayload) {
                         </div>
                         <div class="text-center sm:text-left">
                             <p class="text-xs font-bold text-brand-dark">Tarik & lepaskan file media ke sini, atau <span class="text-brand-primary underline">klik untuk memilih</span></p>
-                            <p class="text-[11px] text-gray-400">Mendukung format JPG, PNG, WebP, SVG, ICO (Maksimal 5 MB per file)</p>
+                            <p class="text-[11px] text-gray-400">Mendukung format JPG, PNG, WebP (Maksimal 5 MB per file)</p>
                         </div>
                     </div>
                 </div>
@@ -1117,7 +1117,7 @@ window.adminSettingsManager = function(initialPayload) {
                     <div class="pt-2">
                         <label class="inline-flex items-center gap-1.5 px-4 py-2 rounded-modern font-bold text-xs text-white bg-brand-primary hover:bg-brand-primary-dark shadow-xs transition-all cursor-pointer">
                             <input type="file"
-                                   accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon"
+                                   accept="image/jpeg,image/png,image/webp"
                                    class="hidden"
                                    @change="handleFileUpload($event)">
                             <span>+ Tambah Media</span>
@@ -1540,7 +1540,7 @@ window.adminSettingsManager = function(initialPayload) {
                     <label class="block border-2 border-dashed border-gray-300 rounded-modern-xl p-8 text-center hover:border-brand-primary hover:bg-brand-soft-green/30 transition-all cursor-pointer"
                            @dragover.prevent=""
                            @drop.prevent="handleFileUpload($event)">
-                        <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml,image/x-icon" class="hidden" @change="handleFileUpload($event)">
+                        <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleFileUpload($event)">
                         <div class="space-y-2 flex flex-col items-center">
                             <div class="w-12 h-12 rounded-full bg-brand-soft-green text-brand-primary flex items-center justify-center shadow-xs">
                                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1548,7 +1548,7 @@ window.adminSettingsManager = function(initialPayload) {
                                 </svg>
                             </div>
                             <p class="text-xs font-bold text-brand-dark">Tarik & Lepaskan file ke sini, atau klik untuk memilih file</p>
-                            <p class="text-[11px] text-gray-400">Mendukung PNG, SVG, JPG, WebP, ICO</p>
+                            <p class="text-[11px] text-gray-400">Mendukung JPG, PNG, WebP</p>
                         </div>
                     </label>
 

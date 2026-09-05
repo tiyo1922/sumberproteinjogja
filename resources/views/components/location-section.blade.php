@@ -87,9 +87,18 @@
                     </div>
                 </div>
 
+                @php
+                    $rawMapsLink = trim($location['maps']['link'] ?? ($storeInfo['maps_url'] ?? '#'));
+                    $safeMapsLink = '#';
+                    if (!empty($rawMapsLink) && (str_starts_with($rawMapsLink, 'http://') || str_starts_with($rawMapsLink, 'https://'))) {
+                        if (filter_var($rawMapsLink, FILTER_VALIDATE_URL)) {
+                            $safeMapsLink = $rawMapsLink;
+                        }
+                    }
+                @endphp
                 <!-- Action CTA -->
                 <div class="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
-                    <a href="{{ $location['maps']['link'] ?? ($storeInfo['maps_url'] ?? '#') }}" 
+                    <a href="{{ $safeMapsLink }}"
                        target="_blank" 
                        rel="noopener noreferrer"
                        class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-modern text-xs sm:text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-dark shadow-sm hover:shadow-md transition-all">
@@ -114,14 +123,37 @@
 
                 <!-- Google Maps iframe with Lazy Loading -->
                 <div class="w-full flex-1 relative bg-gray-100">
+                    @php
+                        $embedCandidate = trim($location['maps']['embed'] ?? '');
+                        $isValidEmbed = false;
+                        if (!empty($embedCandidate) && filter_var($embedCandidate, FILTER_VALIDATE_URL)) {
+                            $embedScheme = strtolower((string) parse_url($embedCandidate, PHP_URL_SCHEME));
+                            $embedHost = strtolower((string) parse_url($embedCandidate, PHP_URL_HOST));
+                            $embedPath = (string) parse_url($embedCandidate, PHP_URL_PATH);
+                            $allowedEmbedHosts = ['www.google.com', 'maps.google.com', 'google.com', 'www.google.co.id', 'maps.google.co.id'];
+                            if ($embedScheme === 'https' && in_array($embedHost, $allowedEmbedHosts, true) && str_starts_with($embedPath, '/maps/embed')) {
+                                $isValidEmbed = true;
+                            }
+                        }
+                    @endphp
+                    @if($isValidEmbed)
                     <iframe 
                         title="Google Maps Lokasi Sumber Protein Jogja"
-                        src="{{ $location['maps']['embed'] }}" 
+                        src="{{ $embedCandidate }}"
                         class="absolute inset-0 w-full h-full border-0" 
                         allowfullscreen="" 
                         loading="lazy" 
                         referrerpolicy="no-referrer-when-downgrade">
                     </iframe>
+                    @else
+                    <div class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-gray-400">
+                        <svg class="w-10 h-10 mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        <span class="text-xs font-medium">Peta Google Maps belum dikonfigurasi dengan URL embed resmi.</span>
+                    </div>
+                    @endif
                 </div>
             </div>
 

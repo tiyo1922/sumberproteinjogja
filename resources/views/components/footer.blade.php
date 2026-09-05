@@ -129,7 +129,7 @@
                 <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">{{ $navTitle }}</h4>
                 <ul class="space-y-2 text-xs sm:text-sm text-gray-300">
                     @foreach($navLinks as $nav)
-                        <li><a href="{{ $nav['url'] ?? '#' }}" class="hover:text-white transition-colors">{{ $nav['title'] ?? '' }}</a></li>
+                        <li><a href="{{ $nav['url'] ?? '#' }}" class="hover:text-white transition-colors">{{ $nav['title'] ?? ($nav['label'] ?? '') }}</a></li>
                     @endforeach
                 </ul>
             </div>
@@ -139,7 +139,7 @@
                 <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">{{ $categoryTitle }}</h4>
                 <ul class="space-y-2 text-xs sm:text-sm text-gray-300">
                     @foreach($categoryLinks as $catLink)
-                        <li><a href="{{ $catLink['url'] ?? '#produk' }}" class="hover:text-white transition-colors">{{ $catLink['title'] ?? '' }}</a></li>
+                        <li><a href="{{ $catLink['url'] ?? '#produk' }}" class="hover:text-white transition-colors">{{ $catLink['title'] ?? ($catLink['label'] ?? ($catLink['name'] ?? '')) }}</a></li>
                     @endforeach
                 </ul>
             </div>
@@ -168,7 +168,7 @@
             <div class="flex items-center gap-6">
                 @if(!empty($footer['legal_links']))
                     @foreach($footer['legal_links'] as $legal)
-                        <a href="{{ $legal['url'] ?? '#' }}" class="hover:text-gray-200 transition-colors">{{ $legal['title'] ?? '' }}</a>
+                        <a href="{{ $legal['url'] ?? '#' }}" class="hover:text-gray-200 transition-colors">{{ $legal['title'] ?? ($legal['label'] ?? '') }}</a>
                     @endforeach
                 @else
                     <span class="hover:text-gray-200 transition-colors">Syarat & Ketentuan</span>

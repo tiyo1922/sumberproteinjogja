@@ -207,7 +207,9 @@ class EloquentProductRepository implements ProductRepositoryInterface
     public function reorderFlashSale(array $orderMap): bool
     {
         foreach ($orderMap as $id => $order) {
-            Product::where('id', $id)->update(['flash_sale_sort_order' => (int) $order]);
+            Product::where('id', $id)
+                ->where('is_flash_sale', true)
+                ->update(['flash_sale_sort_order' => (int) $order]);
         }
 
         return true;

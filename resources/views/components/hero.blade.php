@@ -127,9 +127,19 @@
                 {{ $heroData['description'] ?? 'Daging, ayam, ikan, dan sayuran pilihan dalam bentuk frozen dan ready to cook untuk kebutuhan rumah tangga maupun pembelian curah.' }}
             </p>
 
+            @php
+                $cleanHeroPrimary = trim($heroData['primary_cta_link'] ?? '#produk');
+                if (preg_match('/^(javascript|vbscript|data|file|blob|about):/i', $cleanHeroPrimary) || str_starts_with($cleanHeroPrimary, '//')) {
+                    $cleanHeroPrimary = '#produk';
+                }
+                $cleanHeroSecondary = trim($heroData['secondary_cta_link'] ?? '#kategori');
+                if (preg_match('/^(javascript|vbscript|data|file|blob|about):/i', $cleanHeroSecondary) || str_starts_with($cleanHeroSecondary, '//')) {
+                    $cleanHeroSecondary = '#kategori';
+                }
+            @endphp
             <!-- Call to Actions -->
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 md:gap-5">
-                <a @if($isLive) :href="draftForm.primary_cta_link || '#produk'" @else href="{{ $heroData['primary_cta_link'] ?? '#produk' }}" @endif
+                <a @if($isLive) :href="draftForm.primary_cta_link || '#produk'" @else href="{{ $cleanHeroPrimary }}" @endif
                    class="inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 rounded-modern text-sm sm:text-base font-bold text-white bg-brand-primary-light hover:bg-brand-primary-dark active:scale-[0.98] transition-all duration-200 shadow-lg shadow-brand-primary/40 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-emerald-400">
                     <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -137,7 +147,7 @@
                     <span @if($isLive) x-text="draftForm.primary_cta_text || 'Belanja Sekarang'" @endif>{{ $heroData['primary_cta_text'] ?? 'Belanja Sekarang' }}</span>
                 </a>
 
-                <a @if($isLive) :href="draftForm.secondary_cta_link || '#kategori'" @else href="{{ $heroData['secondary_cta_link'] ?? '#kategori' }}" @endif
+                <a @if($isLive) :href="draftForm.secondary_cta_link || '#kategori'" @else href="{{ $cleanHeroSecondary }}" @endif
                    class="inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3.5 sm:py-4 rounded-modern text-sm sm:text-base font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/25 backdrop-blur-md active:scale-[0.98] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/40">
                     <span @if($isLive) x-text="draftForm.secondary_cta_text || 'Lihat Produk'" @endif>{{ $heroData['secondary_cta_text'] ?? 'Lihat Produk' }}</span>
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -150,7 +160,7 @@
             <div class="mt-8 sm:mt-12 pt-5 sm:pt-6 border-t border-white/15 grid grid-cols-3 gap-2 sm:gap-4 text-white/90">
                 @if($isLive)
                     <template x-for="(item, tIdx) in (draftForm.trust_items || [])" :key="tIdx">
-                        <div x-show="item.active !== false" class="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+                        <div x-show="item.active !== false && item.is_active !== false" class="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                             <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center text-emerald-400 shrink-0">
                                 <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                             </div>
@@ -160,13 +170,13 @@
                 @else
                     @php
                         $trustList = $heroData['trust_items'] ?? [
-                            ['id' => 1, 'text' => '100% Halal', 'active' => true],
-                            ['id' => 2, 'text' => 'Cold Chain', 'active' => true],
-                            ['id' => 3, 'text' => 'Kirim Se-Jogja', 'active' => true]
+                            ['id' => 1, 'text' => '100% Halal & Higienis', 'active' => true, 'is_active' => true],
+                            ['id' => 2, 'text' => 'Standar Rantai Dingin (Cold Chain)', 'active' => true, 'is_active' => true],
+                            ['id' => 3, 'text' => 'Pengiriman Cepat Se-Jogja', 'active' => true, 'is_active' => true]
                         ];
                     @endphp
                     @foreach($trustList as $item)
-                        @if($item['active'] ?? true)
+                        @if($item['active'] ?? ($item['is_active'] ?? true))
                             <div class="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                                 <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center text-emerald-400 shrink-0">
                                     <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>

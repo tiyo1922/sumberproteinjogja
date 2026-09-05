@@ -433,7 +433,7 @@ class AdminController extends Controller
     public function mediaUpload(Request $request)
     {
         $request->validate([
-            'image' => 'required|file|mimes:jpeg,jpg,png,webp,svg,ico|max:5120',
+            'image' => 'required|file|image|mimes:jpeg,jpg,png,webp|max:5120',
         ]);
 
         $file = $request->file('image');
@@ -525,6 +525,273 @@ class AdminController extends Controller
     }
 
     /**
+     * SEC-04: Sanitize External Navigation URL (Category A).
+     * Only allows valid http:// and https:// URLs with a valid host.
+     */
+    private function sanitizeExternalUrl(?string $url): ?string
+    {
+        if ($url === null) {
+            return null;
+        }
+
+        $clean = trim($url);
+        if ($clean === '') {
+            return null;
+        }
+
+        // Reject control characters or null bytes
+        if (preg_match('/[\x00-\x1F\x7F]/', $clean)) {
+            return null;
+        }
+
+        // Explicitly reject dangerous pseudo-protocols
+        if (preg_match('/^(javascript|vbscript|data|file|blob|about):/i', $clean)) {
+            return null;
+        }
+
+        // Scheme validation
+        $scheme = strtolower((string) parse_url($clean, PHP_URL_SCHEME));
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
+        // Host validation
+        $host = parse_url($clean, PHP_URL_HOST);
+        if (empty($host) || !filter_var($clean, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        return $clean;
+    }
+
+    /**
+     * SEC-04: Sanitize Internal Navigation / Anchor / Path URL (Category B).
+     * Allows #anchors, /internal/paths, and valid http/https URLs.
+     */
+    private function sanitizeNavigationUrl(?string $url, string $fallback = '#'): string
+    {
+        if ($url === null) {
+            return $fallback;
+        }
+
+        $clean = trim($url);
+        if ($clean === '') {
+            return $fallback;
+        }
+
+        // Reject control characters or null bytes
+        if (preg_match('/[\x00-\x1F\x7F]/', $clean)) {
+            return $fallback;
+        }
+
+        // Explicitly reject dangerous pseudo-protocols
+        if (preg_match('/^(javascript|vbscript|data|file|blob|about):/i', $clean)) {
+            return $fallback;
+        }
+
+        // Reject protocol-relative URLs (//evil.com)
+        if (str_starts_with($clean, '//')) {
+            return $fallback;
+        }
+
+        // Allow Section Anchors (#produk, #kategori, #hero)
+        if (str_starts_with($clean, '#')) {
+            return $clean;
+        }
+
+        // Allow Internal Paths (/produk, /tentang-kami, /kebijakan-privasi)
+        if (str_starts_with($clean, '/')) {
+            return $clean;
+        }
+
+        // Allow Contact Registry alphanumeric keys (e.g. order_wa, admin_wa, cs_care)
+        if (preg_match('/^[a-zA-Z0-9_\-]+$/', $clean)) {
+            return $clean;
+        }
+
+        // Allow valid external http/https URLs
+        $scheme = strtolower((string) parse_url($clean, PHP_URL_SCHEME));
+        if (in_array($scheme, ['http', 'https'], true) && filter_var($clean, FILTER_VALIDATE_URL)) {
+            return $clean;
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * SEC-04: Sanitize Image & Media Asset URLs (Category C).
+     * Allows local storage paths (storage/media/..., storage/partners/..., images/...)
+     * and valid external http/https image URLs.
+     */
+    private function sanitizeImageUrl(?string $url, ?string $fallback = null): ?string
+    {
+        if ($url === null) {
+            return $fallback;
+        }
+
+        $clean = trim($url);
+        if ($clean === '') {
+            return $fallback;
+        }
+
+        // Reject control characters
+        if (preg_match('/[\x00-\x1F\x7F]/', $clean)) {
+            return $fallback;
+        }
+
+        // Explicitly reject dangerous pseudo-protocols
+        if (preg_match('/^(javascript|vbscript|data|file|blob|about):/i', $clean)) {
+            return $fallback;
+        }
+
+        // Reject directory traversal
+        if (str_contains($clean, '..')) {
+            return $fallback;
+        }
+
+        // Allow local storage and image assets
+        if (str_starts_with($clean, 'storage/') || str_starts_with($clean, 'images/')) {
+            return $clean;
+        }
+
+        // Allow valid external image URLs
+        $scheme = strtolower((string) parse_url($clean, PHP_URL_SCHEME));
+        if (in_array($scheme, ['http', 'https'], true) && filter_var($clean, FILTER_VALIDATE_URL)) {
+            return $clean;
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * SEC-04: Sanitize Google Maps Embed URL (Category D).
+     * Strictly allows only HTTPS Google Maps embed endpoints.
+     */
+    private function sanitizeMapsEmbedUrl(?string $url): ?string
+    {
+        if ($url === null) {
+            return null;
+        }
+
+        $clean = trim($url);
+        if ($clean === '') {
+            return null;
+        }
+
+        // Reject control characters
+        if (preg_match('/[\x00-\x1F\x7F]/', $clean)) {
+            return null;
+        }
+
+        // Must be valid URL
+        if (!filter_var($clean, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        $scheme = strtolower((string) parse_url($clean, PHP_URL_SCHEME));
+        if ($scheme !== 'https') {
+            return null;
+        }
+
+        $host = strtolower((string) parse_url($clean, PHP_URL_HOST));
+        $allowedHosts = [
+            'www.google.com',
+            'maps.google.com',
+            'google.com',
+            'www.google.co.id',
+            'maps.google.co.id',
+        ];
+
+        if (!in_array($host, $allowedHosts, true)) {
+            return null;
+        }
+
+        $path = (string) parse_url($clean, PHP_URL_PATH);
+        if (!str_starts_with($path, '/maps/embed')) {
+            return null;
+        }
+
+        return $clean;
+    }
+
+    /**
+     * SEC-05: Strict Reorder Payload Validator.
+     * Validates associative [id => sort_order] or sequential [[id => x, sort_order => y]] payloads,
+     * strictly rejecting mixed, empty, or malformed structures.
+     *
+     * @return array Validated payload array with 'orders' key
+     */
+    private function validateReorderPayload(Request $request, string $sortOrderField = 'sort_order'): array
+    {
+        $ordersInput = $request->input('orders');
+
+        if (!is_array($ordersInput) || empty($ordersInput)) {
+            return $request->validate([
+                'orders' => 'required|array|min:1',
+            ]);
+        }
+
+        $isAllArrays = count(array_filter($ordersInput, 'is_array')) === count($ordersInput);
+        $isAllScalars = count(array_filter($ordersInput, 'is_array')) === 0;
+
+        if (!$isAllArrays && !$isAllScalars) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'orders' => ['Format payload urutan tidak valid (tercampur antara associative dan sequential).'],
+            ]);
+        }
+
+        if ($isAllArrays) {
+            $allowedKeys = array_unique(['id', 'sort_order', 'order', $sortOrderField]);
+            foreach ($ordersInput as $idx => $item) {
+                if (!is_array($item)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "orders.{$idx}" => ['Elemen urutan harus berupa array / objek valid.'],
+                    ]);
+                }
+                $extraKeys = array_diff(array_keys($item), $allowedKeys);
+                if (!empty($extraKeys)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "orders.{$idx}" => ['Elemen urutan mengandung parameter tidak dikenal: ' . implode(', ', $extraKeys)],
+                    ]);
+                }
+            }
+
+            $rules = [
+                'orders' => 'required|array|min:1',
+                'orders.*.id' => 'required|integer|min:1',
+                'orders.*.sort_order' => 'nullable|integer|min:0|max:1000000',
+                'orders.*.order' => 'nullable|integer|min:0|max:1000000',
+            ];
+            if ($sortOrderField !== 'sort_order' && $sortOrderField !== 'order') {
+                $rules['orders.*.' . $sortOrderField] = 'nullable|integer|min:0|max:1000000';
+            }
+            return $request->validate($rules);
+        }
+
+        return $request->validate([
+            'orders' => [
+                'required',
+                'array',
+                'min:1',
+                function ($attribute, $value, $fail) {
+                    if (!is_array($value)) return;
+                    foreach ($value as $key => $val) {
+                        if (!is_int($key) && (!is_string($key) || !ctype_digit((string) $key))) {
+                            $fail("Kunci {$attribute} harus berupa ID integer positif.");
+                            return;
+                        }
+                        if ((int) $key < 1) {
+                            $fail("ID {$attribute} minimal 1.");
+                            return;
+                        }
+                    }
+                },
+            ],
+            'orders.*' => 'required|integer|min:0|max:1000000',
+        ]);
+    }
+
+    /**
      * Display the Admin Sales & Traffic Analytics Dashboard.
      */
     public function dashboard(AnalyticsService $analyticsService)
@@ -560,11 +827,24 @@ class AdminController extends Controller
             ],
         ]);
 
-        $heroTrustItems = $this->siteSettingRepo->get('hero_trust_items', [
-            ['id' => 1, 'text' => '100% Halal & Higienis', 'is_active' => true, 'sort_order' => 1],
-            ['id' => 2, 'text' => 'Standar Rantai Dingin (Cold Chain)', 'is_active' => true, 'sort_order' => 2],
-            ['id' => 3, 'text' => 'Pengiriman Cepat Se-Jogja', 'is_active' => true, 'sort_order' => 3],
-        ]);
+        $defaultTrust = [
+            ['id' => 1, 'text' => '100% Halal & Higienis', 'is_active' => true, 'active' => true, 'sort_order' => 1],
+            ['id' => 2, 'text' => 'Standar Rantai Dingin (Cold Chain)', 'is_active' => true, 'active' => true, 'sort_order' => 2],
+            ['id' => 3, 'text' => 'Pengiriman Cepat Se-Jogja', 'is_active' => true, 'active' => true, 'sort_order' => 3],
+        ];
+
+        $rawTrustItems = $this->siteSettingRepo->get('hero_trust_items', $defaultTrust);
+        $heroTrustItems = [];
+        for ($i = 0; $i < 3; $i++) {
+            $item = (is_array($rawTrustItems) && isset($rawTrustItems[$i])) ? $rawTrustItems[$i] : $defaultTrust[$i];
+            $heroTrustItems[] = [
+                'id' => $item['id'] ?? ($i + 1),
+                'text' => $item['text'] ?? ($defaultTrust[$i]['text'] ?? ''),
+                'is_active' => isset($item['is_active']) ? (bool) $item['is_active'] : (isset($item['active']) ? (bool) $item['active'] : true),
+                'active' => isset($item['active']) ? (bool) $item['active'] : (isset($item['is_active']) ? (bool) $item['is_active'] : true),
+                'sort_order' => $item['sort_order'] ?? ($i + 1),
+            ];
+        }
 
         $heroPartners = $this->siteSettingRepo->get('hero_partners', [
             'badge' => 'Kepercayaan Mitra',
@@ -601,14 +881,7 @@ class AdminController extends Controller
                     'storage/media/hero_ready_cook_1786889537358.jpg',
                     'storage/media/cat_daging_1786889601901.jpg',
                 ],
-                'trust_items' => is_array($heroTrustItems) ? array_map(function ($item) {
-                    return [
-                        'id' => $item['id'] ?? 1,
-                        'text' => $item['text'] ?? '',
-                        'active' => $item['is_active'] ?? ($item['active'] ?? true),
-                        'sort_order' => $item['sort_order'] ?? 1,
-                    ];
-                }, $heroTrustItems) : [],
+                'trust_items' => $heroTrustItems,
                 'updated_at' => 'Tersinkron Database',
             ],
             [
@@ -631,9 +904,9 @@ class AdminController extends Controller
                     'storage/media/hero-1.jpg',
                 ],
                 'trust_items' => [
-                    ['id' => 1, 'text' => 'Higienis & Segar', 'active' => true, 'sort_order' => 1],
-                    ['id' => 2, 'text' => 'Ready to Cook', 'active' => true, 'sort_order' => 2],
-                    ['id' => 3, 'text' => 'Free Delivery Sleman', 'active' => true, 'sort_order' => 3],
+                    ['id' => 1, 'text' => 'Higienis & Segar', 'active' => true, 'is_active' => true, 'sort_order' => 1],
+                    ['id' => 2, 'text' => 'Ready to Cook', 'active' => true, 'is_active' => true, 'sort_order' => 2],
+                    ['id' => 3, 'text' => 'Free Delivery Sleman', 'active' => true, 'is_active' => true, 'sort_order' => 3],
                 ],
                 'updated_at' => 'Preset Layout',
             ],
@@ -656,9 +929,9 @@ class AdminController extends Controller
                     'storage/media/hero-1.jpg',
                 ],
                 'trust_items' => [
-                    ['id' => 1, 'text' => 'Harga Grosir & Ecer', 'active' => true, 'sort_order' => 1],
-                    ['id' => 2, 'text' => 'Garansi Kualitas', 'active' => true, 'sort_order' => 2],
-                    ['id' => 3, 'text' => 'Sameday Delivery', 'active' => true, 'sort_order' => 3],
+                    ['id' => 1, 'text' => 'Harga Grosir & Ecer', 'active' => true, 'is_active' => true, 'sort_order' => 1],
+                    ['id' => 2, 'text' => 'Garansi Kualitas', 'active' => true, 'is_active' => true, 'sort_order' => 2],
+                    ['id' => 3, 'text' => 'Sameday Delivery', 'active' => true, 'is_active' => true, 'sort_order' => 3],
                 ],
                 'updated_at' => 'Preset Layout',
             ],
@@ -668,6 +941,23 @@ class AdminController extends Controller
         $drafts = ($savedDrafts && is_array($savedDrafts) && count($savedDrafts) > 0)
             ? $savedDrafts
             : $defaultPresets;
+
+        foreach ($drafts as &$d) {
+            $dTrust = is_array($d['trust_items'] ?? null) ? $d['trust_items'] : [];
+            $normTrust = [];
+            for ($i = 0; $i < 3; $i++) {
+                $t = $dTrust[$i] ?? $defaultTrust[$i];
+                $normTrust[] = [
+                    'id' => $t['id'] ?? ($i + 1),
+                    'text' => $t['text'] ?? ($defaultTrust[$i]['text'] ?? ''),
+                    'active' => isset($t['active']) ? (bool) $t['active'] : (isset($t['is_active']) ? (bool) $t['is_active'] : true),
+                    'is_active' => isset($t['is_active']) ? (bool) $t['is_active'] : (isset($t['active']) ? (bool) $t['active'] : true),
+                    'sort_order' => $t['sort_order'] ?? ($i + 1),
+                ];
+            }
+            $d['trust_items'] = $normTrust;
+        }
+        unset($d);
 
         $mediaLibrary = $this->getMediaLibrary();
         $partnerMediaLibrary = $this->getPartnerMediaLibrary();
@@ -690,8 +980,8 @@ class AdminController extends Controller
             'hero.headline_prefix' => 'nullable|string|max:255',
             'hero.highlight' => 'nullable|string|max:255',
             'hero.headline_suffix' => 'nullable|string|max:255',
-            'hero.subtitle' => 'nullable|string',
-            'hero.description' => 'nullable|string',
+            'hero.subtitle' => 'nullable|string|max:1000',
+            'hero.description' => 'nullable|string|max:1000',
             'hero.whatsapp_button_text' => 'nullable|string|max:255',
             'hero.primary_cta_text' => 'nullable|string|max:255',
             'hero.primary_cta_link' => 'nullable|string|max:255',
@@ -701,66 +991,194 @@ class AdminController extends Controller
             'hero.secondary_cta_link' => 'nullable|string|max:255',
             'hero.secondary_cta_contact' => 'nullable|string|max:50',
             'hero.images' => 'nullable|array',
+            'hero.images.*' => 'nullable|string|max:2048',
+
             'drafts' => 'nullable|array',
+            'drafts.*.id' => 'nullable|integer|min:1',
+            'drafts.*.name' => 'nullable|string|max:255',
+            'drafts.*.badge' => 'nullable|string|max:255',
+            'drafts.*.headline_prefix' => 'nullable|string|max:255',
+            'drafts.*.highlight' => 'nullable|string|max:255',
+            'drafts.*.headline_suffix' => 'nullable|string|max:255',
+            'drafts.*.title' => 'nullable|string|max:255',
+            'drafts.*.subtitle' => 'nullable|string|max:1000',
+            'drafts.*.description' => 'nullable|string|max:1000',
+            'drafts.*.primary_cta_text' => 'nullable|string|max:255',
+            'drafts.*.primary_cta_link' => 'nullable|string|max:255',
+            'drafts.*.primary_cta_contact' => 'nullable|string|max:50',
+            'drafts.*.secondary_cta_text' => 'nullable|string|max:255',
+            'drafts.*.secondary_cta_link' => 'nullable|string|max:255',
+            'drafts.*.secondary_cta_contact' => 'nullable|string|max:50',
+            'drafts.*.status' => 'nullable|string|max:50',
+            'drafts.*.updated_at' => 'nullable|string|max:100',
+            'drafts.*.images' => 'nullable|array',
+            'drafts.*.images.*' => 'nullable|string|max:2048',
+            'drafts.*.trust_items' => 'nullable|array',
+            'drafts.*.trust_items.*.id' => 'nullable|integer|min:1',
+            'drafts.*.trust_items.*.text' => 'nullable|string|max:255',
+            'drafts.*.trust_items.*.active' => 'nullable|boolean',
+            'drafts.*.trust_items.*.is_active' => 'nullable|boolean',
+            'drafts.*.trust_items.*.sort_order' => 'nullable|integer|min:0|max:1000000',
+
             'trust_items' => 'nullable|array',
+            'trust_items.*.id' => 'nullable|integer|min:1',
+            'trust_items.*.text' => 'nullable|string|max:255',
+            'trust_items.*.active' => 'nullable|boolean',
+            'trust_items.*.is_active' => 'nullable|boolean',
+            'trust_items.*.sort_order' => 'nullable|integer|min:0|max:1000000',
+
             'partners' => 'nullable|array',
             'partners.title' => 'nullable|string|max:255',
             'partners.badge' => 'nullable|string|max:255',
             'partners.partners' => 'nullable|array',
+            'partners.partners.*.id' => 'nullable|integer|min:1',
+            'partners.partners.*.name' => 'nullable|string|max:255',
+            'partners.partners.*.logo' => 'nullable|string|max:2048',
+            'partners.partners.*.active' => 'nullable|boolean',
+            'partners.partners.*.is_active' => 'nullable|boolean',
+            'partners.partners.*.sort_order' => 'nullable|integer|min:0|max:1000000',
         ]);
 
+        $defaultTrustFallback = [
+            ['id' => 1, 'text' => '100% Halal & Higienis', 'active' => true, 'is_active' => true, 'sort_order' => 1],
+            ['id' => 2, 'text' => 'Standar Rantai Dingin (Cold Chain)', 'active' => true, 'is_active' => true, 'sort_order' => 2],
+            ['id' => 3, 'text' => 'Pengiriman Cepat Se-Jogja', 'active' => true, 'is_active' => true, 'sort_order' => 3],
+        ];
+
         if (isset($validated['drafts']) && is_array($validated['drafts'])) {
-            $this->siteSettingRepo->set('hero_drafts', $validated['drafts']);
+            $cleanDrafts = [];
+            foreach ($validated['drafts'] as $idx => $draft) {
+                if (!is_array($draft)) {
+                    continue;
+                }
+                $rawTrustList = (isset($draft['trust_items']) && is_array($draft['trust_items'])) ? $draft['trust_items'] : [];
+                $cleanTrustItems = [];
+                for ($tIdx = 0; $tIdx < 3; $tIdx++) {
+                    $t = $rawTrustList[$tIdx] ?? $defaultTrustFallback[$tIdx];
+                    if (!is_array($t)) {
+                        $t = $defaultTrustFallback[$tIdx];
+                    }
+                    $cleanTrustItems[] = [
+                        'id' => isset($t['id']) ? (int) $t['id'] : ($tIdx + 1),
+                        'text' => isset($t['text']) && trim((string) $t['text']) !== '' ? (string) $t['text'] : $defaultTrustFallback[$tIdx]['text'],
+                        'active' => isset($t['active']) ? (bool) $t['active'] : (isset($t['is_active']) ? (bool) $t['is_active'] : true),
+                        'is_active' => isset($t['is_active']) ? (bool) $t['is_active'] : (isset($t['active']) ? (bool) $t['active'] : true),
+                        'sort_order' => isset($t['sort_order']) ? (int) $t['sort_order'] : ($tIdx + 1),
+                    ];
+                }
+                $cleanDrafts[] = [
+                    'id' => isset($draft['id']) ? (int) $draft['id'] : ($idx + 1),
+                    'name' => isset($draft['name']) ? (string) $draft['name'] : null,
+                    'badge' => isset($draft['badge']) ? (string) $draft['badge'] : null,
+                    'headline_prefix' => isset($draft['headline_prefix']) ? (string) $draft['headline_prefix'] : null,
+                    'highlight' => isset($draft['highlight']) ? (string) $draft['highlight'] : null,
+                    'headline_suffix' => isset($draft['headline_suffix']) ? (string) $draft['headline_suffix'] : null,
+                    'title' => isset($draft['title']) ? (string) $draft['title'] : null,
+                    'subtitle' => isset($draft['subtitle']) ? (string) $draft['subtitle'] : (isset($draft['description']) ? (string) $draft['description'] : null),
+                    'description' => isset($draft['description']) ? (string) $draft['description'] : (isset($draft['subtitle']) ? (string) $draft['subtitle'] : null),
+                    'primary_cta_text' => isset($draft['primary_cta_text']) ? (string) $draft['primary_cta_text'] : null,
+                    'primary_cta_link' => isset($draft['primary_cta_link']) ? $this->sanitizeNavigationUrl($draft['primary_cta_link'], '#produk') : null,
+                    'primary_cta_contact' => isset($draft['primary_cta_contact']) ? (string) $draft['primary_cta_contact'] : null,
+                    'secondary_cta_text' => isset($draft['secondary_cta_text']) ? (string) $draft['secondary_cta_text'] : null,
+                    'secondary_cta_link' => isset($draft['secondary_cta_link']) ? $this->sanitizeNavigationUrl($draft['secondary_cta_link'], '#kategori') : null,
+                    'secondary_cta_contact' => isset($draft['secondary_cta_contact']) ? (string) $draft['secondary_cta_contact'] : null,
+                    'status' => isset($draft['status']) ? (string) $draft['status'] : null,
+                    'updated_at' => isset($draft['updated_at']) ? (string) $draft['updated_at'] : null,
+                    'images' => isset($draft['images']) && is_array($draft['images']) ? array_values(array_filter(array_map(fn($img) => $this->sanitizeImageUrl($img), $draft['images']))) : [],
+                    'trust_items' => $cleanTrustItems,
+                ];
+            }
+            $this->siteSettingRepo->set('hero_drafts', $cleanDrafts);
         }
 
         if (isset($validated['hero'])) {
             $currentHero = $this->siteSettingRepo->get('hero', []);
-            $mergedHero = array_merge($currentHero, $validated['hero']);
-            if (isset($validated['hero']['title'])) {
-                $mergedHero['title'] = $validated['hero']['title'];
-            }
-            if (isset($validated['hero']['subtitle'])) {
-                $mergedHero['subtitle'] = $validated['hero']['subtitle'];
-                $mergedHero['description'] = $validated['hero']['subtitle'];
-            }
-            $this->siteSettingRepo->set('hero', $mergedHero);
+            $cleanHero = [
+                'badge' => $validated['hero']['badge'] ?? ($currentHero['badge'] ?? null),
+                'title' => $validated['hero']['title'] ?? ($currentHero['title'] ?? null),
+                'headline_prefix' => $validated['hero']['headline_prefix'] ?? ($currentHero['headline_prefix'] ?? null),
+                'highlight' => $validated['hero']['highlight'] ?? ($currentHero['highlight'] ?? null),
+                'headline_suffix' => $validated['hero']['headline_suffix'] ?? ($currentHero['headline_suffix'] ?? null),
+                'subtitle' => $validated['hero']['subtitle'] ?? ($validated['hero']['description'] ?? ($currentHero['subtitle'] ?? ($currentHero['description'] ?? null))),
+                'description' => $validated['hero']['description'] ?? ($validated['hero']['subtitle'] ?? ($currentHero['description'] ?? ($currentHero['subtitle'] ?? null))),
+                'whatsapp_button_text' => $validated['hero']['whatsapp_button_text'] ?? ($currentHero['whatsapp_button_text'] ?? null),
+                'primary_cta_text' => $validated['hero']['primary_cta_text'] ?? ($currentHero['primary_cta_text'] ?? null),
+                'primary_cta_link' => isset($validated['hero']['primary_cta_link']) ? $this->sanitizeNavigationUrl($validated['hero']['primary_cta_link'], '#produk') : ($currentHero['primary_cta_link'] ?? '#produk'),
+                'primary_cta_contact' => $validated['hero']['primary_cta_contact'] ?? ($currentHero['primary_cta_contact'] ?? null),
+                'catalog_button_text' => $validated['hero']['catalog_button_text'] ?? ($currentHero['catalog_button_text'] ?? null),
+                'secondary_cta_text' => $validated['hero']['secondary_cta_text'] ?? ($currentHero['secondary_cta_text'] ?? null),
+                'secondary_cta_link' => isset($validated['hero']['secondary_cta_link']) ? $this->sanitizeNavigationUrl($validated['hero']['secondary_cta_link'], '#kategori') : ($currentHero['secondary_cta_link'] ?? '#kategori'),
+                'secondary_cta_contact' => $validated['hero']['secondary_cta_contact'] ?? ($currentHero['secondary_cta_contact'] ?? null),
+                'images' => isset($validated['hero']['images']) && is_array($validated['hero']['images']) ? array_values(array_filter(array_map(fn($img) => $this->sanitizeImageUrl($img), $validated['hero']['images']))) : ($currentHero['images'] ?? []),
+            ];
+            $this->siteSettingRepo->set('hero', $cleanHero);
         }
 
-        if (isset($validated['trust_items'])) {
-            $this->siteSettingRepo->set('hero_trust_items', $validated['trust_items']);
+        if (isset($validated['trust_items']) && is_array($validated['trust_items'])) {
+            $rawHeroTrust = $validated['trust_items'];
+            $cleanTrustItems = [];
+            for ($idx = 0; $idx < 3; $idx++) {
+                $t = $rawHeroTrust[$idx] ?? $defaultTrustFallback[$idx];
+                if (!is_array($t)) {
+                    $t = $defaultTrustFallback[$idx];
+                }
+                $cleanTrustItems[] = [
+                    'id' => isset($t['id']) ? (int) $t['id'] : ($idx + 1),
+                    'text' => isset($t['text']) && trim((string) $t['text']) !== '' ? (string) $t['text'] : $defaultTrustFallback[$idx]['text'],
+                    'active' => isset($t['active']) ? (bool) $t['active'] : (isset($t['is_active']) ? (bool) $t['is_active'] : true),
+                    'is_active' => isset($t['is_active']) ? (bool) $t['is_active'] : (isset($t['active']) ? (bool) $t['active'] : true),
+                    'sort_order' => isset($t['sort_order']) ? (int) $t['sort_order'] : ($idx + 1),
+                ];
+            }
+            $this->siteSettingRepo->set('hero_trust_items', $cleanTrustItems);
         }
 
-        if (isset($validated['partners'])) {
+        if (isset($validated['partners']) && is_array($validated['partners'])) {
             $currentPartners = $this->siteSettingRepo->get('hero_partners', []);
-            $mergedPartners = array_merge($currentPartners, $validated['partners']);
+            $badge = $validated['partners']['badge'] ?? ($currentPartners['badge'] ?? 'Kepercayaan Mitra');
+            $title = $validated['partners']['title'] ?? ($currentPartners['title'] ?? '');
+            $partnersList = $validated['partners']['partners'] ?? ($currentPartners['partners'] ?? []);
 
-            if (isset($mergedPartners['partners']) && is_array($mergedPartners['partners'])) {
-                foreach ($mergedPartners['partners'] as &$p) {
+            $cleanPartnersList = [];
+            if (is_array($partnersList)) {
+                foreach ($partnersList as $idx => $p) {
+                    if (!is_array($p)) {
+                        continue;
+                    }
                     $raw = $p['is_active'] ?? ($p['active'] ?? true);
                     if (is_bool($raw)) {
-                        $p['is_active'] = $raw;
+                        $isActive = $raw;
                     } elseif (is_numeric($raw)) {
-                        $p['is_active'] = (int) $raw === 1;
+                        $isActive = (int) $raw === 1;
                     } elseif (is_string($raw)) {
                         $lower = strtolower(trim($raw));
                         if (in_array($lower, ['false', '0', 'nonaktif', 'nonaktif (sembunyi)', 'inactive', 'off', 'hide', 'hidden', ''])) {
-                            $p['is_active'] = false;
+                            $isActive = false;
                         } elseif (in_array($lower, ['true', '1', 'aktif', 'aktif (tampil)', 'active', 'on', 'show', 'visible'])) {
-                            $p['is_active'] = true;
+                            $isActive = true;
                         } else {
-                            $p['is_active'] = false;
+                            $isActive = false;
                         }
                     } else {
-                        $p['is_active'] = (bool) $raw;
+                        $isActive = (bool) $raw;
                     }
-                    if (isset($p['active'])) {
-                        unset($p['active']);
-                    }
+
+                    $cleanPartnersList[] = [
+                        'id' => isset($p['id']) ? (int) $p['id'] : ($idx + 1),
+                        'name' => isset($p['name']) ? (string) $p['name'] : '',
+                        'logo' => isset($p['logo']) ? $this->sanitizeImageUrl($p['logo']) : null,
+                        'is_active' => $isActive,
+                        'sort_order' => isset($p['sort_order']) ? (int) $p['sort_order'] : ($idx + 1),
+                    ];
                 }
-                unset($p);
             }
 
-            $this->siteSettingRepo->set('hero_partners', $mergedPartners);
+            $cleanPartners = [
+                'badge' => $badge,
+                'title' => $title,
+                'partners' => $cleanPartnersList,
+            ];
+            $this->siteSettingRepo->set('hero_partners', $cleanPartners);
         }
 
         if ($request->wantsJson() || $request->ajax()) {
@@ -1042,9 +1460,7 @@ class AdminController extends Controller
      */
     public function categoryReorder(Request $request)
     {
-        $validated = $request->validate([
-            'orders' => 'required|array',
-        ]);
+        $validated = $this->validateReorderPayload($request);
 
         $this->categoryRepo->reorder($validated['orders']);
 
@@ -1438,9 +1854,15 @@ class AdminController extends Controller
      */
     public function productReorder(Request $request)
     {
-        $validated = $request->validate([
-            'orders' => 'required|array',
-        ]);
+        $validated = $this->validateReorderPayload($request);
+        $firstOrder = is_array($validated['orders']) && !empty($validated['orders']) ? array_values($validated['orders'])[0] : null;
+        if (is_array($firstOrder)) {
+            $mappedOrders = [];
+            foreach ($validated['orders'] as $item) {
+                $mappedOrders[$item['id']] = $item['sort_order'] ?? ($item['order'] ?? 0);
+            }
+            $validated['orders'] = $mappedOrders;
+        }
 
         $this->productRepo->reorder($validated['orders']);
 
@@ -1634,9 +2056,15 @@ class AdminController extends Controller
      */
     public function flashSaleReorder(Request $request)
     {
-        $validated = $request->validate([
-            'orders' => 'required|array',
-        ]);
+        $validated = $this->validateReorderPayload($request, 'flash_sale_sort_order');
+        $firstOrder = is_array($validated['orders']) && !empty($validated['orders']) ? array_values($validated['orders'])[0] : null;
+        if (is_array($firstOrder)) {
+            $mappedOrders = [];
+            foreach ($validated['orders'] as $item) {
+                $mappedOrders[$item['id']] = $item['sort_order'] ?? ($item['flash_sale_sort_order'] ?? ($item['order'] ?? 0));
+            }
+            $validated['orders'] = $mappedOrders;
+        }
 
         $this->productRepo->reorderFlashSale($validated['orders']);
 
@@ -1679,15 +2107,99 @@ class AdminController extends Controller
      */
     public function keunggulanUpdate(Request $request)
     {
-        $benefitsInput = $request->input('benefits');
-        $qualityInput = $request->input('quality');
+        $validated = $request->validate([
+            'benefits' => 'nullable|array',
+            'benefits.section_badge' => 'nullable|string|max:255',
+            'benefits.section_title' => 'nullable|string|max:255',
+            'benefits.section_subtitle' => 'nullable|string|max:1000',
+            'benefits.items' => 'nullable|array',
+            'benefits.items.*.id' => 'nullable|integer|min:1',
+            'benefits.items.*.title' => 'nullable|string|max:255',
+            'benefits.items.*.desc' => 'nullable|string|max:1000',
+            'benefits.items.*.description' => 'nullable|string|max:1000',
+            'benefits.items.*.subtitle' => 'nullable|string|max:1000',
+            'benefits.items.*.icon' => ['nullable', 'string', Rule::in(['grid', 'shield', 'clock', 'truck'])],
+            'benefits.items.*.badge' => 'nullable|string|max:255',
 
-        if (is_array($benefitsInput)) {
-            $this->siteSettingRepo->set('benefits', $benefitsInput);
+            'quality' => 'nullable|array',
+            'quality.section_badge' => 'nullable|string|max:255',
+            'quality.section_title' => 'nullable|string|max:255',
+            'quality.section_subtitle' => 'nullable|string|max:1000',
+            'quality.items' => 'nullable|array',
+            'quality.items.*.id' => 'nullable|integer|min:1',
+            'quality.items.*.name' => 'nullable|string|max:255',
+            'quality.items.*.title' => 'nullable|string|max:255',
+            'quality.items.*.tag' => 'nullable|string|max:255',
+            'quality.items.*.badge' => 'nullable|string|max:255',
+            'quality.items.*.desc' => 'nullable|string|max:1000',
+            'quality.items.*.description' => 'nullable|string|max:1000',
+            'quality.items.*.icon' => ['nullable', 'string', Rule::in(['grid', 'shield', 'clock', 'truck'])],
+            'quality.items.*.features' => 'nullable|array',
+            'quality.items.*.features.*' => 'nullable|string|max:255',
+        ]);
+
+        if (array_key_exists('benefits', $validated) && is_array($validated['benefits'])) {
+            $rawBenefits = $validated['benefits'];
+            $cleanBenefits = [
+                'section_badge' => isset($rawBenefits['section_badge']) && $rawBenefits['section_badge'] !== null ? trim((string) $rawBenefits['section_badge']) : null,
+                'section_title' => isset($rawBenefits['section_title']) && $rawBenefits['section_title'] !== null ? trim((string) $rawBenefits['section_title']) : null,
+                'section_subtitle' => isset($rawBenefits['section_subtitle']) && $rawBenefits['section_subtitle'] !== null ? trim((string) $rawBenefits['section_subtitle']) : null,
+                'items' => [],
+            ];
+
+            if (isset($rawBenefits['items']) && is_array($rawBenefits['items'])) {
+                foreach ($rawBenefits['items'] as $idx => $item) {
+                    if (!is_array($item)) {
+                        continue;
+                    }
+                    $cleanBenefits['items'][] = [
+                        'id' => isset($item['id']) ? (int) $item['id'] : ($idx + 1),
+                        'title' => isset($item['title']) ? trim((string) $item['title']) : '',
+                        'desc' => isset($item['desc']) ? trim((string) $item['desc']) : (isset($item['description']) ? trim((string) $item['description']) : (isset($item['subtitle']) ? trim((string) $item['subtitle']) : '')),
+                        'icon' => in_array($item['icon'] ?? '', ['grid', 'shield', 'clock', 'truck'], true) ? $item['icon'] : 'grid',
+                        'badge' => isset($item['badge']) && $item['badge'] !== null ? trim((string) $item['badge']) : null,
+                    ];
+                }
+            }
+
+            $this->siteSettingRepo->set('benefits', $cleanBenefits);
         }
 
-        if (is_array($qualityInput)) {
-            $this->siteSettingRepo->set('quality_standards', $qualityInput);
+        if (array_key_exists('quality', $validated) && is_array($validated['quality'])) {
+            $rawQuality = $validated['quality'];
+            $cleanQuality = [
+                'section_badge' => isset($rawQuality['section_badge']) && $rawQuality['section_badge'] !== null ? trim((string) $rawQuality['section_badge']) : null,
+                'section_title' => isset($rawQuality['section_title']) && $rawQuality['section_title'] !== null ? trim((string) $rawQuality['section_title']) : null,
+                'section_subtitle' => isset($rawQuality['section_subtitle']) && $rawQuality['section_subtitle'] !== null ? trim((string) $rawQuality['section_subtitle']) : null,
+                'items' => [],
+            ];
+
+            if (isset($rawQuality['items']) && is_array($rawQuality['items'])) {
+                foreach ($rawQuality['items'] as $idx => $item) {
+                    if (!is_array($item)) {
+                        continue;
+                    }
+                    $features = [];
+                    if (isset($item['features']) && is_array($item['features'])) {
+                        foreach ($item['features'] as $f) {
+                            if (is_string($f) && trim($f) !== '') {
+                                $features[] = trim($f);
+                            }
+                        }
+                    }
+
+                    $cleanQuality['items'][] = [
+                        'id' => isset($item['id']) ? (int) $item['id'] : ($idx + 1),
+                        'name' => isset($item['name']) ? trim((string) $item['name']) : (isset($item['title']) ? trim((string) $item['title']) : ''),
+                        'tag' => isset($item['tag']) ? trim((string) $item['tag']) : (isset($item['badge']) ? trim((string) $item['badge']) : ''),
+                        'desc' => isset($item['desc']) ? trim((string) $item['desc']) : (isset($item['description']) ? trim((string) $item['description']) : ''),
+                        'features' => $features,
+                        'icon' => in_array($item['icon'] ?? '', ['grid', 'shield', 'clock', 'truck'], true) ? $item['icon'] : null,
+                    ];
+                }
+            }
+
+            $this->siteSettingRepo->set('quality_standards', $cleanQuality);
         }
 
         if ($request->wantsJson() || $request->ajax()) {
@@ -1941,9 +2453,15 @@ class AdminController extends Controller
      */
     public function knowledgeCategoryReorder(Request $request)
     {
-        $validated = $request->validate([
-            'orders' => 'required|array',
-        ]);
+        $validated = $this->validateReorderPayload($request);
+        $firstOrder = is_array($validated['orders']) && !empty($validated['orders']) ? array_values($validated['orders'])[0] : null;
+        if (!is_array($firstOrder)) {
+            $mappedOrders = [];
+            foreach ($validated['orders'] as $id => $order) {
+                $mappedOrders[] = ['id' => (int) $id, 'sort_order' => (int) $order];
+            }
+            $validated['orders'] = $mappedOrders;
+        }
 
         $this->knowledgeRepo->reorderCategories($validated['orders']);
 
@@ -2122,9 +2640,15 @@ class AdminController extends Controller
      */
     public function knowledgeArticleReorder(Request $request)
     {
-        $validated = $request->validate([
-            'orders' => 'required|array',
-        ]);
+        $validated = $this->validateReorderPayload($request);
+        $firstOrder = is_array($validated['orders']) && !empty($validated['orders']) ? array_values($validated['orders'])[0] : null;
+        if (!is_array($firstOrder)) {
+            $mappedOrders = [];
+            foreach ($validated['orders'] as $id => $order) {
+                $mappedOrders[] = ['id' => (int) $id, 'sort_order' => (int) $order];
+            }
+            $validated['orders'] = $mappedOrders;
+        }
 
         $this->knowledgeRepo->reorderArticles($validated['orders']);
 
@@ -2244,17 +2768,269 @@ class AdminController extends Controller
     {
         $validated = $request->validate([
             'location' => 'nullable|array',
+            'location.section' => 'nullable|array',
+            'location.section.badge' => 'nullable|string|max:255',
+            'location.section.title' => 'nullable|string|max:255',
+            'location.section.subtitle' => 'nullable|string|max:1000',
+            'location.outlet' => 'nullable|array',
+            'location.outlet.name' => 'nullable|string|max:255',
+            'location.outlet.tagline' => 'nullable|string|max:255',
+            'location.outlet.status_badge' => 'nullable|string|max:255',
+            'location.address' => 'nullable|array',
+            'location.address.street' => 'nullable|string|max:255',
+            'location.address.district' => 'nullable|string|max:255',
+            'location.address.city' => 'nullable|string|max:255',
+            'location.address.province' => 'nullable|string|max:255',
+            'location.address.postal_code' => 'nullable|string|max:20',
+            'location.address.country_code' => 'nullable|string|max:10',
+            'location.address.full' => 'nullable|string|max:1000',
+            'location.coordinates' => 'nullable|array',
+            'location.coordinates.latitude' => 'nullable|numeric|between:-90,90',
+            'location.coordinates.longitude' => 'nullable|numeric|between:-180,180',
+            'location.operational_hours' => 'nullable|array',
+            'location.operational_hours.timezone' => 'nullable|string|max:50',
+            'location.operational_hours.display' => 'nullable|string|max:255',
+            'location.operational_hours.days' => 'nullable|array',
+            'location.operational_hours.days.*.day' => 'nullable|string|max:50',
+            'location.operational_hours.days.*.open' => 'nullable|string|max:20',
+            'location.operational_hours.days.*.close' => 'nullable|string|max:20',
+            'location.operational_hours.days.*.closed' => 'nullable|boolean',
+            'location.delivery_note' => 'nullable|string|max:500',
+            'location.contact_key' => 'nullable|string|max:50',
+            'location.contact_id' => 'nullable|string|max:50',
+            'location.phone' => 'nullable|string|max:50',
+            'location.maps' => 'nullable|array',
+            'location.maps.link' => 'nullable|string|max:2048',
+            'location.maps.embed' => 'nullable|string|max:2048',
+            'location.maps.button_text' => 'nullable|string|max:255',
+            'location.maps.map_title' => 'nullable|string|max:255',
+            'location.maps.map_location_tag' => 'nullable|string|max:255',
+
             'actual_footer' => 'nullable|array',
+            'actual_footer.brand_name' => 'nullable|string|max:255',
+            'actual_footer.brand_title' => 'nullable|string|max:255',
+            'actual_footer.tagline' => 'nullable|string|max:500',
+            'actual_footer.description' => 'nullable|string|max:1000',
+            'actual_footer.brand_desc' => 'nullable|string|max:1000',
+            'actual_footer.outlet_title' => 'nullable|string|max:255',
+            'actual_footer.outlet_address' => 'nullable|string|max:1000',
+            'actual_footer.outlet_hours_label' => 'nullable|string|max:255',
+            'actual_footer.outlet_hours' => 'nullable|string|max:255',
+            'actual_footer.outlet_phone_label' => 'nullable|string|max:255',
+            'actual_footer.outlet_phone' => 'nullable|string|max:50',
+            'actual_footer.outlet_email' => 'nullable|string|max:255',
+            'actual_footer.nav_title' => 'nullable|string|max:255',
+            'actual_footer.category_title' => 'nullable|string|max:255',
+            'actual_footer.copyright' => 'nullable|string|max:255',
+            'actual_footer.social_links' => 'nullable|array',
+            'actual_footer.social_links.*.id' => 'nullable|integer|min:1',
+            'actual_footer.social_links.*.platform' => 'nullable|string|max:50',
+            'actual_footer.social_links.*.url' => 'nullable|string|max:2048',
+            'actual_footer.social_links.*.icon' => 'nullable|string|max:50',
+            'actual_footer.nav_links' => 'nullable|array',
+            'actual_footer.nav_links.*.id' => 'nullable|integer|min:1',
+            'actual_footer.nav_links.*.label' => 'nullable|string|max:255',
+            'actual_footer.nav_links.*.title' => 'nullable|string|max:255',
+            'actual_footer.nav_links.*.url' => 'nullable|string|max:2048',
+            'actual_footer.category_links' => 'nullable|array',
+            'actual_footer.category_links.*.id' => 'nullable|integer|min:1',
+            'actual_footer.category_links.*.label' => 'nullable|string|max:255',
+            'actual_footer.category_links.*.name' => 'nullable|string|max:255',
+            'actual_footer.category_links.*.url' => 'nullable|string|max:2048',
+            'actual_footer.legal_links' => 'nullable|array',
+            'actual_footer.legal_links.*.id' => 'nullable|integer|min:1',
+            'actual_footer.legal_links.*.label' => 'nullable|string|max:255',
+            'actual_footer.legal_links.*.title' => 'nullable|string|max:255',
+            'actual_footer.legal_links.*.url' => 'nullable|string|max:2048',
+
             'footer' => 'nullable|array',
+            'footer.brand_name' => 'nullable|string|max:255',
+            'footer.brand_title' => 'nullable|string|max:255',
+            'footer.tagline' => 'nullable|string|max:500',
+            'footer.description' => 'nullable|string|max:1000',
+            'footer.brand_desc' => 'nullable|string|max:1000',
+            'footer.outlet_title' => 'nullable|string|max:255',
+            'footer.outlet_address' => 'nullable|string|max:1000',
+            'footer.outlet_hours_label' => 'nullable|string|max:255',
+            'footer.outlet_hours' => 'nullable|string|max:255',
+            'footer.outlet_phone_label' => 'nullable|string|max:255',
+            'footer.outlet_phone' => 'nullable|string|max:50',
+            'footer.outlet_email' => 'nullable|string|max:255',
+            'footer.nav_title' => 'nullable|string|max:255',
+            'footer.category_title' => 'nullable|string|max:255',
+            'footer.copyright' => 'nullable|string|max:255',
+            'footer.social_links' => 'nullable|array',
+            'footer.social_links.*.id' => 'nullable|integer|min:1',
+            'footer.social_links.*.platform' => 'nullable|string|max:50',
+            'footer.social_links.*.url' => 'nullable|string|max:2048',
+            'footer.social_links.*.icon' => 'nullable|string|max:50',
+            'footer.nav_links' => 'nullable|array',
+            'footer.nav_links.*.id' => 'nullable|integer|min:1',
+            'footer.nav_links.*.label' => 'nullable|string|max:255',
+            'footer.nav_links.*.title' => 'nullable|string|max:255',
+            'footer.nav_links.*.url' => 'nullable|string|max:2048',
+            'footer.category_links' => 'nullable|array',
+            'footer.category_links.*.id' => 'nullable|integer|min:1',
+            'footer.category_links.*.label' => 'nullable|string|max:255',
+            'footer.category_links.*.name' => 'nullable|string|max:255',
+            'footer.category_links.*.url' => 'nullable|string|max:2048',
+            'footer.legal_links' => 'nullable|array',
+            'footer.legal_links.*.id' => 'nullable|integer|min:1',
+            'footer.legal_links.*.label' => 'nullable|string|max:255',
+            'footer.legal_links.*.title' => 'nullable|string|max:255',
+            'footer.legal_links.*.url' => 'nullable|string|max:2048',
         ]);
 
-        if (isset($validated['location'])) {
-            $this->siteSettingRepo->set('location', $validated['location']);
+        if (isset($validated['location']) && is_array($validated['location'])) {
+            $rawLoc = $validated['location'];
+            $cleanDays = [];
+            if (isset($rawLoc['operational_hours']['days']) && is_array($rawLoc['operational_hours']['days'])) {
+                foreach ($rawLoc['operational_hours']['days'] as $d) {
+                    if (!is_array($d)) {
+                        continue;
+                    }
+                    $cleanDays[] = [
+                        'day' => $d['day'] ?? null,
+                        'open' => $d['open'] ?? null,
+                        'close' => $d['close'] ?? null,
+                        'closed' => isset($d['closed']) ? (bool) $d['closed'] : null,
+                    ];
+                }
+            }
+
+            $cleanLocation = [
+                'section' => [
+                    'badge' => $rawLoc['section']['badge'] ?? null,
+                    'title' => $rawLoc['section']['title'] ?? null,
+                    'subtitle' => $rawLoc['section']['subtitle'] ?? null,
+                ],
+                'outlet' => [
+                    'name' => $rawLoc['outlet']['name'] ?? null,
+                    'tagline' => $rawLoc['outlet']['tagline'] ?? null,
+                    'status_badge' => $rawLoc['outlet']['status_badge'] ?? null,
+                ],
+                'address' => [
+                    'street' => $rawLoc['address']['street'] ?? null,
+                    'district' => $rawLoc['address']['district'] ?? null,
+                    'city' => $rawLoc['address']['city'] ?? null,
+                    'province' => $rawLoc['address']['province'] ?? null,
+                    'postal_code' => $rawLoc['address']['postal_code'] ?? null,
+                    'country_code' => $rawLoc['address']['country_code'] ?? null,
+                    'full' => $rawLoc['address']['full'] ?? null,
+                ],
+                'coordinates' => [
+                    'latitude' => isset($rawLoc['coordinates']['latitude']) ? (float) $rawLoc['coordinates']['latitude'] : null,
+                    'longitude' => isset($rawLoc['coordinates']['longitude']) ? (float) $rawLoc['coordinates']['longitude'] : null,
+                ],
+                'operational_hours' => [
+                    'timezone' => $rawLoc['operational_hours']['timezone'] ?? null,
+                    'display' => $rawLoc['operational_hours']['display'] ?? null,
+                    'days' => $cleanDays,
+                ],
+                'delivery_note' => $rawLoc['delivery_note'] ?? null,
+                'contact_key' => $rawLoc['contact_key'] ?? ($rawLoc['contact_id'] ?? null),
+                'phone' => $rawLoc['phone'] ?? null,
+                'maps' => [
+                    'link' => isset($rawLoc['maps']['link']) ? $this->sanitizeExternalUrl($rawLoc['maps']['link']) : null,
+                    'embed' => isset($rawLoc['maps']['embed']) ? $this->sanitizeMapsEmbedUrl($rawLoc['maps']['embed']) : null,
+                    'button_text' => $rawLoc['maps']['button_text'] ?? null,
+                    'map_title' => $rawLoc['maps']['map_title'] ?? null,
+                    'map_location_tag' => $rawLoc['maps']['map_location_tag'] ?? null,
+                ],
+            ];
+
+            $this->siteSettingRepo->set('location', $cleanLocation);
         }
 
         $footerPayload = $validated['actual_footer'] ?? ($validated['footer'] ?? null);
-        if ($footerPayload !== null) {
-            $this->siteSettingRepo->set('footer', $footerPayload);
+        if ($footerPayload !== null && is_array($footerPayload)) {
+            $cleanSocial = [];
+            if (isset($footerPayload['social_links']) && is_array($footerPayload['social_links'])) {
+                foreach ($footerPayload['social_links'] as $idx => $soc) {
+                    if (!is_array($soc)) {
+                        continue;
+                    }
+                    $cleanSocial[] = [
+                        'id' => isset($soc['id']) ? (int) $soc['id'] : ($idx + 1),
+                        'platform' => isset($soc['platform']) ? (string) $soc['platform'] : null,
+                        'url' => isset($soc['url']) ? ($this->sanitizeExternalUrl($soc['url']) ?? '') : '',
+                        'icon' => isset($soc['icon']) ? (string) $soc['icon'] : null,
+                    ];
+                }
+            }
+
+            $cleanNav = [];
+            if (isset($footerPayload['nav_links']) && is_array($footerPayload['nav_links'])) {
+                foreach ($footerPayload['nav_links'] as $idx => $nav) {
+                    if (!is_array($nav)) {
+                        continue;
+                    }
+                    $navTitle = isset($nav['title']) ? (string) $nav['title'] : (isset($nav['label']) ? (string) $nav['label'] : '');
+                    $cleanNav[] = [
+                        'id' => isset($nav['id']) ? (int) $nav['id'] : ($idx + 1),
+                        'title' => $navTitle,
+                        'label' => $navTitle,
+                        'url' => isset($nav['url']) ? $this->sanitizeNavigationUrl($nav['url'], '#') : '#',
+                    ];
+                }
+            }
+
+            $cleanCategory = [];
+            if (isset($footerPayload['category_links']) && is_array($footerPayload['category_links'])) {
+                foreach ($footerPayload['category_links'] as $idx => $cat) {
+                    if (!is_array($cat)) {
+                        continue;
+                    }
+                    $catTitle = isset($cat['title']) ? (string) $cat['title'] : (isset($cat['label']) ? (string) $cat['label'] : (isset($cat['name']) ? (string) $cat['name'] : ''));
+                    $cleanCategory[] = [
+                        'id' => isset($cat['id']) ? (int) $cat['id'] : ($idx + 1),
+                        'title' => $catTitle,
+                        'label' => $catTitle,
+                        'name' => $catTitle,
+                        'url' => isset($cat['url']) ? $this->sanitizeNavigationUrl($cat['url'], '#produk') : '#produk',
+                    ];
+                }
+            }
+
+            $cleanLegal = [];
+            if (isset($footerPayload['legal_links']) && is_array($footerPayload['legal_links'])) {
+                foreach ($footerPayload['legal_links'] as $idx => $legal) {
+                    if (!is_array($legal)) {
+                        continue;
+                    }
+                    $legalTitle = isset($legal['title']) ? (string) $legal['title'] : (isset($legal['label']) ? (string) $legal['label'] : '');
+                    $cleanLegal[] = [
+                        'id' => isset($legal['id']) ? (int) $legal['id'] : ($idx + 1),
+                        'title' => $legalTitle,
+                        'label' => $legalTitle,
+                        'url' => isset($legal['url']) ? $this->sanitizeNavigationUrl($legal['url'], '#') : '#',
+                    ];
+                }
+            }
+
+            $cleanFooter = [
+                'brand_name' => $footerPayload['brand_name'] ?? ($footerPayload['brand_title'] ?? null),
+                'brand_title' => $footerPayload['brand_title'] ?? ($footerPayload['brand_name'] ?? null),
+                'tagline' => $footerPayload['tagline'] ?? null,
+                'description' => $footerPayload['description'] ?? ($footerPayload['brand_desc'] ?? null),
+                'brand_desc' => $footerPayload['brand_desc'] ?? ($footerPayload['description'] ?? null),
+                'outlet_title' => $footerPayload['outlet_title'] ?? null,
+                'outlet_address' => $footerPayload['outlet_address'] ?? null,
+                'outlet_hours_label' => $footerPayload['outlet_hours_label'] ?? 'Jam Operasional:',
+                'outlet_hours' => $footerPayload['outlet_hours'] ?? null,
+                'outlet_phone_label' => $footerPayload['outlet_phone_label'] ?? 'Hotline Pemesanan:',
+                'outlet_phone' => $footerPayload['outlet_phone'] ?? null,
+                'outlet_email' => $footerPayload['outlet_email'] ?? null,
+                'nav_title' => $footerPayload['nav_title'] ?? null,
+                'category_title' => $footerPayload['category_title'] ?? null,
+                'copyright' => $footerPayload['copyright'] ?? null,
+                'social_links' => $cleanSocial,
+                'nav_links' => $cleanNav,
+                'category_links' => $cleanCategory,
+                'legal_links' => $cleanLegal,
+            ];
+
+            $this->siteSettingRepo->set('footer', $cleanFooter);
         }
 
         if ($request->wantsJson() || $request->ajax()) {
@@ -2415,9 +3191,15 @@ class AdminController extends Controller
      */
     public function reviewReorder(Request $request)
     {
-        $validated = $request->validate([
-            'orders' => 'required|array',
-        ]);
+        $validated = $this->validateReorderPayload($request);
+        $firstOrder = is_array($validated['orders']) && !empty($validated['orders']) ? array_values($validated['orders'])[0] : null;
+        if (is_array($firstOrder)) {
+            $mappedOrders = [];
+            foreach ($validated['orders'] as $item) {
+                $mappedOrders[$item['id']] = $item['sort_order'] ?? ($item['order'] ?? 0);
+            }
+            $validated['orders'] = $mappedOrders;
+        }
 
         $this->reviewRepo->reorder($validated['orders']);
 
@@ -2655,7 +3437,15 @@ class AdminController extends Controller
         ]);
 
         $existingSeo = $this->siteSettingRepo->get('seo', config('seo', []));
-        $mergedSeo = array_merge($existingSeo, $validated['seo']);
+        $seoInput = $validated['seo'];
+        if (array_key_exists('canonical_url', $seoInput)) {
+            $seoInput['canonical_url'] = $this->sanitizeExternalUrl($seoInput['canonical_url']);
+        }
+        if (array_key_exists('og_image', $seoInput)) {
+            $seoInput['og_image'] = $this->sanitizeImageUrl($seoInput['og_image']);
+        }
+
+        $mergedSeo = array_merge($existingSeo, $seoInput);
 
         $this->siteSettingRepo->set('seo', $mergedSeo);
 
@@ -2761,7 +3551,31 @@ class AdminController extends Controller
         ]);
 
         $existingSettings = $this->siteSettingRepo->get('site', config('site', []));
-        $mergedSettings = array_replace_recursive($existingSettings, $validated['site']);
+        $siteInput = $validated['site'];
+
+        if (isset($siteInput['brand']['logo_url'])) {
+            $siteInput['brand']['logo_url'] = $this->sanitizeImageUrl($siteInput['brand']['logo_url']);
+        }
+        if (isset($siteInput['brand']['favicon_url'])) {
+            $siteInput['brand']['favicon_url'] = $this->sanitizeImageUrl($siteInput['brand']['favicon_url']);
+        }
+        if (isset($siteInput['website']['url'])) {
+            $siteInput['website']['url'] = $this->sanitizeExternalUrl($siteInput['website']['url']);
+        }
+        if (isset($siteInput['social']['instagram'])) {
+            $siteInput['social']['instagram'] = $this->sanitizeExternalUrl($siteInput['social']['instagram']);
+        }
+        if (isset($siteInput['social']['tiktok'])) {
+            $siteInput['social']['tiktok'] = $this->sanitizeExternalUrl($siteInput['social']['tiktok']);
+        }
+        if (isset($siteInput['social']['facebook'])) {
+            $siteInput['social']['facebook'] = $this->sanitizeExternalUrl($siteInput['social']['facebook']);
+        }
+        if (isset($siteInput['admin_user']['avatar_image'])) {
+            $siteInput['admin_user']['avatar_image'] = $this->sanitizeImageUrl($siteInput['admin_user']['avatar_image']);
+        }
+
+        $mergedSettings = array_replace_recursive($existingSettings, $siteInput);
 
         if (isset($validated['site']['contacts']) && is_array($validated['site']['contacts'])) {
             $mergedSettings['contacts'] = $validated['site']['contacts'];

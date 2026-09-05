@@ -87,36 +87,35 @@ class AuthController extends Controller
     }
 
     /**
-     * Send a password reset link to the given user.
+     * Send a password reset link to the single administrator account.
      */
     public function sendResetLinkEmail(Request $request)
     {
-        $request->validate([
-            'email' => ['required', 'string', 'email'],
-        ]);
-
-        $normalizedEmail = strtolower(trim((string) $request->input('email')));
-        $throttleKey = 'forgot-password|' . Str::transliterate($normalizedEmail . '|' . $request->ip());
+        $throttleKey = 'forgot-password|' . $request->ip();
 
         if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             
             return back()->withErrors([
-                'email' => "Terlalu banyak permintaan reset kata sandi. Silakan tunggu {$seconds} detik.",
-            ])->onlyInput('email')->setStatusCode(429);
+                'rate_limit' => "Terlalu banyak permintaan reset kata sandi. Silakan tunggu {$seconds} detik.",
+            ])->setStatusCode(429);
         }
 
         RateLimiter::hit($throttleKey, 60);
 
-        // Send reset link via Laravel Password Broker (fault-tolerant if table not yet migrated)
+        // Send reset link via Laravel Password Broker for single admin
         try {
-            Password::sendResetLink(['email' => $normalizedEmail]);
+            $admin = User::first();
+
+            if ($admin && !empty($admin->email)) {
+                Password::sendResetLink(['email' => $admin->email]);
+            }
         } catch (\Throwable $e) {
-            // Silently handle error or table missing to maintain enumeration safety
+            // Silently handle error or mail failure to maintain enumeration safety and fault tolerance
         }
 
         // Generic response for email enumeration protection
-        return back()->with('status', 'Jika email Anda terdaftar dalam sistem, tautan pemulihan kata sandi telah dikirim ke kotak masuk email Anda.');
+        return back()->with('status', 'Tautan pemulihan kata sandi telah dikirim ke email administrator.');
     }
 
     /**
@@ -130,37 +129,42 @@ class AuthController extends Controller
 
         return view('auth.reset-password', [
             'token' => $token,
-            'email' => $request->query('email', ''),
         ]);
     }
 
     /**
-     * Reset the user's password.
+     * Reset the single administrator's password.
      */
     public function resetPassword(Request $request)
     {
-        if ($request->has('email')) {
-            $request->merge([
-                'email' => strtolower(trim((string) $request->input('email')))
-            ]);
-        }
-
         $request->validate([
             'token' => ['required', 'string'],
-            'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], [
             'token.required' => 'Token reset kata sandi tidak valid.',
-            'email.required' => 'Email wajib diisi.',
-            'email.email' => 'Format email tidak valid.',
             'password.required' => 'Password baru wajib diisi.',
             'password.min' => 'Password baru minimal 8 karakter.',
             'password.confirmed' => 'Konfirmasi password tidak sesuai.',
         ]);
 
         try {
+            $admin = User::first();
+
+            if (!$admin || empty($admin->email)) {
+                return back()->withErrors([
+                    'password' => 'Akun administrator tidak ditemukan.',
+                ]);
+            }
+
+            $credentials = [
+                'email' => $admin->email,
+                'password' => $request->input('password'),
+                'password_confirmation' => $request->input('password_confirmation'),
+                'token' => $request->input('token'),
+            ];
+
             $status = Password::reset(
-                $request->only('email', 'password', 'password_confirmation', 'token'),
+                $credentials,
                 function (User $user, string $password) {
                     $user->forceFill([
                         'password' => Hash::make($password),
@@ -175,12 +179,12 @@ class AuthController extends Controller
             }
 
             return back()->withErrors([
-                'email' => 'Tautan pemulihan kata sandi tidak valid atau telah kedaluwarsa. Silakan ajukan permohonan baru.',
-            ])->onlyInput('email');
+                'password' => 'Tautan pemulihan kata sandi tidak valid atau telah kedaluwarsa. Silakan ajukan permohonan baru.',
+            ]);
         } catch (\Throwable $e) {
             return back()->withErrors([
-                'email' => 'Gagal memproses pemulihan kata sandi. Pastikan tabel password_reset_tokens sudah dimigrasi.',
-            ])->onlyInput('email');
+                'password' => 'Gagal memproses pemulihan kata sandi. Silakan coba beberapa saat lagi.',
+            ]);
         }
     }
 }

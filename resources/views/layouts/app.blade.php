@@ -134,7 +134,7 @@
     </script>
     @endif
 </head>
-<body class="bg-white text-brand-dark antialiased overflow-x-hidden selection:bg-brand-soft-green selection:text-brand-primary" x-data="{ mobileMenuOpen: false, scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)">
+<body class="bg-white text-brand-dark font-sans antialiased overflow-x-hidden selection:bg-brand-soft-green selection:text-brand-primary" x-data="{ mobileMenuOpen: false, scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)">
 
     <!-- Navigation Bar -->
     @include('components.navbar')

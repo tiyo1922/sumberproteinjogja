@@ -72,8 +72,8 @@
                 <h2 class="text-[22px] font-bold text-gray-900 tracking-tight leading-tight">
                     Lupa Kata Sandi
                 </h2>
-                <p class="text-xs sm:text-[13px] text-gray-500 mt-1 font-normal">
-                    Masukkan email akun administrator untuk menerima tautan pemulihan kata sandi.
+                <p class="text-xs sm:text-[13px] text-gray-500 mt-1 font-normal leading-relaxed">
+                    Tautan pemulihan kata sandi akan dikirimkan langsung ke alamat email administrator yang terdaftar di sistem.
                 </p>
             </div>
 
@@ -111,20 +111,12 @@
                   class="space-y-4">
                 @csrf
 
-                <!-- Email Input -->
-                <div>
-                    <label for="email" class="block text-xs font-semibold text-gray-700 mb-1.5">
-                        Email Administrator
-                    </label>
-                    <input id="email" 
-                           name="email" 
-                           type="email" 
-                           autocomplete="email" 
-                           required 
-                           autofocus
-                           value="{{ old('email') }}" 
-                           placeholder="nama@sumberproteinjogja.com"
-                           class="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all">
+                <!-- Informational Notice Box -->
+                <div class="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80 text-xs text-gray-600 flex items-start gap-2.5">
+                    <svg class="w-4 h-4 shrink-0 text-brand-primary mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span class="leading-relaxed">Klik tombol di bawah untuk memproses dan mengirimkan tautan pemulihan ke email administrator.</span>
                 </div>
 
                 <!-- Primary Submit Button -->
@@ -136,7 +128,7 @@
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span x-text="isSubmitting ? 'Mengirim Tautan...' : 'Kirim Link Reset'">Kirim Link Reset</span>
+                        <span x-text="isSubmitting ? 'Mengirim Tautan...' : 'Kirim Link Reset ke Email Admin'">Kirim Link Reset ke Email Admin</span>
                     </button>
                 </div>
             </form>
