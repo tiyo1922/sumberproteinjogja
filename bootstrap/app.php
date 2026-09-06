@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+        $middleware->web(prepend: [
+            \App\Http\Middleware\EnsureValidLicense::class,
+        ]);
         $middleware->encryptCookies(except: [
             '_sp_vid',
         ]);

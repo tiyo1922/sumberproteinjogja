@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\LicenseActivationController;
 
 // Customer Landing Page Routes
 Route::middleware([\App\Http\Middleware\TrackVisitorTraffic::class])->group(function () {
@@ -68,6 +69,11 @@ Route::get('/sitemap.xml', function () {
         'Content-Type' => 'application/xml; charset=UTF-8',
     ]);
 })->name('sitemap');
+
+
+// License Activation Routes (Pre-Login Gate)
+Route::get('/activate', [LicenseActivationController::class, 'show'])->name('license.activate');
+Route::post('/activate', [LicenseActivationController::class, 'activate'])->name('license.activate.submit');
 
 // Authentication Routes (Login & Logout)
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');

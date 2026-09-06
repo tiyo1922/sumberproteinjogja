@@ -5,6 +5,10 @@
 /storage/*.key
 /storage/pail
 /storage/app/*.json
+/storage/app/public/media/*
+/storage/app/public/partners/*
+/storage/app/public/*
+!/storage/app/public/.gitignore
 /storage/framework/cache/*
 /storage/framework/sessions/*
 /storage/framework/views/*
