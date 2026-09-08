@@ -154,9 +154,9 @@ window.adminSettingsManager = function(initialPayload) {
             this.contactModalOpen = true;
         },
 
-        openEditContactModal(index) {
+        openEditContactModal(contact, index) {
             this.contactEditingIndex = index;
-            const item = this.settings.contacts[index];
+            const item = contact || (this.settings.contacts && this.settings.contacts[index]) || {};
             this.contactForm = {
                 id: item.id || ('contact_' + Date.now()),
                 key: item.key || '',
