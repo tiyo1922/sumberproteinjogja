@@ -207,4 +207,84 @@ class LicenseStateServiceTest extends TestCase
         $this->assertArrayNotHasKey('secret_key', $state);
         $this->assertArrayNotHasKey('license_key', $state);
     }
+
+    public function test_mark_refresh_check_attempted_only_updates_timestamp(): void
+    {
+        $claims = TokenClaims::fromArray([
+            'jti' => 'tok_rca',
+            'iss' => 'https://license.katresnanku.com',
+            'aud' => 'SPJ22',
+            'sub' => 'SPJ22-****-****-****',
+            'dom' => 'localhost',
+            'iat' => 1700000000,
+            'nbf' => 1700000000,
+            'exp' => 1700604800,
+            'lic_exp' => 1731536000,
+            'customer' => null,
+        ]);
+
+        $this->service->saveActivationState($claims, 'tok.rca.sig');
+
+        $stateBefore = $this->service->getState();
+        $this->assertArrayNotHasKey('last_refresh_check_at', $stateBefore);
+
+        $this->service->markRefreshCheckAttempted();
+
+        $stateAfter = $this->service->getState();
+
+        // Only last_refresh_check_at should be new/changed
+        $this->assertArrayHasKey('last_refresh_check_at', $stateAfter);
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/',
+            $stateAfter['last_refresh_check_at']
+        );
+
+        // Critical: these MUST remain unchanged
+        $this->assertSame('ACTIVE', $stateAfter['status']);
+        $this->assertSame('tok.rca.sig', $stateAfter['token']);
+        $this->assertSame('tok_rca', $stateAfter['jti']);
+        $this->assertSame(1700604800, $stateAfter['token_expires_at']);
+        $this->assertSame(1731536000, $stateAfter['license_expires_at']);
+    }
+
+    public function test_reload_state_from_db_bypasses_memory_cache(): void
+    {
+        $claims = TokenClaims::fromArray([
+            'jti' => 'tok_reload_orig',
+            'iss' => 'https://license.katresnanku.com',
+            'aud' => 'SPJ22',
+            'sub' => 'SPJ22-****-****-****',
+            'dom' => 'localhost',
+            'iat' => 1700000000,
+            'nbf' => 1700000000,
+            'exp' => 1700604800,
+            'lic_exp' => 1731536000,
+            'customer' => null,
+        ]);
+
+        $this->service->saveActivationState($claims, 'tok.reload.original');
+
+        // Confirm cache is primed
+        $cached = $this->service->getState();
+        $this->assertSame('tok.reload.original', $cached['token']);
+
+        // Simulate another process writing a newer token directly to DB
+        // (bypassing this service instance's memoryCache)
+        $newState = array_merge($cached, [
+            'token' => 'tok.reload.newer',
+            'jti' => 'tok_reload_newer',
+        ]);
+        SiteSetting::set('license_state', $newState);
+
+        // getState() still returns stale cache
+        $this->assertSame('tok.reload.original', $this->service->getState()['token']);
+
+        // reloadStateFromDb() must return the fresh DB value
+        $fresh = $this->service->reloadStateFromDb();
+        $this->assertNotNull($fresh);
+        $this->assertSame('tok.reload.newer', $fresh['token']);
+
+        // And subsequent getState() must now return the reloaded value too
+        $this->assertSame('tok.reload.newer', $this->service->getState()['token']);
+    }
 }

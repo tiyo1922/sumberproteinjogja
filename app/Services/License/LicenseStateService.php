@@ -209,4 +209,64 @@ class LicenseStateService
         SiteSetting::where('key', self::SETTING_KEY)->delete();
         $this->memoryCache = null;
     }
+
+    /**
+     * Record that an online refresh check was attempted at this instant.
+     *
+     * This method ONLY updates the `last_refresh_check_at` metadata field.
+     * It MUST NOT modify: status, token, jti, token_expires_at, license_expires_at.
+     * Safe to call even when the refresh outcome is not yet known.
+     */
+    public function markRefreshCheckAttempted(): void
+    {
+        $existing = $this->getState();
+        if ($existing === null) {
+            return;
+        }
+
+        $existing['last_refresh_check_at'] = gmdate('Y-m-d\TH:i:s\Z');
+        SiteSetting::set(self::SETTING_KEY, $existing);
+        $this->memoryCache = $existing;
+    }
+
+    /**
+     * Force-reload license state directly from persistent database storage,
+     * bypassing the in-process memory cache.
+     *
+     * Use ONLY for race-condition recovery (e.g. TOKEN_SUPERSEDED): a
+     * concurrent request may have already persisted a newer token generation
+     * that the current memoryCache does not reflect.
+     *
+     * After this call, memoryCache is replaced with the freshly loaded state.
+     *
+     * @return array{
+     *     status?: string,
+     *     domain?: string,
+     *     key_masked?: string,
+     *     token?: string,
+     *     jti?: string,
+     *     token_expires_at?: int,
+     *     license_expires_at?: ?int,
+     *     customer?: string|array|null,
+     *     activated_at?: string,
+     *     last_verified_at?: string,
+     *     last_refresh_check_at?: string
+     * }|null
+     */
+    public function reloadStateFromDb(): ?array
+    {
+        // Intentionally bypass memoryCache
+        try {
+            $state = SiteSetting::get(self::SETTING_KEY, null);
+            if (is_array($state) && !empty($state['token'])) {
+                $this->memoryCache = $state;
+                return $state;
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $this->memoryCache = null;
+        return null;
+    }
 }
